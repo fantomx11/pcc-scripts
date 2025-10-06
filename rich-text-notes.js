@@ -1,4 +1,4 @@
-(function() {
+javascript: (function() {
     // Initialized outside of the main function to hold state and be accessible by other functions if needed.
     let subjectPrefixGlobal = null;
     let appendCode = () => {
@@ -13,14 +13,14 @@
 
     /**
      * Parses a string for repeat sections and variables.
-     * [ ... parseTemplateContent is unchanged ... ]
      */
     function parseTemplateContent(templateString) {
         const variables = [];
         const sections = [];
         let variableMatch;
         const repeatRegex = /\{\{(repeat):([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/;
-        let repeatMatch, remainingString = templateString;
+        let repeatMatch,
+            remainingString = templateString;
 
         for (; repeatMatch = repeatRegex.exec(remainingString);) {
             const section = {
@@ -56,13 +56,12 @@
 
     /**
      * Creates and displays the template filling dialog.
-     * [ ... showTemplateDialog is unchanged ... ]
      */
     function showTemplateDialog(parsedTemplateBlocks, templateConfig) {
         const dialog = document.createElement("dialog");
         dialog.style.cssText = `
             /* Legacy Window Style */
-            border: 1px solid #7F9DB9; 
+            border: 1px solid #7F9DB9;
             border-radius: 0;
             padding: 0;
             box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.4);
@@ -74,18 +73,18 @@
         `;
         dialog.innerHTML = `
             <div style="
-                padding: 12px; 
-                position: relative; 
+                padding: 12px;
+                position: relative;
                 background-color: #EBEBEB;
                 border-bottom: 1px solid #C0C0C0;
             ">
                 <button class="close-button" style="
-                    position: absolute; 
-                    top: 6px; 
-                    right: 6px; 
-                    font-size: 16px; 
-                    cursor: pointer; 
-                    background: none; 
+                    position: absolute;
+                    top: 6px;
+                    right: 6px;
+                    font-size: 16px;
+                    cursor: pointer;
+                    background: none;
                     border: 1px outset #C0C0C0;
                     width: 20px;
                     height: 20px;
@@ -106,10 +105,10 @@
         }) => {
             const form = document.createElement("form");
             form.style.cssText = `
-                padding: 12px; 
+                padding: 12px;
                 border: 1px solid #C0C0C0;
-                border-radius: 0; 
-                margin: 12px; 
+                border-radius: 0;
+                margin: 12px;
                 background-color: #F0F0F0;
             `;
 
@@ -146,10 +145,10 @@
                 let textarea = div.appendChild(document.createElement("textarea"));
                 textarea.name = variableName;
                 textarea.style.cssText = `
-                    width: 100%; 
-                    padding: 3px; 
+                    width: 100%;
+                    padding: 3px;
                     border: 1px solid #7F9DB9;
-                    border-radius: 0; 
+                    border-radius: 0;
                     box-sizing: border-box;
                     font-size: 11px;
                 `;
@@ -163,18 +162,22 @@
                 if (section.type === "repeat") {
                     sectionDiv.innerHTML = `<h3 style="font-weight: bold; font-size: 12px; margin-bottom: 8px;">${section.label} (Repeating)</h3>`;
 
-                    const addButton = document.createElement("button");
+                    // Using a span instead of a button to prevent global event conflicts
+                    const addButton = document.createElement("span"); 
                     addButton.textContent = "Add Item";
-                    addButton.type = "button";
+                    addButton.setAttribute("role", "button");
                     addButton.style.cssText = `
-                        background-color: #E0E0E0; 
-                        color: #000; 
-                        padding: 2px 8px; 
-                        border: 1px outset #C0C0C0; 
-                        border-radius: 0; 
-                        font-size: 11px; 
-                        margin-top: 6px; 
+                        /* Styled to look like a button */
+                        display: inline-block;
+                        background-color: #E0E0E0;
+                        color: #000;
+                        padding: 2px 8px;
+                        border: 1px outset #C0C0C0;
+                        border-radius: 0;
+                        font-size: 11px;
+                        margin-top: 6px;
                         cursor: pointer;
+                        user-select: none;
                     `;
 
                     const repeatItemsContainer = document.createElement("div");
@@ -184,7 +187,10 @@
                     sectionDiv.appendChild(addButton);
                     form.appendChild(sectionDiv);
 
-                    addButton.addEventListener("click", (() => {
+                    addButton.addEventListener("click", ((event) => {
+                        event.stopPropagation(); // Prevent bubbling 
+                        event.preventDefault(); // Prevent default if role="button" is mistaken for a submit
+
                         const itemDiv = document.createElement("div");
                         itemDiv.style.cssText = "padding: 6px; border: 1px solid #D0D0D0; background-color: #F8F8F8;";
 
@@ -266,17 +272,22 @@
             dialog.querySelector("div:first-child").appendChild(form);
         });
 
-        const insertButton = document.createElement("button");
+        // Using a span instead of a button to prevent global event conflicts
+        const insertButton = document.createElement("span"); 
+        insertButton.setAttribute("role", "button");
         insertButton.style.cssText = `
-            background-color: #E0E0E0; 
-            color: #000; 
-            padding: 4px 12px; 
-            border: 1px outset #C0C0C0; 
-            border-radius: 0; 
-            margin: 12px; 
-            font-size: 11px; 
+            /* Styled to look like a button */
+            display: inline-block;
+            background-color: #E0E0E0;
+            color: #000;
+            padding: 4px 12px;
+            border: 1px outset #C0C0C0;
+            border-radius: 0;
+            margin: 12px;
+            font-size: 11px;
             cursor: pointer;
             font-weight: bold;
+            user-select: none;
         `;
         insertButton.textContent = "Insert Template";
 
@@ -291,6 +302,8 @@
 
         insertButton.addEventListener("click", (event) => {
             event.preventDefault();
+            event.stopPropagation(); // Prevent bubbling 
+
             var finalOutput = templateBlockGenerators.reduce((accumulator, generator) => accumulator + generator(), "");
 
             if (templateConfig && templateConfig.subjectPrefix !== undefined) {
@@ -354,7 +367,6 @@
 
     /**
      * Attempts to find and manipulate the host application's iframe/modal container.
-     * [ ... setupHostEnvironment is unchanged ... ]
      */
     const setupHostEnvironment = function() {
         const wrapper = document.getElementById("RadWindowWrapper_ctl00_ContentPlaceHolder1_RadWindow_Common");
@@ -389,7 +401,7 @@
         const style = iframeDoc.createElement("style");
         style.textContent = `
             .rwTable {
-                height: 100% !important; 
+                height: 100% !important;
                 width: 100%;
                 border-collapse: collapse;
             }
@@ -420,7 +432,7 @@
                     const sibling = element.previousSibling;
                     if (!sibling) return true;
                     if (sibling.nodeType !== 1) return false;
-                    
+
                     const display = win.getComputedStyle(sibling).display;
                     return display === "block" || display === "flex" || display === "grid" || sibling.nodeName === "BR";
                 }
@@ -459,7 +471,7 @@
                     }
                     return htmlString;
                 }
-                
+
                 // Helper to update the character counter's text and color
                 function updateCharCounter(textarea, counterElement) {
                     const count = textarea.value.length;
@@ -541,19 +553,19 @@
                     #editable-wrapper, #source-wrapper {
                         display: flex;
                         flex-direction: column;
-                        flex-grow: 1; 
-                        min-width: 0; 
-                        /* --- CHANGE 1: Set flex-basis to ensure equal width --- */
+                        flex-grow: 1;
+                        min-width: 0;
+                        /* Set flex-basis to ensure equal width */
                         flex-basis: 50%;
                     }
                     /* Styling for the original textarea, now used as source */
                     #TemplateSource {
-                        height: 100%; 
+                        height: 100%;
                         min-height: 400px;
                         font-family: Consolas, monospace;
                         font-size: 11px;
-                        resize: none; 
-                        padding: 4px; 
+                        resize: none;
+                        padding: 4px;
                         border: 1px inset #C0C0C0;
                         background-color: white;
                     }
@@ -573,7 +585,8 @@
                         background-color: #EBEBEB;
                         border-radius: 0;
                     }
-                    #custom-toolbar button {
+                    /* --- UPDATED: Use span instead of button to avoid global event conflicts --- */
+                    #custom-toolbar .custom-cmd-btn {
                         background-color: #EBEBEB;
                         border: 1px outset #C0C0C0;
                         cursor: pointer;
@@ -584,8 +597,10 @@
                         margin: 0 1px;
                         border-radius: 0;
                         color: #000;
+                        display: inline-block; /* Treat as block/inline-block for spacing/padding */
+                        user-select: none; /* Prevent selection when clicking */
                     }
-                    #custom-toolbar button:active {
+                    #custom-toolbar .custom-cmd-btn:active {
                         border: 1px inset #C0C0C0;
                         background-color: #D0D0D0;
                     }
@@ -594,7 +609,7 @@
                         overflow-y: auto;
                         padding: 4px;
                         min-height: 350px;
-                        outline: none; 
+                        outline: none;
                         font-family: Tahoma, Verdana, Segoe, sans-serif;
                         font-size: 11px;
                     }
@@ -602,7 +617,7 @@
                     td {
                         height: 1px;
                     }
-                    
+
                     #template-controls {
                         display: flex;
                         align-items: center;
@@ -630,7 +645,7 @@
                         background-repeat: no-repeat;
                         background-position: 0 -88px;
                     }
-                    /* --- CHANGE 2: Styling for the Character Counter --- */
+                    /* Styling for the Character Counter */
                     #char-counter {
                         font-size: 10px;
                         margin-top: 4px;
@@ -639,7 +654,7 @@
                 `;
                 doc.head.appendChild(customStyle);
 
-                // --- NEW HTML: Character Counter Added ---
+                // --- NEW HTML: Replaced buttons with spans ---
                 const newRow = doc.createElement("tr");
                 newRow.innerHTML = `
                     <td style="vertical-align: top; font-size: 11px; font-weight: bold; padding: 8px;">Template/Editor:</td>
@@ -654,19 +669,19 @@
                                 <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">Formatted Note</label>
                                 <div id="editor-container">
                                     <div id="custom-toolbar">
-                                        <button data-cmd="bold" title="Bold">B</button>
-                                        <button data-cmd="italic" title="Italic">I</button>
-                                        <button data-cmd="underline" title="Underline">U</button>
-                                        <button data-cmd="insertUnorderedList" title="Unordered List">&#x2022;</button>
-                                        <button data-cmd="insertOrderedList" title="Ordered List">1.</button>
-                                        <button data-cmd="insertHorizontalRule" title="Horizontal Rule">—</button>
-                                        <button data-cmd="indent" title="Increase Indent">&gt;&gt;</button>
-                                        <button data-cmd="outdent" title="Decrease Indent">&lt;&lt;</button>
+                                        <span class="custom-cmd-btn" data-cmd="bold" title="Bold">B</span>
+                                        <span class="custom-cmd-btn" data-cmd="italic" title="Italic">I</span>
+                                        <span class="custom-cmd-btn" data-cmd="underline" title="Underline">U</span>
+                                        <span class="custom-cmd-btn" data-cmd="insertUnorderedList" title="Unordered List">&#x2022;</span>
+                                        <span class="custom-cmd-btn" data-cmd="insertOrderedList" title="Ordered List">1.</span>
+                                        <span class="custom-cmd-btn" data-cmd="insertHorizontalRule" title="Horizontal Rule">—</span>
+                                        <span class="custom-cmd-btn" data-cmd="indent" title="Increase Indent">&gt;&gt;</span>
+                                        <span class="custom-cmd-btn" data-cmd="outdent" title="Decrease Indent">&lt;&lt;</span>
                                     </div>
                                     <div id="editable-content" contenteditable="true"></div>
                                 </div>
                             </div>
-                            
+
                             <div id="source-wrapper">
                                 <label for="TemplateSource" style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">HTML Source Code</label>
                                 <div id="source-elements" style="display: flex; flex-direction: column; height: 100%; width: 100%;">
@@ -678,18 +693,25 @@
                 `;
 
                 originalRow.parentNode.replaceChild(newRow, originalRow);
-                
+
                 // Attach the original textarea and the character counter
                 const sourceElementsDiv = newRow.querySelector("#source-elements");
                 const charCounterElement = newRow.querySelector("#char-counter");
                 sourceElementsDiv.appendChild(originalTextarea);
-                
+
 
                 const toolbar = doc.getElementById("custom-toolbar");
-                Array.from(toolbar.querySelectorAll("button")).forEach((button) => {
-                    const command = button.getAttribute("data-cmd");
+                // *** UPDATED: Target the new .custom-cmd-btn spans ***
+                Array.from(toolbar.querySelectorAll(".custom-cmd-btn")).forEach((span) => { 
+                    const command = span.getAttribute("data-cmd");
                     if (command) {
-                        button.addEventListener("click", (() => {
+                        span.addEventListener("click", ((event) => {
+                            event.preventDefault(); // Stop default behavior
+                            event.stopPropagation(); // Stop event from bubbling up to host app 
+
+                            // FIX: Ensure the visual editor has the latest source before acting on it.
+                            updateEditorFromSource(); 
+
                             doc.execCommand(command, false, null);
                             doc.getElementById("editable-content").focus();
                             updateSourceFromEditor();
@@ -699,9 +721,9 @@
 
                 const editableContentDiv = doc.getElementById("editable-content");
                 updateEditorFromSource(); // Initial sync
-                
+
                 // Add event listeners for synchronization and character counting
-                editableContentDiv.addEventListener("input", updateSourceFromEditor); 
+                editableContentDiv.addEventListener("input", updateSourceFromEditor);
                 originalTextarea.addEventListener("input", updateEditorFromSource);
 
                 // Initial character count display
@@ -741,12 +763,12 @@
 
     /**
      * Parses a raw template string into a series of default and optional blocks.
-     * [ ... parseTemplateIntoBlocks is unchanged ... ]
      */
     function parseTemplateIntoBlocks(rawTemplateString) {
         const blocks = [];
         const optionalRegex = /\{\{(optional):([^}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g;
-        let optionalMatch, lastIndex = 0;
+        let optionalMatch,
+            lastIndex = 0;
 
         for (; optionalMatch = optionalRegex.exec(rawTemplateString);) {
             const precedingContent = rawTemplateString.substring(lastIndex, optionalMatch.index);
