@@ -1,18 +1,101 @@
 javascript:!function() {
+    // Helper function to copy text to clipboard
+    function copyTextToClipboard(text) {
+        // Use the modern navigator.clipboard API if available
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Optional: Provide visual feedback (e.g., alert or temporary status message)
+                console.log(`Copied Job Number: ${text}`);
+            }).catch(err => {
+                console.error("Could not copy text: ", err);
+                fallbackCopyTextToClipboard(text);
+            });
+        } else {
+            // Fallback for older browsers
+            fallbackCopyTextToClipboard(text);
+        }
+    }
+
+    // Fallback function for copying text
+    function fallbackCopyTextToClipboard(text) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";  // Avoid scrolling to bottom
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            const successful = document.execCommand("copy");
+            const msg = successful ? "successful" : "unsuccessful";
+            console.log("Fallback: Copying text command was " + msg);
+        } catch (err) {
+            console.error("Fallback: Oops, unable to copy", err);
+        }
+        document.body.removeChild(textArea);
+    }
+
     // Helper function to create a table cell
     function createTableCell(cellData) {
         const td = document.createElement("td");
         // cellData.background is the flag class (e.g., 'flag-critical')
         cellData.background && td.classList.add(cellData.background);
-        td.style.padding = "8px 4px"; 
+        td.style.padding = "8px 4px";
+        
+        // Add a class for specific column styling if needed
+        cellData.className && td.classList.add(cellData.className);
         
         let contentContainer = td;
 
-        // If a URL exists, make the content an anchor tag
-        cellData.color && (td.style.color = cellData.color);
-        cellData.url && (contentContainer = document.createElement("a"), contentContainer.href = cellData.url, contentContainer.target = "_blank", td.appendChild(contentContainer));
+        // Create a wrapper div to contain content and ensure padding is applied correctly
+        const wrapper = document.createElement("div");
+        wrapper.style.display = "flex";
+        wrapper.style.alignItems = "center";
+        wrapper.style.justifyContent = "space-between"; // Ensure content and potential button are spaced
+
+        // If a URL exists, make the content an anchor tag or use the wrapper for general content
+        cellData.color && (wrapper.style.color = cellData.color);
+
+        if (cellData.url) {
+            contentContainer = document.createElement("a");
+            contentContainer.href = cellData.url;
+            contentContainer.target = "_blank";
+            wrapper.appendChild(contentContainer);
+        } else if (cellData.isButton) {
+            // If it's a button cell, create the button element
+            const button = document.createElement("button");
+            button.innerText = cellData.text;
+            button.style.cursor = "pointer";
+            button.style.padding = "2px 6px";
+            button.style.border = "1px solid #ccc";
+            button.style.borderRadius = "3px";
+            button.style.fontSize = "small";
+            button.setAttribute("data-copy-text", cellData.copyText); // Store text to copy
+            contentContainer = button;
+            
+            // Attach the click event handler for the copy function
+            button.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent the row click event from firing
+                copyTextToClipboard(cellData.copyText);
+                // Optional: Simple visual confirmation
+                button.innerText = "Copied!";
+                setTimeout(() => {
+                    button.innerText = cellData.text; // Restore button text
+                }, 1000);
+            });
+            wrapper.appendChild(contentContainer);
+
+        } else {
+            // For regular text content
+            contentContainer = wrapper;
+        }
         
-        contentContainer.innerText = cellData.text;
+        // Set the text content (either to the <a> or the wrapper <div>)
+        if (!cellData.isButton) {
+            contentContainer.innerText = cellData.text;
+        }
+
+        td.appendChild(wrapper);
         return td
     }
 
@@ -156,6 +239,14 @@ javascript:!function() {
                 url: jobNumberUrl,
                 background: void 0 // Will be set in the rendering function for the list view
             },
+            // NEW: Column for the Copy Button
+            copyJobNumber: {
+                text: "Copy",
+                copyText: jobNumber, // The actual text to copy
+                isButton: true,
+                className: "copy-button-cell",
+                background: void 0
+            },
             xa: {
                 text: xactId.length > 0 ? "XactAnalysis" : "",
                 url: xactId.length > 0 ? `https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${xactId}` : void 0,
@@ -210,13 +301,12 @@ javascript:!function() {
                 foreman: f,
                 ...data
             }) => data)) : groupedJobs = allJobs.reduce(((accumulator, jobData) => {
-                const groupName = jobData[groupByKey],
-                    {
-                        estimator: est,
-                        supervisor: sup,
-                        foreman: man,
-                        ...rest
-                    } = jobData;
+                const groupName = jobData[groupByKey], {
+                    estimator: est,
+                    supervisor: sup,
+                    foreman: man,
+                    ...rest
+                } = jobData;
                 return accumulator[groupName] = accumulator[groupName] || [], accumulator[groupName].push(rest), accumulator
             }), {});
 
@@ -253,11 +343,11 @@ javascript:!function() {
                 const label = document.createElement("label");
                 label.style.marginRight = "10px", label.style.fontSize = "small", label.style.cursor = "pointer";
                 const radioInput = document.createElement("input");
-                radioInput.type = "radio", radioInput.name = "grouping", radioInput.value = key, radioInput.id = `group-${key}`, 
-                key === groupByKey && (radioInput.checked = !0),
-                radioInput.addEventListener("change", (event => {
-                    renderDashboard(event.target.value)
-                })), label.appendChild(radioInput), label.appendChild(document.createTextNode(groupKeyMap[key])), groupingButtonsDiv.appendChild(label)
+                radioInput.type = "radio", radioInput.name = "grouping", radioInput.value = key, radioInput.id = `group-${key}`,
+                    key === groupByKey && (radioInput.checked = !0),
+                    radioInput.addEventListener("change", (event => {
+                        renderDashboard(event.target.value)
+                    })), label.appendChild(radioInput), label.appendChild(document.createTextNode(groupKeyMap[key])), groupingButtonsDiv.appendChild(label)
             })), fixedControlsDiv.appendChild(groupingButtonsDiv);
 
             // Status Badge Button
@@ -279,10 +369,10 @@ javascript:!function() {
             statusBadgeButton.addEventListener("click", (event => {
                 statusDropdown.style.display = "none" === statusDropdown.style.display ? "block" : "none", event.stopPropagation()
             })),
-                // Close dropdown on outside click
-                document.addEventListener("click", (event => {
-                    fixedControlsDiv.contains(event.target) || (statusDropdown.style.display = "none")
-                })), fixedControlsDiv.appendChild(statusBadgeButton), fixedControlsDiv.appendChild(statusDropdown);
+            // Close dropdown on outside click
+            document.addEventListener("click", (event => {
+                fixedControlsDiv.contains(event.target) || (statusDropdown.style.display = "none")
+            })), fixedControlsDiv.appendChild(statusBadgeButton), fixedControlsDiv.appendChild(statusDropdown);
 
             // --- UI: MAIN DASHBOARD CONTAINER ---
             const mainDashboardContainer = document.createElement("div");
@@ -367,8 +457,8 @@ javascript:!function() {
 
             // --- UI: CUSTOM STYLES (CLEANED) ---
             const customStyles = document.createElement("style");
-            customStyles.innerHTML = ".flag-critical { background-color: #f8d7da !important; /* Critical: light red/pink */ }\n.flag-warning { background-color: #fff3cd !important; /* Warning: light yellow */ }\n.selected-row { background-color: #d1e7ff !important; font-weight: bold !important; }", 
-            document.head.appendChild(customStyles);
+            customStyles.innerHTML = ".flag-critical { background-color: #f8d7da !important; /* Critical: light red/pink */ }\n.flag-warning { background-color: #fff3cd !important; /* Warning: light yellow */ }\n.selected-row { background-color: #d1e7ff !important; font-weight: bold !important; }\n.copy-button-cell { width: 50px; text-align: right; }",
+                document.head.appendChild(customStyles);
 
             // --- UI: TABS AND LISTS ---
             const groupNames = Object.keys(groupedJobs).sort();
@@ -382,7 +472,7 @@ javascript:!function() {
                 const tabContentContainer = document.createElement("div");
                 tabContentContainer.id = `tab-content-${groupName.replace(/\s+/g,"-")}`, tabContentContainer.className = "tab-content-container", tabContentContainer.style.display = "none", tabContentContainer.style.flex = "1", tabContentContainer.style.display = "flex", tabContentContainer.style.gap = "20px";
 
-                // List 1: Job Number / Customer Name
+                // List 1: Customer Name / Job Number / Copy Button
                 const jobNumberListDiv = document.createElement("div");
                 jobNumberListDiv.id = `list-jobnumber-${groupName.replace(/\s+/g,"-")}`, jobNumberListDiv.style.flex = "1", jobNumberListDiv.style.overflowY = "auto", jobNumberListDiv.style.maxHeight = "100%";
                 const jobNumberTable = jobNumberListDiv.appendChild(document.createElement("table"));
@@ -390,15 +480,17 @@ javascript:!function() {
                     const row = jobNumberTable.insertRow();
                     row.style.cursor = "pointer";
                     // Add selected row class to allow selection highlight to work
-                    row.setAttribute("data-job-number", job.dash.text); 
-                    
+                    row.setAttribute("data-job-number", job.dash.text);
+
                     // FIXED: Pass the flag class to the createTableCell function so it lands on the <td>
-                    job.name.background = job.rowFlagClass; 
+                    job.name.background = job.rowFlagClass;
                     job.dash.background = job.rowFlagClass;
-                    
+                    job.copyJobNumber.background = job.rowFlagClass; // Apply flag to the new column as well
+
                     row.appendChild(createTableCell(job.name));
                     row.appendChild(createTableCell(job.dash));
-                    
+                    row.appendChild(createTableCell(job.copyJobNumber)); // NEW: Copy Button Column
+
                     row.addEventListener("click", (event => showDetails(job, event.currentTarget)));
                 }));
 
@@ -410,15 +502,15 @@ javascript:!function() {
                     const row = xactAnalysisTable.insertRow();
                     row.style.cursor = "pointer";
                     // Add selected row class to allow selection highlight to work
-                    row.setAttribute("data-job-number", job.dash.text); 
-                    
+                    row.setAttribute("data-job-number", job.dash.text);
+
                     // FIXED: Pass the flag class to the createTableCell function so it lands on the <td>
                     job.name.background = job.rowFlagClass;
                     job.xa.background = job.rowFlagClass;
 
                     row.appendChild(createTableCell(job.name));
                     row.appendChild(createTableCell(job.xa));
-                    
+
                     row.addEventListener("click", (event => showDetails(job, event.currentTarget)));
                 })), tabContentContainer.appendChild(jobNumberListDiv), tabContentContainer.appendChild(xactAnalysisListDiv), jobListsContainer.appendChild(tabContentContainer)
             }));
