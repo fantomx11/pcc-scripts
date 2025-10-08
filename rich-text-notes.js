@@ -1,4 +1,4 @@
-javascript: (function() {
+(function() {
     // Initialized outside of the main function to hold state and be accessible by other functions if needed.
     let subjectPrefixGlobal = null;
     let appendCode = () => {
@@ -362,6 +362,11 @@ javascript: (function() {
             text: "Status Update",
             subjectPrefix: "Project Status",
             code: "<b>Weekly Project Update [Date]</b><br>{{optional:b}}<br><b>This Week’s Activities:</b><br><ul>{{repeat:This week's activities}}<li>[This Week's Activity]</li>{{/repeat}}</ul>{{/optional}}{{optional:c}}<br><b>Activities for Next Week:</b><ul>{{repeat:Next week's activities}}<li>[Next Week's Activity]</li>{{/repeat}}</ul>{{/optional}}{{optional:a}}<br><b>Issues/Risks:</b><ul>{{repeat:Issues/Risks}}<li>[Issue]</li>{{/repeat}}</ul>{{/optional}}"
+        },
+        "site-visit": {
+            text: "Site Visit",
+            subjectPrefix: "Site Visit",
+            code: "<b>Site Visit Report</b><br><b>Purpose:</b> [Purpose of Visit]{{optional:a}}<br><br><b>Observations:</b><br><ul>{{repeat:Observations}}<li>[Observation Detail]</li>{{/repeat}}</ul>{{//optional}}"
         }
     };
 
