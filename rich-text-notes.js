@@ -481,7 +481,7 @@
                 function updateCharCounter(textarea, counterElement) {
                     const count = textarea.value.length;
                     counterElement.textContent = `Character Count: ${count}`;
-                    if (count > 2500) {
+                    if (count > 3800) {
                         counterElement.style.color = 'red';
                         counterElement.style.fontWeight = 'bold';
                     } else {
