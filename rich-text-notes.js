@@ -478,13 +478,23 @@
                 }
 
                 // Helper to update the character counter's text and color
-                function updateCharCounter(textarea, counterElement) {
+                function updateCharCounter(textarea, counterElement, limit) {
                     const count = textarea.value.length;
-                    counterElement.textContent = `Character Count: ${count}`;
-                    if (count > 3800) {
-                        counterElement.style.color = 'red';
-                        counterElement.style.fontWeight = 'bold';
+                    
+                    // Only display the limit and apply color if LIMIT is a finite number
+                    if (limit !== Infinity) {
+                        counterElement.textContent = `Character Count: ${count} / ${limit}`;
+                        
+                        if (count > limit) {
+                            counterElement.style.color = 'red';
+                            counterElement.style.fontWeight = 'bold';
+                        } else {
+                            counterElement.style.color = '#333';
+                            counterElement.style.fontWeight = 'normal';
+                        }
                     } else {
+                        // Private note: Do not show a limit, and keep the color normal
+                        counterElement.textContent = `Character Count: ${count}`;
                         counterElement.style.color = '#333';
                         counterElement.style.fontWeight = 'normal';
                     }
@@ -503,7 +513,7 @@
                     }
                 };
 
-                const updateSourceFromEditor = function() {
+/*                const updateSourceFromEditor = function() {
                     const sourceTextarea = doc.getElementById("TemplateSource");
                     const editableContent = doc.getElementById("editable-content");
                     const counter = doc.getElementById("char-counter");
@@ -516,7 +526,41 @@
                         updateCharCounter(sourceTextarea, counter);
                     }
                 };
-
+*/
+                const updateSourceFromEditor = function() {
+                    const sourceTextarea = doc.getElementById("TemplateSource");
+                    const editableContent = doc.getElementById("editable-content");
+                    const counter = doc.getElementById("char-counter");
+                    
+                    // --- Determine the Limit based on Visibility ---
+                    const visibilityInput = doc.querySelector('input[name="AddNotesUserControl$VisibilityControl$radCombo_ObjectOwnershipType"]');
+                    const isPublic = visibilityInput && visibilityInput.value === "Public";
+                    
+                    // Limit is 3700 for public notes, and Infinity for all others (no limit).
+                    const LIMIT = isPublic ? 3700 : Infinity;
+                    
+                    if (sourceTextarea && editableContent) {
+                        var cleanedHtml = cleanHtml([...editableContent.childNodes]);
+                        
+                        // --- Truncation Logic ---
+                        // This check is only true if LIMIT is 3700 AND the length is over.
+                        if (cleanedHtml.length > LIMIT) {
+                            // Cut the string at the new limit
+                            cleanedHtml = cleanedHtml.substring(0, LIMIT);
+                        }
+                        
+                        // --- Sync ---
+                        if (sourceTextarea.value !== cleanedHtml) {
+                            sourceTextarea.value = cleanedHtml;
+                        }
+                    }
+                    
+                    if (sourceTextarea && counter) {
+                        // Pass the dynamic limit to the counter update function
+                        updateCharCounter(sourceTextarea, counter, LIMIT); 
+                    }
+                };
+                
                 updateEditor = updateEditorFromSource;
                 updateCode = updateSourceFromEditor;
 
