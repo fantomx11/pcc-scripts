@@ -366,7 +366,7 @@
         "site-visit": {
             text: "Site Visit",
             subjectPrefix: "Site Visit",
-            code: "<b>Site Visit Report</b><br><b>Purpose:</b> [Purpose of Visit]{{optional:a}}<br><br><b>Observations:</b><br><ul>{{repeat:Observations}}<li>[Observation Detail]</li>{{/repeat}}</ul>{{//optional}}"
+            code: "<b>Site Visit Report</b><br><b>Purpose:</b> [Purpose of Visit]{{optional:a}}<br><br><b>Observations:</b><br><ul>{{repeat:Observations}}<li>[Observation Detail]</li>{{/repeat}}</ul>{{//optional:a}}"
         }
     };
 
