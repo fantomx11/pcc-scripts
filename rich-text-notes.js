@@ -431,7 +431,13 @@
             (function setupEditor(originalTextarea, doc, win) {
                 originalTextarea.id = "TemplateSource";
 
+                const toast = doc.createElement("div");
+                toast.id = "char-limit-warning";
+                toast.textContent = "WARNING: The note is too long and may be truncated, causing data loss. Please shorten the content.";
+                doc.body.appendChild(toast);
+
                 const subjectInput = doc.querySelector('input[name="AddNotesUserControl$SubjectLine"]');
+                const visibilityInput = doc.querySelector('input[name="AddNotesUserControl$VisibilityControl$radCombo_ObjectOwnershipType"]');
 
                 function isPreviousSiblingBlock(element) {
                     const sibling = element.previousSibling;
@@ -513,25 +519,15 @@
                     }
                 };
 
-/*                const updateSourceFromEditor = function() {
-                    const sourceTextarea = doc.getElementById("TemplateSource");
-                    const editableContent = doc.getElementById("editable-content");
-                    const counter = doc.getElementById("char-counter");
-
-                    if (sourceTextarea && editableContent && sourceTextarea.value !== editableContent.innerHTML) {
-                        var cleanedHtml = cleanHtml([...editableContent.childNodes]);
-                        sourceTextarea.value = cleanedHtml;
-                    }
-                    if (sourceTextarea && counter) {
-                        updateCharCounter(sourceTextarea, counter);
-                    }
-                };
-*/
                 const updateSourceFromEditor = function() {
                     const sourceTextarea = doc.getElementById("TemplateSource");
                     const editableContent = doc.getElementById("editable-content");
                     const counter = doc.getElementById("char-counter");
-                    
+                    const toast = doc.getElementById("char-limit-warning"); 
+    
+                    const submitButton1 = doc.getElementById("AddNotesUserControl_AddButton2");
+                    const submitButton2 = doc.getElementById("AddNotesUserControl_AddButton");
+    
                     // --- Determine the Limit based on Visibility ---
                     const visibilityInput = doc.querySelector('input[name="AddNotesUserControl$VisibilityControl$radCombo_ObjectOwnershipType"]');
                     const isPublic = visibilityInput && visibilityInput.value === "Public";
@@ -541,12 +537,28 @@
                     
                     if (sourceTextarea && editableContent) {
                         var cleanedHtml = cleanHtml([...editableContent.childNodes]);
+                        const currentLength = cleanedHtml.length; // Get length *after* cleaning                        
+
+                        // --- Limit Enforcement Logic ---
+                        const isOverLimit = currentLength > LIMIT;
                         
-                        // --- Truncation Logic ---
-                        // This check is only true if LIMIT is 3700 AND the length is over.
-                        if (cleanedHtml.length > LIMIT) {
-                            // Cut the string at the new limit
-                            cleanedHtml = cleanedHtml.substring(0, LIMIT);
+                        if (isOverLimit) {
+                            // 1. Show persistent toast
+                            if (toast) {
+                                toast.style.display = 'block';
+                            }
+                            // 2. Disable submit buttons
+                            if (submitButton1) submitButton1.disabled = true;
+                            if (submitButton2) submitButton2.disabled = true;
+                            
+                        } else {
+                            // 1. Hide persistent toast
+                            if (toast) {
+                                toast.style.display = 'none';
+                            }
+                            // 2. Enable submit buttons
+                            if (submitButton1) submitButton1.disabled = false;
+                            if (submitButton2) submitButton2.disabled = false;
                         }
                         
                         // --- Sync ---
@@ -700,6 +712,25 @@
                         margin-top: 4px;
                         text-align: right;
                     }
+
+                    /* Persistent Toast Notification */
+                    #char-limit-warning {
+                        position: fixed; /* Fixed relative to the iframe window */
+                        top: 20px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        padding: 8px 15px;
+                        background-color: #A00000; /* Dark Red Background */
+                        color: white;
+                        font-weight: bold;
+                        border: 2px solid #FFCCCC;
+                        border-radius: 4px;
+                        z-index: 10000; /* Ensure it is on top of everything */
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+                        display: none; /* Hidden by default */
+                        font-size: 14px;
+                        text-align: center;
+                    }                    
                 `;
                 doc.head.appendChild(customStyle);
 
@@ -770,6 +801,14 @@
 
                 const editableContentDiv = doc.getElementById("editable-content");
                 updateEditorFromSource(); // Initial sync
+
+                if (visibilityInput) {
+                    // Use 'change' event to detect when the user selects a new visibility option
+                    visibilityInput.addEventListener("change", updateSourceFromEditor);
+                    
+                    // Also run it on load to check the initial state
+                    updateSourceFromEditor();
+                }
 
                 // Add event listeners for synchronization and character counting
                 editableContentDiv.addEventListener("input", updateSourceFromEditor);
