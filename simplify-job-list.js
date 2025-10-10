@@ -179,7 +179,7 @@ javascript:!function() {
                 };
                 const lastNoteDate = new Date(dateText),
                     today = new Date,
-                    timeDifference = Math.abs(today - lastNoteDate),
+                    timeDifference = today - lastNoteDate,
                     daysDifference = Math.ceil(timeDifference / 864e5);
                 return daysDifference > 14 ? {
                     color: CRITICAL_FLAG_CLASS,
