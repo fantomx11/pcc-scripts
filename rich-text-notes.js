@@ -840,6 +840,7 @@
                     if (selectedKey) {
                         const templateData = templates[selectedKey];
                         const parsedBlocks = parseTemplateIntoBlocks(templateData.code);
+                        templateSelector.value = ""; 
                         showTemplateDialog(parsedBlocks, templateData);
                     }
                 }));
