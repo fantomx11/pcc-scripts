@@ -346,12 +346,12 @@
         "email-template": {
             text: "Email",
             subjectPrefix: null,
-            code: "<table><tbody><tr><td><b>from:</b></td><td>[from]</td></tr><tr><td><b>to:</b></td><td>[to]</td></tr>{{optional:b}}<tr><td><b>cc:</b></td><td>[cc]</td></tr>{{/optional}}{{optional:c}}<tr><td><b>sent:</b></td><td>[sent]</td></tr>{{/optional}}{{optional:a}}<tr><td><b>subject:</b></td><td>[subject]</td></tr>{{/optional}}</tbody></table><br>[body]"
+            code: "<table><tbody><tr><td><b>from:</b></td><td>[from]</td></tr><tr><td><b>to:</b></td><td>[to]</td></tr>{{optional:b}}<tr><td><b>cc:</b></td><td>[cc]</td></tr>{{/optional}}{{optional:c}}<tr><td><b>sent:</b></td><td>[sent]</td></tr>{{/optional}}{{oaptional:a}}<tr><td><b>subject:</b></td><td>[subject]</td></tr>{{/optional}}</tbody></table><br>[body]"
         },
-        "invoice-update": {
-            text: "Invoice Updated",
-            subjectPrefix: "Invoice Updated",
-            code: "<ul><li><b>Invoice amount updated to [New Invoice Amount]</b></li>{{optional:a}}{{repeat:Notes}}<li>[Note]</li>{{/repeat}}{{/optional}}</ul>{{optional:1}}<div><b>Scope Updates</b></div><ul>{{repeat:Scope Updates}}<li>[Scope Change]</li>{{/repeat}}</ul>{{/optional}}"
+        "estimate-update": {
+            text: "Estimate Updated",
+            subjectPrefix: "Estimate Updated",
+            code: "<ul><li><b>Estimate amount updated to [New Estimate Amount]</b></li>{{optional:Notes}}{{repeat:Notes}}<li>[Note]</li>{{/repeat}}{{/optional}}</ul>"
         },
         "initial-report": {
             text: "Initial Report",
@@ -367,6 +367,16 @@
             text: "Site Visit",
             subjectPrefix: "Site Visit",
             code: "<b>Site Visit Report</b><br><b>Purpose:</b> [Purpose of Visit]{{optional:a}}<br><br><b>Observations:</b><br><ul>{{repeat:Observations}}<li>[Observation Detail]</li>{{/repeat}}</ul>{{/optional}}"
+        },
+        "invoice-update": {
+            text: "Invoice Updated",
+            subjectPrefix: "Invoice Updated",
+            code: "Updated invoice to reconcile with estimate. Emailed to: [Email recipients]."
+        },
+        "check-received": {
+          test: "Check Received",
+          subjectPrefix: "Check received",
+          code: "Received check [Check number]. [Other notes]"
         }
     };
 
