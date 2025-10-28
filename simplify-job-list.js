@@ -128,15 +128,18 @@ javascript:!function() {
             totalCollected: headerCells.findIndex((cell => "Total Collected" === cell.textContent.trim())),
             totalEstimates: headerCells.findIndex((cell => "Total Estimates" === cell.textContent.trim())),
             totalInvoiced: headerCells.findIndex((cell => "Total Invoiced" === cell.textContent.trim())),
+            accountingPerson: headerCells.findIndex((cell => "Accounting Person" === cell.textContent.trim())),
             lastJournalNoteDate: headerCells.findIndex((cell => "Last Journal Note Event Date/Time" === cell.textContent.trim()))
         };
 
     // Check for required columns
-    if ([COL_INDEX.jobNumber, COL_INDEX.customer, COL_INDEX.estimator, COL_INDEX.xactId].some((index => -1 === index))) return alert("Could not find one or more required columns (Job Number, Customer, Estimator, Xact TransactionID).");
+    if ([COL_INDEX.jobNumber, COL_INDEX.customer, COL_INDEX.estimator, COL_INDEX.xactId].some((index => -1 === index)))
+        return alert("Could not find one or more required columns (Job Number, Customer, Estimator, Xact TransactionID).");
 
     const {
         supervisor: supervisorIndex,
         foreman: foremanIndex,
+        accountingPerson: accountingPersonIndex,
         jobStatus: jobStatusIndex,
         totalCollected: collectedIndex,
         totalEstimates: estimatesIndex,
@@ -149,6 +152,7 @@ javascript:!function() {
     const scrapedJobs = [...document.querySelectorAll("tr.rgRow, tr.rgAltRow")].map((tableRow => function(tableRow, colIndexes) {
         const cells = tableRow.querySelectorAll("td"),
             estimatorName = (cells[colIndexes.estimator].textContent.trim() || "Unassigned").replace(":", ""),
+            accountingPerson = (cells[colIndexes.accountingPerson].textContent.trim() || "Unassigned").replace(":", ""),
             supervisorName = -1 !== colIndexes.supervisor ? (cells[supervisorIndex].textContent.trim() || "Unassigned").replace(":", "") : "",
             foremanName = -1 !== colIndexes.foreman ? (cells[foremanIndex].textContent.trim() || "").replace(":", "") : "",
             // Use foreman name if present, otherwise use supervisor name
@@ -228,6 +232,7 @@ javascript:!function() {
             estimator: estimatorName,
             supervisor: supervisorName,
             foreman: assignedManager,
+            accountingPerson: accountingPerson,
             flagged: jobFlagLevel,
             rowFlagClass: 1 === jobFlagLevel ? WARNING_FLAG_CLASS : 2 === jobFlagLevel ? CRITICAL_FLAG_CLASS : void 0,
             name: {
@@ -333,11 +338,12 @@ javascript:!function() {
                 none: "None",
                 estimator: "Estimator",
                 supervisor: "Supervisor",
-                foreman: "Foreman"
+                foreman: "Foreman",
+                accountingPerson: "Accountant"
             };
 
             // Create radio buttons for grouping
-            ["none", "estimator", "supervisor", "foreman"].forEach((key => {
+            ["none", "estimator", "supervisor", "foreman", "accountingPerson"].forEach((key => {
                 // Skip if the column doesn't exist in the scraped table
                 if ("none" !== key && -1 === COL_INDEX[key]) return;
                 const label = document.createElement("label");
