@@ -374,7 +374,7 @@
             code: "Updated invoice to reconcile with estimate. Emailed to: [Email recipients]."
         },
         "check-received": {
-          test: "Check Received",
+          text: "Check Received",
           subjectPrefix: "Check received",
           code: "Received check [Check number]. [Other notes]"
         }
