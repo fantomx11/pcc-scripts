@@ -202,7 +202,8 @@ javascript:!function() {
             .delete-btn:hover { background: #c82333; }
         `;
         document.head.appendChild(style);
-
+        document.title = "Dashboard";
+        
         const main = document.createElement("div");
         Object.assign(main.style, { position: "fixed", inset: "2em", padding: "20px", background: "white", border: "1px solid #ccc", borderRadius: "8px", display: "flex", flexDirection: "column", fontFamily: "Arial", zIndex: "9999" });
 
