@@ -1,10 +1,8 @@
 javascript:!function() {
-    const STORAGE_KEY = "discrepancy_report_v2";
+    const STORAGE_KEY = "discrepancy_report_v5";
 
-    /* --- HELPERS --- */
     const parseCurrency = (text) => {
         if (!text) return 0;
-        // Removes $, commas, and handles accounting format (parentheses)
         const cleaned = text.replace(/[$, ]/g, "").replace(/\((.*)\)/, "-$1");
         return parseFloat(cleaned) || 0;
     };
@@ -12,7 +10,9 @@ javascript:!function() {
     function createTableCell(cellData) {
         const td = document.createElement("td");
         td.style.padding = "10px 8px";
-        td.style.borderBottom = "1px solid #ddd";
+        td.style.borderBottom = "1px solid rgba(0,0,0,0.05)";
+        if (cellData.bold) td.style.fontWeight = "bold";
+
         if (cellData.url) {
             const a = document.createElement("a");
             a.href = cellData.url;
@@ -27,9 +27,8 @@ javascript:!function() {
         return td;
     }
 
-    /* --- SCRAPER --- */
     const headerRow = document.querySelector(".rgHeaderWrapper thead tr");
-    if (!headerRow) return alert("Report header not found. Ensure the report is fully loaded.");
+    if (!headerRow) return alert("Report header not found.");
 
     const headerCells = [...headerRow.querySelectorAll("th")];
     const COL = {
@@ -39,9 +38,6 @@ javascript:!function() {
         inv: headerCells.findIndex(c => c.textContent.trim() === "Invoiced Subtotal")
     };
 
-    // Validation to ensure the column was actually found
-    if (COL.inv === -1) return alert("Could not find 'Invoiced Subtotal' column. Please check your report view.");
-
     const scrapedJobs = [...document.querySelectorAll("tr.rgRow, tr.rgAltRow")].map(row => {
         const cells = row.querySelectorAll("td");
         const rawEst = cells[COL.est]?.textContent.trim() || "";
@@ -49,14 +45,16 @@ javascript:!function() {
         
         const valEst = parseCurrency(rawEst);
         const valInv = parseCurrency(rawInv);
+        const diff = valEst - valInv;
 
-        /* Logic: Not empty AND not equal (allowing for 1 cent rounding diff) */
-        if (rawEst !== "" && Math.abs(valEst - valInv) > 0.01) {
+        if (rawEst !== "" && Math.abs(diff) > 0.01) {
             return {
                 job: cells[COL.jobNum]?.textContent.trim(),
                 url: cells[COL.jobNum].querySelector("a")?.href || "#",
                 estimate: rawEst,
                 invoice: rawInv,
+                difference: diff,
+                absDiff: Math.abs(diff),
                 status: cells[COL.status]?.textContent.trim() || "N/A"
             };
         }
@@ -65,7 +63,6 @@ javascript:!function() {
 
     window.scrapedAccumulator = (window.scrapedAccumulator || []).concat(scrapedJobs);
 
-    /* --- PAGING --- */
     const navPart = document.querySelector(".rgNumPart");
     const current = navPart?.querySelector(".rgCurrentPage");
     const next = current?.nextElementSibling;
@@ -73,63 +70,77 @@ javascript:!function() {
     if (next && next.tagName === "A") {
         next.click();
     } else {
-        renderDashboard(window.scrapedAccumulator);
+        const sortedData = window.scrapedAccumulator.sort((a, b) => b.absDiff - a.absDiff);
+        renderDashboard(sortedData);
     }
 
-    /* --- UI --- */
     function renderDashboard(data) {
         document.body.innerHTML = "";
-        document.title = "Discrepancy Dashboard";
         
         const main = document.createElement("div");
         Object.assign(main.style, { 
             position: "fixed", inset: "2em", padding: "25px", background: "white", 
             border: "1px solid #aaa", borderRadius: "12px", overflowY: "auto", 
-            fontFamily: "system-ui, -apple-system, sans-serif", zIndex: "9999",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.2)"
+            fontFamily: "system-ui, sans-serif", zIndex: "9999", boxShadow: "0 10px 25px rgba(0,0,0,0.2)"
         });
+
+        /* --- SUMMARY CALCULATIONS --- */
+        const totalUnder = data.filter(i => i.difference > 0).reduce((sum, i) => sum + i.difference, 0);
+        const totalOver = data.filter(i => i.difference < 0).reduce((sum, i) => sum + i.difference, 0);
 
         const header = document.createElement("div");
         header.style.marginBottom = "20px";
         header.innerHTML = `
-            <h2 style="margin:0">Discrepancy Report: ${data.length} Discrepancies Found</h2>
-            <p style="color: #666; margin-top: 5px;">Showing jobs where <b>Total Estimates</b> is populated but does not match <b>Invoiced Subtotal</b>.</p>
+            <h2 style="margin:0">Discrepancy Report: ${data.length} Items</h2>
+            <div style="display:flex; gap:20px; margin-top:10px; font-weight:bold;">
+                <span style="color:#1e7e34">Total Unbilled Estimate: ${totalUnder.toLocaleString('en-US', {style:'currency', currency:'USD'})}</span>
+                <span style="color:#bd2130">Total Over-Invoiced: ${Math.abs(totalOver).toLocaleString('en-US', {style:'currency', currency:'USD'})}</span>
+            </div>
         `;
         main.appendChild(header);
 
         const table = document.createElement("table");
         table.style.width = "100%";
-        table.style.borderCollapse = "collapse";
+        table.style.borderCollapse = "separate";
+        table.style.borderSpacing = "0 4px"; 
         table.innerHTML = `
-            <tr style="background: #f8f9fa; text-align: left; border-bottom: 2px solid #dee2e6;">
+            <tr style="background: #f8f9fa; text-align: left;">
                 <th style="padding: 12px 8px;">Job Number</th>
                 <th style="padding: 12px 8px;">Status</th>
                 <th style="padding: 12px 8px;">Total Estimates</th>
                 <th style="padding: 12px 8px;">Invoiced Subtotal</th>
+                <th style="padding: 12px 8px;">Difference</th>
             </tr>
         `;
 
         data.forEach(item => {
             const row = document.createElement("tr");
+            
+            /* Background Coloring Logic */
+            const isNegative = item.difference < 0;
+            row.style.backgroundColor = isNegative ? "#fff5f5" : "#f6fff6";
+            
             row.appendChild(createTableCell({ text: item.job, url: item.url }));
             row.appendChild(createTableCell({ text: item.status }));
             row.appendChild(createTableCell({ text: item.estimate }));
             row.appendChild(createTableCell({ text: item.invoice }));
+            
+            const diffText = (item.difference > 0 ? "+" : "") + item.difference.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            row.appendChild(createTableCell({ 
+                text: diffText, 
+                bold: true 
+            }));
+            
             table.appendChild(row);
         });
 
         main.appendChild(table);
 
-        const actions = document.createElement("div");
-        actions.style.marginTop = "30px";
-        
         const closeBtn = document.createElement("button");
-        closeBtn.innerText = "← Return to CRM";
+        closeBtn.innerText = "Close & Refresh CRM";
         closeBtn.onclick = () => location.reload();
-        closeBtn.style.cssText = "padding: 10px 20px; cursor: pointer; background: #6c757d; color: white; border: none; border-radius: 4px; font-weight: bold;";
-        
-        actions.appendChild(closeBtn);
-        main.appendChild(actions);
+        closeBtn.style.cssText = "margin-top: 20px; padding: 10px 24px; cursor: pointer; background: #333; color: white; border: none; border-radius: 6px; font-weight: 600;";
+        main.appendChild(closeBtn);
 
         document.body.appendChild(main);
     }
