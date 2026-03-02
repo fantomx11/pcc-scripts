@@ -238,6 +238,7 @@ javascript:!function() {
 
         controls.appendChild(groupContainer);
         controls.appendChild(toggleLabel);
+        controls.appendChild(clearStorageButton);
         document.body.appendChild(controls);
 
         const tabs = document.createElement("div");
