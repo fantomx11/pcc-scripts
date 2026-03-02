@@ -4,6 +4,7 @@ javascript:!function() {
     /* --- PERSISTENCE --- */
     const getStoredData = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
     const saveToStorage = (data) => localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const clearStoredData = () => localStorage.removeItem(STORAGE_KEY);
 
     /* --- UI HELPERS --- */
     function copyTextToClipboard(text) {
@@ -226,6 +227,14 @@ javascript:!function() {
         Object.assign(toggleLabel.style, { background: "#2196f3", color: "white", padding: "5px 10px", borderRadius: "5px", fontSize: "12px", cursor: "pointer" });
         toggleLabel.innerHTML = `<input type="checkbox" ${showClosed ? "checked" : ""}> Show Closed`;
         toggleLabel.onchange = (e) => renderDashboard(groupByKey, e.target.checked);
+
+        const clearStorageButton = document.createElement("button");
+        Object.assign(clearStorageButton.style, { background: "#2196f3", color: "white", padding: "5px 10px", borderRadius: "5px", fontSize: "12px", cursor: "pointer" });
+        clearStorageButton.innerHTML = "Clear Closed";
+        clearStorageButton.onclick = () => {
+            clearStoredData();
+            renderDashboard(groupByKey, false);
+        };
 
         controls.appendChild(groupContainer);
         controls.appendChild(toggleLabel);
