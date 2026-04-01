@@ -76,7 +76,7 @@ javascript:!function() {
             data.aging = getDaysSince(data.approved);
         }
 
-        data.needsWorkAuth = !data.workAuth || data.workAuth === "";
+        data.needsWorkAuth = (!data.workAuth || data.workAuth === "") && division !== "Warranty";
         data.needsDeductibleEntry = (division === "Structure" && dedFloat === 0);
         data.needsProcessing = (data.phase === "Process" && origEstFloat === 0);
 
