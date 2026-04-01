@@ -1,5 +1,5 @@
 javascript:!function() {
-    const STORAGE_KEY = "open_estimates_v7";
+    const STORAGE_KEY = "open_estimates_v8";
 
     /* --- HELPERS --- */
     const getDaysSince = (dateStr) => {
@@ -27,7 +27,8 @@ javascript:!function() {
         workAuth: findIdx(headerCells, "Date of Work Authorization"),
         deductible: findIdx(headerCells, "Deductible Amount"),
         division: findIdx(headerCells, "Division"),
-        origEstimate: findIdx(headerCells, "Original Estimate")
+        origEstimate: findIdx(headerCells, "Original Estimate"),
+        xactId: findIdx(headerCells, "Xact TransactionID")
     };
 
     const currentPageJobs = [...document.querySelectorAll("tr.rgRow, tr.rgAltRow")].map(row => {
@@ -41,6 +42,7 @@ javascript:!function() {
         const dedFloat = parseFloat(rawDeductible.replace(/[^0-9.-]+/g,"")) || 0;
         const rawOrigEst = getVal(COL.origEstimate);
         const origEstFloat = parseFloat(rawOrigEst.replace(/[^0-9.-]+/g,"")) || 0;
+        const xactId = getVal(COL.xactId);
 
         const data = {
             jobNumber: jobNum,
@@ -54,8 +56,10 @@ javascript:!function() {
             deductible: rawDeductible,
             division: division,
             origEstimate: rawOrigEst,
+            xactId: xactId,
             isWarranty: division === "Warranty",
-            url: cells[COL.jobNum]?.querySelector("a")?.href || "#"
+            url: cells[COL.jobNum]?.querySelector("a")?.href || "#",
+            xactUrl: xactId ? `https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${xactId}` : null
         };
 
         /* Phase Logic */
@@ -76,7 +80,7 @@ javascript:!function() {
             data.aging = getDaysSince(data.approved);
         }
 
-        data.needsWorkAuth = (!data.workAuth || data.workAuth === "") && division !== "Warranty";
+        data.needsWorkAuth = !data.workAuth || data.workAuth === "";
         data.needsDeductibleEntry = (division === "Structure" && dedFloat === 0);
         data.needsProcessing = (data.phase === "Process" && origEstFloat === 0);
 
@@ -115,10 +119,12 @@ javascript:!function() {
             .job-card.warning { border-left-color: #f39c12; }
             .job-card.danger { border-left-color: #e74c3c; }
             .aging-tag { position: absolute; top: 10px; right: 10px; font-weight: bold; color: #7f8c8d; font-size: 0.75em; }
-            .badge { display: inline-block; padding: 2px 5px; font-size: 9px; border-radius: 3px; margin-top: 5px; color: white; margin-right: 3px; font-weight: bold; }
+            .badge { display: inline-block; padding: 2px 5px; font-size: 9px; border-radius: 3px; margin-top: 5px; color: white; margin-right: 3px; font-weight: bold; text-decoration: none; }
             .badge-auth { background: #8e44ad; }
             .badge-deduct { background: #d35400; }
             .badge-process { background: #27ae60; }
+            .badge-xact { background: #3498db; cursor: pointer; }
+            .badge-xact:hover { background: #2980b9; }
             .sidebar { width: 260px; background: #f8f9fa; border-left: 1px solid #dee2e6; padding: 15px; overflow-y: auto; }
             .sidebar h4 { margin: 0 0 12px 0; font-size: 12px; border-bottom: 2px solid #3498db; padding-bottom: 5px; color: #34495e; }
             .sidebar-section { margin-bottom: 25px; }
@@ -159,7 +165,6 @@ javascript:!function() {
         const filtered = allJobs.filter(j => j.estimator === estimator);
         const phases = ["Inspection", "Estimate", "Approval", "Process"];
 
-        // Render Kanban Columns (Skipping Warranty)
         phases.forEach(p => {
             const col = document.createElement("div");
             col.className = "phase-col";
@@ -179,9 +184,12 @@ javascript:!function() {
                         <div class="aging-tag">${job.aging}d</div>
                         <div style="font-weight:bold; font-size: 12px;"><a href="${job.url}" target="_blank" style="text-decoration:none; color:#2980b9;">${job.jobNumber}</a></div>
                         <div style="font-size:11px; margin-top:2px;">${job.customer}</div>
-                        ${job.needsWorkAuth ? '<span class="badge badge-auth">NEED AUTH</span>' : ''}
-                        ${job.needsDeductibleEntry ? '<span class="badge badge-deduct">DEDUCT $0</span>' : ''}
-                        ${job.needsProcessing ? '<span class="badge badge-process">PROCESS</span>' : ''}
+                        <div style="margin-top: 5px;">
+                            ${job.xactUrl ? `<a href="${job.xactUrl}" target="_blank" class="badge badge-xact">XACT</a>` : ''}
+                            ${job.needsWorkAuth ? '<span class="badge badge-auth">NEED AUTH</span>' : ''}
+                            ${job.needsDeductibleEntry ? '<span class="badge badge-deduct">DEDUCT $0</span>' : ''}
+                            ${job.needsProcessing ? '<span class="badge badge-process">PROCESS</span>' : ''}
+                        </div>
                     `;
                     list.appendChild(card);
                 });
@@ -206,7 +214,6 @@ javascript:!function() {
             sidebar.appendChild(section);
         };
 
-        // Sidebar specialized lists
         createSidebarList("Warranty Jobs", filtered.filter(j => j.isWarranty), "#3498db");
         createSidebarList("Needs Processing", filtered.filter(j => j.needsProcessing), "#27ae60");
         createSidebarList("Needs Work Auth", filtered.filter(j => j.needsWorkAuth), "#8e44ad");
