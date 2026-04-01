@@ -1,5 +1,5 @@
 javascript:!function() {
-    const STORAGE_KEY = "open_estimates_v6";
+    const STORAGE_KEY = "open_estimates_v7";
 
     /* --- HELPERS --- */
     const getDaysSince = (dateStr) => {
@@ -36,9 +36,9 @@ javascript:!function() {
         const jobNum = getVal(COL.jobNum);
         if (!jobNum) return null;
 
+        const division = getVal(COL.division);
         const rawDeductible = getVal(COL.deductible);
         const dedFloat = parseFloat(rawDeductible.replace(/[^0-9.-]+/g,"")) || 0;
-        
         const rawOrigEst = getVal(COL.origEstimate);
         const origEstFloat = parseFloat(rawOrigEst.replace(/[^0-9.-]+/g,"")) || 0;
 
@@ -52,13 +52,17 @@ javascript:!function() {
             approved: getVal(COL.approved),
             workAuth: getVal(COL.workAuth),
             deductible: rawDeductible,
-            division: getVal(COL.division),
+            division: division,
             origEstimate: rawOrigEst,
+            isWarranty: division === "Warranty",
             url: cells[COL.jobNum]?.querySelector("a")?.href || "#"
         };
 
-        /* --- Updated Phase Logic --- */
-        if (!data.inspected) {
+        /* Phase Logic */
+        if (data.isWarranty) {
+            data.phase = "Warranty";
+            data.aging = getDaysSince(data.received);
+        } else if (!data.inspected) {
             data.phase = "Inspection";
             data.aging = getDaysSince(data.received);
         } else if (!data.sent) {
@@ -68,13 +72,12 @@ javascript:!function() {
             data.phase = "Approval";
             data.aging = getDaysSince(data.sent);
         } else {
-            // If approved but still on list (due to $0 estimate), it's in Process
             data.phase = "Process";
             data.aging = getDaysSince(data.approved);
         }
 
         data.needsWorkAuth = !data.workAuth || data.workAuth === "";
-        data.needsDeductibleEntry = (data.division === "Structure" && dedFloat === 0);
+        data.needsDeductibleEntry = (division === "Structure" && dedFloat === 0);
         data.needsProcessing = (data.phase === "Process" && origEstFloat === 0);
 
         return data;
@@ -105,8 +108,8 @@ javascript:!function() {
             .tab-btn { padding: 14px 20px; border: none; background: transparent; color: #95a5a6; cursor: pointer; border-bottom: 3px solid transparent; }
             .tab-btn.active { background: #34495e; color: #fff; border-bottom-color: #3498db; font-weight: bold; }
             .main-content { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; }
-            .phase-col { flex: 1; display: flex; flex-direction: column; background: #ebedef; border-radius: 6px; padding: 10px; min-width: 200px; }
-            .phase-col h3 { text-align: center; margin: 0 0 12px 0; color: #2c3e50; font-size: 0.8em; letter-spacing: 1px; }
+            .phase-col { flex: 1; display: flex; flex-direction: column; background: #ebedef; border-radius: 6px; padding: 10px; min-width: 180px; }
+            .phase-col h3 { text-align: center; margin: 0 0 12px 0; color: #2c3e50; font-size: 0.75em; letter-spacing: 1px; }
             .card-list { flex: 1; overflow-y: auto; }
             .job-card { background: #fff; padding: 10px; margin-bottom: 10px; border-radius: 4px; border-left: 5px solid #bdc3c7; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
             .job-card.warning { border-left-color: #f39c12; }
@@ -117,8 +120,8 @@ javascript:!function() {
             .badge-deduct { background: #d35400; }
             .badge-process { background: #27ae60; }
             .sidebar { width: 260px; background: #f8f9fa; border-left: 1px solid #dee2e6; padding: 15px; overflow-y: auto; }
-            .sidebar h4 { margin: 0 0 15px 0; font-size: 13px; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
-            .sidebar-section { margin-bottom: 20px; }
+            .sidebar h4 { margin: 0 0 12px 0; font-size: 12px; border-bottom: 2px solid #3498db; padding-bottom: 5px; color: #34495e; }
+            .sidebar-section { margin-bottom: 25px; }
             .sidebar-link { text-decoration: none; color: inherit; display: block; margin-bottom: 8px; }
             .sidebar-item { font-size: 11px; padding: 8px; background: #fff; border: 1px solid #eee; border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         `;
@@ -156,6 +159,7 @@ javascript:!function() {
         const filtered = allJobs.filter(j => j.estimator === estimator);
         const phases = ["Inspection", "Estimate", "Approval", "Process"];
 
+        // Render Kanban Columns (Skipping Warranty)
         phases.forEach(p => {
             const col = document.createElement("div");
             col.className = "phase-col";
@@ -163,7 +167,7 @@ javascript:!function() {
             const list = document.createElement("div");
             list.className = "card-list";
 
-            filtered.filter(j => j.phase === p)
+            filtered.filter(j => j.phase === p && !j.isWarranty)
                 .sort((a, b) => b.aging - a.aging)
                 .forEach(job => {
                     const card = document.createElement("div");
@@ -202,6 +206,8 @@ javascript:!function() {
             sidebar.appendChild(section);
         };
 
+        // Sidebar specialized lists
+        createSidebarList("Warranty Jobs", filtered.filter(j => j.isWarranty), "#3498db");
         createSidebarList("Needs Processing", filtered.filter(j => j.needsProcessing), "#27ae60");
         createSidebarList("Needs Work Auth", filtered.filter(j => j.needsWorkAuth), "#8e44ad");
         createSidebarList("Enter Deductible", filtered.filter(j => j.needsDeductibleEntry), "#d35400");
