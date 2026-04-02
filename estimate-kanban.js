@@ -1,5 +1,5 @@
 javascript:!function() {
-    const STORAGE_KEY = "open_estimates_v8";
+    const MANUAL_STORAGE_KEY = "manual_estimates_v8";
 
     /* --- HELPERS --- */
     const getDaysSince = (dateStr) => {
@@ -11,81 +11,55 @@ javascript:!function() {
     const findIdx = (headerCells, text) => 
         headerCells.findIndex(c => c.textContent.trim().toLowerCase() === text.toLowerCase());
 
+    const getManualJobs = () => JSON.parse(localStorage.getItem(MANUAL_STORAGE_KEY) || "[]");
+    const saveManualJobs = (jobs) => localStorage.setItem(MANUAL_STORAGE_KEY, JSON.stringify(jobs));
+
     /* --- SCRAPER --- */
     const headerRow = document.querySelector(".rgHeaderWrapper thead tr");
-    if (!headerRow) return alert("Report header not found.");
-    const headerCells = [...headerRow.querySelectorAll("th")];
-    
-    const COL = {
-        jobNum: findIdx(headerCells, "Job Number"),
-        customer: findIdx(headerCells, "Customer"),
-        estimator: findIdx(headerCells, "Estimator"),
-        received: findIdx(headerCells, "Date Received"),
-        inspected: findIdx(headerCells, "Date Inspected"),
-        sent: findIdx(headerCells, "Date Estimate Sent"),
-        approved: findIdx(headerCells, "Date Estimate Approved"),
-        workAuth: findIdx(headerCells, "Date of Work Authorization"),
-        deductible: findIdx(headerCells, "Deductible Amount"),
-        division: findIdx(headerCells, "Division"),
-        origEstimate: findIdx(headerCells, "Original Estimate"),
-        xactId: findIdx(headerCells, "Xact TransactionID")
-    };
+    let currentPageJobs = [];
 
-    const currentPageJobs = [...document.querySelectorAll("tr.rgRow, tr.rgAltRow")].map(row => {
-        const cells = row.querySelectorAll("td");
-        const getVal = (idx) => idx !== -1 ? cells[idx].textContent.trim() : "";
-        const jobNum = getVal(COL.jobNum);
-        if (!jobNum) return null;
-
-        const division = getVal(COL.division);
-        const rawDeductible = getVal(COL.deductible);
-        const dedFloat = parseFloat(rawDeductible.replace(/[^0-9.-]+/g,"")) || 0;
-        const rawOrigEst = getVal(COL.origEstimate);
-        const origEstFloat = parseFloat(rawOrigEst.replace(/[^0-9.-]+/g,"")) || 0;
-        const xactId = getVal(COL.xactId);
-
-        const data = {
-            jobNumber: jobNum,
-            customer: getVal(COL.customer),
-            estimator: getVal(COL.estimator) || "Unassigned",
-            received: getVal(COL.received),
-            inspected: getVal(COL.inspected),
-            sent: getVal(COL.sent),
-            approved: getVal(COL.approved),
-            workAuth: getVal(COL.workAuth),
-            deductible: rawDeductible,
-            division: division,
-            origEstimate: rawOrigEst,
-            xactId: xactId,
-            isWarranty: division === "Warranty",
-            url: cells[COL.jobNum]?.querySelector("a")?.href || "#",
-            xactUrl: xactId ? `https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${xactId}` : null
+    if (headerRow) {
+        const headerCells = [...headerRow.querySelectorAll("th")];
+        const COL = {
+            jobNum: findIdx(headerCells, "Job Number"),
+            customer: findIdx(headerCells, "Customer"),
+            estimator: findIdx(headerCells, "Estimator"),
+            received: findIdx(headerCells, "Date Received"),
+            inspected: findIdx(headerCells, "Date Inspected"),
+            sent: findIdx(headerCells, "Date Estimate Sent"),
+            approved: findIdx(headerCells, "Date Estimate Approved"),
+            workAuth: findIdx(headerCells, "Date of Work Authorization"),
+            deductible: findIdx(headerCells, "Deductible Amount"),
+            division: findIdx(headerCells, "Division"),
+            origEstimate: findIdx(headerCells, "Original Estimate"),
+            xactId: findIdx(headerCells, "Xact TransactionID")
         };
 
-        /* Phase Logic */
-        if (data.isWarranty) {
-            data.phase = "Warranty";
-            data.aging = getDaysSince(data.received);
-        } else if (!data.inspected) {
-            data.phase = "Inspection";
-            data.aging = getDaysSince(data.received);
-        } else if (!data.sent) {
-            data.phase = "Estimate";
-            data.aging = getDaysSince(data.inspected);
-        } else if (!data.approved || data.approved === "") {
-            data.phase = "Approval";
-            data.aging = getDaysSince(data.sent);
-        } else {
-            data.phase = "Process";
-            data.aging = getDaysSince(data.approved);
-        }
+        currentPageJobs = [...document.querySelectorAll("tr.rgRow, tr.rgAltRow")].map(row => {
+            const cells = row.querySelectorAll("td");
+            const getVal = (idx) => idx !== -1 ? cells[idx].textContent.trim() : "";
+            const jobNum = getVal(COL.jobNum);
+            if (!jobNum) return null;
 
-        data.needsWorkAuth = !data.workAuth || data.workAuth === "";
-        data.needsDeductibleEntry = (division === "Structure" && dedFloat === 0);
-        data.needsProcessing = (data.phase === "Process" && origEstFloat === 0);
-
-        return data;
-    }).filter(Boolean);
+            return {
+                jobNumber: jobNum,
+                customer: getVal(COL.customer),
+                estimator: getVal(COL.estimator) || "Unassigned",
+                received: getVal(COL.received),
+                inspected: getVal(COL.inspected),
+                sent: getVal(COL.sent),
+                approved: getVal(COL.approved),
+                workAuth: getVal(COL.workAuth),
+                deductible: getVal(COL.deductible),
+                division: getVal(COL.division),
+                origEstimate: getVal(COL.origEstimate),
+                xactId: getVal(COL.xactId),
+                isManual: false,
+                type: 'Estimate',
+                url: cells[COL.jobNum]?.querySelector("a")?.href || "#"
+            };
+        }).filter(Boolean);
+    }
 
     window.estAccumulator = (window.estAccumulator || []).concat(currentPageJobs);
     
@@ -96,35 +70,89 @@ javascript:!function() {
     if (nextBtn && nextBtn.tagName === "A") {
         nextBtn.click();
     } else {
-        const finalData = window.estAccumulator;
+        const cmsData = window.estAccumulator || [];
         window.estAccumulator = null;
-        renderDashboard(finalData);
+        renderDashboard(cmsData);
+    }
+
+    /* --- LOGIC --- */
+    function processJobLogic(job) {
+        const origEstFloat = parseFloat((job.origEstimate || "").replace(/[^0-9.-]+/g,"")) || 0;
+        const dedFloat = parseFloat((job.deductible || "").replace(/[^0-9.-]+/g,"")) || 0;
+        job.isWarranty = job.division === "Warranty";
+
+        if (job.isWarranty) {
+            job.phase = "Warranty";
+            job.aging = getDaysSince(job.received);
+        } else if (!job.inspected) {
+            job.phase = "Inspection";
+            job.aging = getDaysSince(job.received);
+        } else if (!job.sent) {
+            job.phase = "Estimate";
+            job.aging = getDaysSince(job.inspected);
+        } else if (!job.approved || job.approved === "") {
+            job.phase = "Approval";
+            job.aging = getDaysSince(job.sent);
+        } else {
+            job.phase = "Process";
+            job.aging = getDaysSince(job.approved);
+        }
+
+        if (job.isManual) {
+            job.needsSignedCO = (job.type === "CO" && (!job.workAuth || job.workAuth === ""));
+            job.needsWorkAuth = false;
+            job.needsDeductibleEntry = false;
+        } else {
+            job.needsWorkAuth = (!job.workAuth || job.workAuth === "");
+            job.needsDeductibleEntry = (job.division === "Structure" && dedFloat === 0);
+            job.needsSignedCO = false;
+        }
+
+        job.needsProcessing = (job.phase === "Process" && origEstFloat === 0);
+        return job;
     }
 
     /* --- UI --- */
-    function renderDashboard(allJobs) {
+    function renderDashboard(cmsData, activeEstimator = null) {
+        const manualData = getManualJobs();
+        const allJobs = [...cmsData, ...manualData].map(j => processJobLogic(j));
+        
         document.body.innerHTML = "";
         const style = document.createElement("style");
         style.innerHTML = `
             body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 10px; }
             .dash-container { display: flex; flex-direction: column; height: 97vh; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
-            .tabs { display: flex; background: #2c3e50; overflow-x: auto; }
-            .tab-btn { padding: 14px 20px; border: none; background: transparent; color: #95a5a6; cursor: pointer; border-bottom: 3px solid transparent; }
+            .tabs-bar { display: flex; background: #2c3e50; align-items: center; justify-content: space-between; padding-right: 15px; }
+            .tabs { display: flex; overflow-x: auto; }
+            .tab-btn { padding: 14px 20px; border: none; background: transparent; color: #95a5a6; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
             .tab-btn.active { background: #34495e; color: #fff; border-bottom-color: #3498db; font-weight: bold; }
+            .add-btn { background: #27ae60; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
             .main-content { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; }
-            .phase-col { flex: 1; display: flex; flex-direction: column; background: #ebedef; border-radius: 6px; padding: 10px; min-width: 180px; }
+            .phase-col { flex: 1; display: flex; flex-direction: column; background: #ebedef; border-radius: 6px; padding: 10px; min-width: 200px; }
             .phase-col h3 { text-align: center; margin: 0 0 12px 0; color: #2c3e50; font-size: 0.75em; letter-spacing: 1px; }
             .card-list { flex: 1; overflow-y: auto; }
-            .job-card { background: #fff; padding: 10px; margin-bottom: 10px; border-radius: 4px; border-left: 5px solid #bdc3c7; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+            .job-card { background: #fff; padding: 10px; margin-bottom: 10px; border-radius: 4px; border-left: 5px solid #bdc3c7; position: relative; }
+            .job-card.manual { border-right: 4px solid #f1c40f; }
             .job-card.warning { border-left-color: #f39c12; }
             .job-card.danger { border-left-color: #e74c3c; }
             .aging-tag { position: absolute; top: 10px; right: 10px; font-weight: bold; color: #7f8c8d; font-size: 0.75em; }
-            .badge { display: inline-block; padding: 2px 5px; font-size: 9px; border-radius: 3px; margin-top: 5px; color: white; margin-right: 3px; font-weight: bold; text-decoration: none; }
+            .badge { display: inline-block; padding: 2px 5px; font-size: 9px; border-radius: 3px; margin-top: 5px; color: white; margin-right: 3px; font-weight: bold; text-decoration: none; border: none; }
+            .badge-manual { background: #f39c12; cursor: pointer; }
             .badge-auth { background: #8e44ad; }
             .badge-deduct { background: #d35400; }
             .badge-process { background: #27ae60; }
-            .badge-xact { background: #3498db; cursor: pointer; }
-            .badge-xact:hover { background: #2980b9; }
+            .badge-xact { background: #3498db; }
+            .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+            .modal-box { background: white; padding: 20px; border-radius: 8px; width: 420px; max-width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-height: 90vh; overflow-y: auto; }
+            .modal-box h2 { margin-top: 0; color: #2c3e50; font-size: 18px; }
+            .modal-field { margin-bottom: 12px; }
+            .modal-field label { display: block; font-size: 11px; font-weight: bold; color: #7f8c8d; margin-bottom: 4px; }
+            .modal-field input, .modal-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+            .modal-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+            .modal-btns button { padding: 8px 16px; border-radius: 4px; cursor: pointer; border: none; font-weight: bold; }
+            .btn-save { background: #3498db; color: white; }
+            .btn-cancel { background: #95a5a6; color: white; }
+            .btn-delete { background: #e74c3c; color: white; margin-right: auto; }
             .sidebar { width: 260px; background: #f8f9fa; border-left: 1px solid #dee2e6; padding: 15px; overflow-y: auto; }
             .sidebar h4 { margin: 0 0 12px 0; font-size: 12px; border-bottom: 2px solid #3498db; padding-bottom: 5px; color: #34495e; }
             .sidebar-section { margin-bottom: 25px; }
@@ -135,32 +163,49 @@ javascript:!function() {
 
         const container = document.createElement("div");
         container.className = "dash-container";
+        const tabsBar = document.createElement("div");
+        tabsBar.className = "tabs-bar";
         const tabs = document.createElement("div");
         tabs.className = "tabs";
+        
+        const addBtn = document.createElement("button");
+        addBtn.className = "add-btn";
+        addBtn.innerText = "+ ADD SUPP/CO";
+        addBtn.onclick = () => {
+            const currentEst = document.querySelector(".tab-btn.active")?.getAttribute("data-est");
+            openEditModal(null, cmsData, currentEst);
+        };
+
+        tabsBar.appendChild(tabs);
+        tabsBar.appendChild(addBtn);
         const board = document.createElement("div");
         board.className = "main-content";
 
         const estimators = [...new Set(allJobs.map(j => j.estimator))].sort();
-
         estimators.forEach(est => {
             const btn = document.createElement("button");
             btn.className = "tab-btn";
+            btn.setAttribute("data-est", est);
             btn.innerText = `${est} (${allJobs.filter(j => j.estimator === est).length})`;
             btn.onclick = () => {
                 document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
                 btn.classList.add("active");
-                updateBoard(est, allJobs, board);
+                updateBoard(est, allJobs, board, cmsData);
             };
             tabs.appendChild(btn);
         });
 
-        container.appendChild(tabs);
+        container.appendChild(tabsBar);
         container.appendChild(board);
         document.body.appendChild(container);
-        if (tabs.firstChild) tabs.firstChild.click();
+
+        /* Re-select the correct tab */
+        let targetTab = [...tabs.children].find(b => b.getAttribute("data-est") === activeEstimator);
+        if (targetTab) targetTab.click();
+        else if (tabs.firstChild) tabs.firstChild.click();
     }
 
-    function updateBoard(estimator, allJobs, board) {
+    function updateBoard(estimator, allJobs, board, cmsData) {
         board.innerHTML = "";
         const filtered = allJobs.filter(j => j.estimator === estimator);
         const phases = ["Inspection", "Estimate", "Approval", "Process"];
@@ -176,21 +221,29 @@ javascript:!function() {
                 .sort((a, b) => b.aging - a.aging)
                 .forEach(job => {
                     const card = document.createElement("div");
-                    card.className = "job-card";
+                    card.className = `job-card ${job.isManual ? 'manual' : ''}`;
                     if (job.aging >= 10) card.classList.add("danger");
                     else if (job.aging >= 5) card.classList.add("warning");
 
                     card.innerHTML = `
                         <div class="aging-tag">${job.aging}d</div>
-                        <div style="font-weight:bold; font-size: 12px;"><a href="${job.url}" target="_blank" style="text-decoration:none; color:#2980b9;">${job.jobNumber}</a></div>
+                        <div style="font-weight:bold; font-size: 12px;">
+                            <a href="${job.url || '#'}" target="_blank" style="text-decoration:none; color:#2980b9;">${job.jobNumber}</a>
+                        </div>
                         <div style="font-size:11px; margin-top:2px;">${job.customer}</div>
                         <div style="margin-top: 5px;">
-                            ${job.xactUrl ? `<a href="${job.xactUrl}" target="_blank" class="badge badge-xact">XACT</a>` : ''}
+                            ${job.isManual ? `<button class="badge badge-manual">EDIT ${job.type}</button>` : ''}
+                            ${job.xactId ? `<a href="https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${job.xactId}" target="_blank" class="badge badge-xact">XACT</a>` : ''}
+                            ${job.needsSignedCO ? '<span class="badge badge-auth">NEEDS SIGNED CO</span>' : ''}
                             ${job.needsWorkAuth ? '<span class="badge badge-auth">NEED AUTH</span>' : ''}
                             ${job.needsDeductibleEntry ? '<span class="badge badge-deduct">DEDUCT $0</span>' : ''}
                             ${job.needsProcessing ? '<span class="badge badge-process">PROCESS</span>' : ''}
                         </div>
                     `;
+
+                    if(job.isManual) {
+                        card.querySelector('.badge-manual').onclick = () => openEditModal(job, cmsData, estimator);
+                    }
                     list.appendChild(card);
                 });
             col.appendChild(list);
@@ -199,7 +252,6 @@ javascript:!function() {
 
         const sidebar = document.createElement("div");
         sidebar.className = "sidebar";
-
         const createSidebarList = (title, jobList, accentColor) => {
             if (jobList.length === 0) return;
             const section = document.createElement("div");
@@ -217,8 +269,90 @@ javascript:!function() {
         createSidebarList("Warranty Jobs", filtered.filter(j => j.isWarranty), "#3498db");
         createSidebarList("Needs Processing", filtered.filter(j => j.needsProcessing), "#27ae60");
         createSidebarList("Needs Work Auth", filtered.filter(j => j.needsWorkAuth), "#8e44ad");
+        createSidebarList("Needs Signed CO", filtered.filter(j => j.needsSignedCO), "#8e44ad");
         createSidebarList("Enter Deductible", filtered.filter(j => j.needsDeductibleEntry), "#d35400");
-
         board.appendChild(sidebar);
+    }
+
+    function openEditModal(jobToEdit, cmsData, currentEstimator) {
+        const isNew = !jobToEdit;
+        const job = jobToEdit || { 
+            jobNumber: "", customer: "", estimator: currentEstimator || "Unassigned", 
+            received: new Date().toLocaleDateString(), inspected: "", sent: "", 
+            approved: "", division: "Structure", isManual: true, type: "SUPP", xactId: "", url: "", workAuth: ""
+        };
+
+        const overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.innerHTML = `
+            <div class="modal-box">
+                <h2>${isNew ? 'Add Supplement / CO' : 'Edit Supplement'}</h2>
+                <div class="modal-field"><label>Job Slideboard URL (Auto-fills Job #)</label><input type="text" id="m-url" value="${job.url || ''}" placeholder="Paste Slideboard URL here..."></div>
+                <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
+                <div class="modal-field"><label>Type</label><select id="m-type"><option value="SUPP" ${job.type==='SUPP'?'selected':''}>Supplement</option><option value="CO" ${job.type==='CO'?'selected':''}>Change Order</option></select></div>
+                <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${job.jobNumber}"></div>
+                <div class="modal-field"><label>Customer</label><input type="text" id="m-cust" value="${job.customer}"></div>
+                <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${job.estimator}"></div>
+                <div class="modal-field"><label>Date Received</label><input type="text" id="m-rec" value="${job.received}"></div>
+                <div class="modal-field"><label>Date Inspected</label><input type="text" id="m-ins" value="${job.inspected}"></div>
+                <div class="modal-field"><label>Date Sent</label><input type="text" id="m-sen" value="${job.sent}"></div>
+                <div class="modal-field"><label>Date Approved</label><input type="text" id="m-app" value="${job.approved}"></div>
+                <div class="modal-field"><label>Date CO Signed (Leave blank if not signed)</label><input type="text" id="m-auth" value="${job.workAuth || ''}"></div>
+                <div class="modal-field"><label>XactID (Optional)</label><input type="text" id="m-xact" value="${job.xactId || ''}"></div>
+                <div class="modal-btns">
+                    ${!isNew ? '<button class="btn-delete" id="m-del">DELETE</button>' : ''}
+                    <button class="btn-cancel" id="m-can">Cancel</button>
+                    <button class="btn-save" id="m-sav">Save Changes</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const urlInput = document.getElementById('m-url');
+        const jobInput = document.getElementById('m-job');
+        urlInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            const match = val.match(/[?&]JobNumber=([^&#]+)/);
+            if (match && match[1]) jobInput.value = decodeURIComponent(match[1]);
+        });
+
+        document.getElementById('m-can').onclick = () => overlay.remove();
+        if(!isNew) {
+            document.getElementById('m-del').onclick = () => {
+                if(confirm("Delete this manual entry?")) {
+                    const filtered = getManualJobs().filter(j => j.jobNumber !== jobToEdit.jobNumber);
+                    saveManualJobs(filtered);
+                    overlay.remove();
+                    renderDashboard(cmsData, currentEstimator);
+                }
+            };
+        }
+
+        document.getElementById('m-sav').onclick = () => {
+            const updated = {
+                ...job,
+                type: document.getElementById('m-type').value,
+                jobNumber: document.getElementById('m-job').value,
+                customer: document.getElementById('m-cust').value,
+                estimator: document.getElementById('m-est').value,
+                received: document.getElementById('m-rec').value,
+                inspected: document.getElementById('m-ins').value,
+                sent: document.getElementById('m-sen').value,
+                approved: document.getElementById('m-app').value,
+                workAuth: document.getElementById('m-auth').value,
+                xactId: document.getElementById('m-xact').value,
+                url: document.getElementById('m-url').value || "#",
+                isManual: true
+            };
+
+            let manuals = getManualJobs();
+            if (isNew) manuals.push(updated);
+            else manuals = manuals.map(m => (m.jobNumber === jobToEdit.jobNumber) ? updated : m);
+            
+            saveManualJobs(manuals);
+            overlay.remove();
+            /* Re-render specifically using the estimator from the saved job to stay on correct tab */
+            renderDashboard(cmsData, updated.estimator);
+        };
     }
 }();
