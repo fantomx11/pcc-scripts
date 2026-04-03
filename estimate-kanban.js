@@ -299,11 +299,11 @@ javascript:!function() {
                 <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${job.jobNumber}"></div>
                 <div class="modal-field"><label>Customer</label><input type="text" id="m-cust" value="${job.customer}"></div>
                 <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${job.estimator}"></div>
-                <div class="modal-field"><label>Date Received</label><input type="text" id="m-rec" value="${job.received}"></div>
-                <div class="modal-field"><label>Date Inspected</label><input type="text" id="m-ins" value="${job.inspected}"></div>
-                <div class="modal-field"><label>Date Sent</label><input type="text" id="m-sen" value="${job.sent}"></div>
-                <div class="modal-field"><label>Date Approved</label><input type="text" id="m-app" value="${job.approved}"></div>
-                <div class="modal-field"><label>Date CO Signed (Leave blank if not signed)</label><input type="text" id="m-auth" value="${job.workAuth || ''}"></div>
+                <div class="modal-field"><label>Date Received</label><input type="date" id="m-rec" value="${job.received}"></div>
+                <div class="modal-field"><label>Date Inspected</label><input type="date" id="m-ins" value="${job.inspected}"></div>
+                <div class="modal-field"><label>Date Sent</label><input type="date" id="m-sen" value="${job.sent}"></div>
+                <div class="modal-field"><label>Date Approved</label><input type="date" id="m-app" value="${job.approved}"></div>
+                <div class="modal-field"><label>Date CO Signed (Leave blank if not signed)</label><input type="date" id="m-auth" value="${job.workAuth || ''}"></div>
                 <div class="modal-field"><label>XactID (Optional)</label><input type="text" id="m-xact" value="${job.xactId || ''}"></div>
                 <div class="modal-btns">
                     ${!isNew ? '<button class="btn-delete" id="m-del">DELETE</button>' : ''}
