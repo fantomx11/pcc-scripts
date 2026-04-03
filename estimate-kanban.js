@@ -1,11 +1,11 @@
 javascript:!function() {
     const MANUAL_STORAGE_KEY = "manual_estimates_v8";
+    const CMS_OVERRIDE_KEY = "cms_overrides_v1";
 
-    /* --- HELPERS --- */
     const getDaysSince = (dateStr) => {
         if (!dateStr || dateStr === "" || dateStr.toLowerCase().includes("null")) return 0;
-        const diff = Math.ceil((new Date() - new Date(dateStr)) / 864e5);
-        return isNaN(diff) ? 0 : diff;
+        const diff = Math.floor((new Date() - new Date(dateStr)) / 864e5);
+        return isNaN(diff) || diff < 0 ? 0 : diff;
     };
 
     const findIdx = (headerCells, text) => 
@@ -13,8 +13,11 @@ javascript:!function() {
 
     const getManualJobs = () => JSON.parse(localStorage.getItem(MANUAL_STORAGE_KEY) || "[]");
     const saveManualJobs = (jobs) => localStorage.setItem(MANUAL_STORAGE_KEY, JSON.stringify(jobs));
+    
+    // Typo fixed here: CMS_OVERRIDE_KEY
+    const getOverrides = () => JSON.parse(localStorage.getItem(CMS_OVERRIDE_KEY) || "{}");
+    const saveOverrides = (data) => localStorage.setItem(CMS_OVERRIDE_KEY, JSON.stringify(data));
 
-    /* --- SCRAPER --- */
     const headerRow = document.querySelector(".rgHeaderWrapper thead tr");
     let currentPageJobs = [];
 
@@ -56,7 +59,7 @@ javascript:!function() {
                 origEstimate: getVal(COL.origEstimate),
                 xactId: getVal(COL.xactId),
                 isManual: false,
-                type: 'Estimate',
+                type: 'CMS',
                 url: cells[COL.jobNum]?.querySelector("a")?.href || "#"
             };
         }).filter(Boolean);
@@ -64,37 +67,33 @@ javascript:!function() {
 
     window.estAccumulator = (window.estAccumulator || []).concat(currentPageJobs);
     
-    const navPart = document.querySelector(".rgNumPart");
-    const current = navPart?.querySelector(".rgCurrentPage");
-    const nextBtn = current?.nextElementSibling;
-
-    if (nextBtn && nextBtn.tagName === "A") {
-        nextBtn.click();
+    if (document.querySelector(".rgNumPart")?.querySelector(".rgCurrentPage")?.nextElementSibling?.tagName === "A") {
+        document.querySelector(".rgNumPart").querySelector(".rgCurrentPage").nextElementSibling.click();
     } else {
         const cmsData = window.estAccumulator || [];
         window.estAccumulator = null;
         renderDashboard(cmsData);
     }
 
-    /* --- UPDATED PHASE LOGIC --- */
-    function processJobLogic(job) {
+    function processJobLogic(job, overrides) {
+        const extra = overrides[job.jobNumber] || {};
+        job.lastFollowUp = job.lastFollowUp || extra.lastFollowUp || "";
+        job.lastContact = job.lastContact || extra.lastContact || "";
+
         const origEstFloat = parseFloat((job.origEstimate || "").replace(/[^0-9.-]+/g,"")) || 0;
         const dedFloat = parseFloat((job.deductible || "").replace(/[^0-9.-]+/g,"")) || 0;
         job.isWarranty = job.division === "Warranty";
-
         const hasDate = (d) => d && d !== "" && !d.toLowerCase().includes("null");
 
         if (job.isWarranty) {
             job.phase = "Warranty";
             job.aging = getDaysSince(job.received);
-        } 
-        /* Preemptive check: start from the end of the workflow */
-        else if (hasDate(job.approved)) {
+        } else if (hasDate(job.approved)) {
             job.phase = "Process";
             job.aging = getDaysSince(job.approved);
         } else if (hasDate(job.sent)) {
             job.phase = "Approval";
-            job.aging = getDaysSince(job.sent);
+            job.aging = hasDate(job.lastFollowUp) ? getDaysSince(job.lastFollowUp) : getDaysSince(job.sent);
         } else if (hasDate(job.inspected)) {
             job.phase = "Estimate";
             job.aging = getDaysSince(job.inspected);
@@ -103,24 +102,23 @@ javascript:!function() {
             job.aging = getDaysSince(job.received);
         }
 
-        if (job.isManual) {
-            job.needsSignedCO = (job.type === "CO" && (!job.workAuth || job.workAuth === ""));
-            job.needsWorkAuth = false;
-            job.needsDeductibleEntry = false;
-        } else {
-            job.needsWorkAuth = (!job.workAuth || job.workAuth === "");
-            job.needsDeductibleEntry = (job.division === "Structure" && dedFloat === 0);
-            job.needsSignedCO = false;
-        }
-
+        const effectiveContactDate = job.lastContact || job.inspected || job.received;
+        job.needsContact = (job.phase === "Approval" && getDaysSince(effectiveContactDate) > 7);
         job.needsProcessing = (job.phase === "Process" && origEstFloat === 0);
+        
+        if (job.isManual) {
+            job.needsSignedCO = (job.type === "CO" && !hasDate(job.workAuth));
+        } else {
+            job.needsWorkAuth = !hasDate(job.workAuth);
+            job.needsDeductibleEntry = (job.division === "Structure" && dedFloat === 0);
+        }
         return job;
     }
 
-    /* --- UI --- */
     function renderDashboard(cmsData, activeEstimator = null) {
         const manualData = getManualJobs();
-        const allJobs = [...cmsData, ...manualData].map(j => processJobLogic(j));
+        const overrides = getOverrides();
+        const allJobs = [...cmsData, ...manualData].map(j => processJobLogic(j, overrides));
         
         document.body.innerHTML = "";
         const style = document.createElement("style");
@@ -141,15 +139,19 @@ javascript:!function() {
             .job-card.warning { border-left-color: #f39c12; }
             .job-card.danger { border-left-color: #e74c3c; }
             .aging-tag { position: absolute; top: 10px; right: 10px; font-weight: bold; color: #7f8c8d; font-size: 0.75em; }
-            .badge { display: inline-block; padding: 2px 5px; font-size: 9px; border-radius: 3px; margin-top: 5px; color: white; margin-right: 3px; font-weight: bold; text-decoration: none; border: none; }
-            .badge-manual { background: #f39c12; cursor: pointer; }
+            .badge { display: inline-block; padding: 2px 5px; font-size: 9px; border-radius: 3px; margin-top: 5px; color: white; margin-right: 3px; font-weight: bold; text-decoration: none; border: none; cursor: pointer; }
+            .badge-manual { background: #f39c12; }
             .badge-auth { background: #8e44ad; }
             .badge-deduct { background: #d35400; }
             .badge-process { background: #27ae60; }
             .badge-xact { background: #3498db; }
+            .badge-urgent { background: #e74c3c; }
+            .sidebar { width: 260px; background: #f8f9fa; border-left: 1px solid #dee2e6; padding: 15px; overflow-y: auto; }
+            .sidebar h4 { margin: 0 0 12px 0; font-size: 11px; border-bottom: 2px solid #3498db; padding-bottom: 5px; color: #34495e; }
+            .sidebar-section { margin-bottom: 25px; }
+            .sidebar-item { font-size: 11px; padding: 8px; background: #fff; border: 1px solid #eee; border-radius: 3px; margin-bottom: 5px; cursor: pointer; }
             .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-            .modal-box { background: white; padding: 20px; border-radius: 8px; width: 420px; max-width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-height: 90vh; overflow-y: auto; }
-            .modal-box h2 { margin-top: 0; color: #2c3e50; font-size: 18px; }
+            .modal-box { background: white; padding: 20px; border-radius: 8px; width: 420px; max-width: 90%; max-height: 90vh; overflow-y: auto; }
             .modal-field { margin-bottom: 12px; }
             .modal-field label { display: block; font-size: 11px; font-weight: bold; color: #7f8c8d; margin-bottom: 4px; }
             .modal-field input, .modal-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
@@ -158,11 +160,6 @@ javascript:!function() {
             .btn-save { background: #3498db; color: white; }
             .btn-cancel { background: #95a5a6; color: white; }
             .btn-delete { background: #e74c3c; color: white; margin-right: auto; }
-            .sidebar { width: 260px; background: #f8f9fa; border-left: 1px solid #dee2e6; padding: 15px; overflow-y: auto; }
-            .sidebar h4 { margin: 0 0 12px 0; font-size: 12px; border-bottom: 2px solid #3498db; padding-bottom: 5px; color: #34495e; }
-            .sidebar-section { margin-bottom: 25px; }
-            .sidebar-link { text-decoration: none; color: inherit; display: block; margin-bottom: 8px; }
-            .sidebar-item { font-size: 11px; padding: 8px; background: #fff; border: 1px solid #eee; border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         `;
         document.head.appendChild(style);
 
@@ -176,10 +173,7 @@ javascript:!function() {
         const addBtn = document.createElement("button");
         addBtn.className = "add-btn";
         addBtn.innerText = "+ ADD SUPP/CO";
-        addBtn.onclick = () => {
-            const currentEst = document.querySelector(".tab-btn.active")?.getAttribute("data-est");
-            openEditModal(null, cmsData, currentEst);
-        };
+        addBtn.onclick = () => openEditModal(null, cmsData, document.querySelector(".tab-btn.active")?.getAttribute("data-est"));
 
         tabsBar.appendChild(tabs);
         tabsBar.appendChild(addBtn);
@@ -204,7 +198,6 @@ javascript:!function() {
         container.appendChild(board);
         document.body.appendChild(container);
 
-        /* Re-select the correct tab */
         let targetTab = [...tabs.children].find(b => b.getAttribute("data-est") === activeEstimator);
         if (targetTab) targetTab.click();
         else if (tabs.firstChild) tabs.firstChild.click();
@@ -237,8 +230,9 @@ javascript:!function() {
                         </div>
                         <div style="font-size:11px; margin-top:2px;">${job.customer}</div>
                         <div style="margin-top: 5px;">
-                            ${job.isManual ? `<button class="badge badge-manual">EDIT ${job.type}</button>` : ''}
+                            ${job.isManual ? `<span class="badge badge-manual">EDIT ${job.type}</span>` : `<span class="badge badge-contact" style="background:#3498db">LOG CONTACT</span>`}
                             ${job.xactId ? `<a href="https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${job.xactId}" target="_blank" class="badge badge-xact">XACT</a>` : ''}
+                            ${job.needsContact ? '<span class="badge badge-urgent">CONTACT DUE</span>' : ''}
                             ${job.needsSignedCO ? '<span class="badge badge-auth">NEEDS SIGNED CO</span>' : ''}
                             ${job.needsWorkAuth ? '<span class="badge badge-auth">NEED AUTH</span>' : ''}
                             ${job.needsDeductibleEntry ? '<span class="badge badge-deduct">DEDUCT $0</span>' : ''}
@@ -246,9 +240,9 @@ javascript:!function() {
                         </div>
                     `;
 
-                    if(job.isManual) {
-                        card.querySelector('.badge-manual').onclick = () => openEditModal(job, cmsData, estimator);
-                    }
+                    const btn = card.querySelector('.badge-manual, .badge-contact, .badge-urgent');
+                    if(btn) btn.onclick = () => openEditModal(job, cmsData, estimator);
+                    
                     list.appendChild(card);
                 });
             col.appendChild(list);
@@ -257,110 +251,126 @@ javascript:!function() {
 
         const sidebar = document.createElement("div");
         sidebar.className = "sidebar";
-        const createSidebarList = (title, jobList, accentColor) => {
+        
+        const createSidebarList = (title, jobList, accentColor, actionType) => {
             if (jobList.length === 0) return;
             const section = document.createElement("div");
             section.className = "sidebar-section";
             section.innerHTML = `<h4>${title} (${jobList.length})</h4>`;
             jobList.forEach(j => {
-                const a = document.createElement("a");
-                a.href = j.url; a.target = "_blank"; a.className = "sidebar-link";
-                a.innerHTML = `<div class="sidebar-item" style="border-left: 3px solid ${accentColor}"><b>${j.jobNumber}</b><br>${j.customer}</div>`;
-                section.appendChild(a);
+                const item = document.createElement("div");
+                item.className = "sidebar-item";
+                item.style.borderLeft = `3px solid ${accentColor}`;
+                item.innerHTML = `<b>${j.jobNumber}</b><br>${j.customer}`;
+                
+                item.onclick = () => {
+                    if (actionType === "modal" || j.isManual) {
+                        openEditModal(j, cmsData, estimator);
+                    } else {
+                        window.open(j.url, "_blank");
+                    }
+                };
+                section.appendChild(item);
             });
             sidebar.appendChild(section);
         };
 
-        createSidebarList("Warranty Jobs", filtered.filter(j => j.isWarranty), "#3498db");
-        createSidebarList("Needs Processing", filtered.filter(j => j.needsProcessing), "#27ae60");
-        createSidebarList("Needs Work Auth", filtered.filter(j => j.needsWorkAuth), "#8e44ad");
-        createSidebarList("Needs Signed CO", filtered.filter(j => j.needsSignedCO), "#8e44ad");
-        createSidebarList("Enter Deductible", filtered.filter(j => j.needsDeductibleEntry), "#d35400");
+        createSidebarList("Contact Needed", filtered.filter(j => j.needsContact), "#e74c3c", "modal");
+        createSidebarList("Warranty Jobs", filtered.filter(j => j.isWarranty), "#3498db", "url");
+        createSidebarList("Needs Processing", filtered.filter(j => j.needsProcessing), "#27ae60", "url");
+        createSidebarList("Needs Work Auth", filtered.filter(j => j.needsWorkAuth), "#8e44ad", "url");
+        createSidebarList("Needs Signed CO", filtered.filter(j => j.needsSignedCO), "#8e44ad", "modal");
+        createSidebarList("Enter Deductible", filtered.filter(j => j.needsDeductibleEntry), "#d35400", "url");
         board.appendChild(sidebar);
     }
 
     function openEditModal(jobToEdit, cmsData, currentEstimator) {
         const isNew = !jobToEdit;
-        const job = jobToEdit || { 
-            uniqueId: Date.now().toString(), 
-            jobNumber: "", customer: "", estimator: currentEstimator || "Unassigned", 
-            received: new Date().toLocaleDateString(), inspected: "", sent: "", 
-            approved: "", division: "Structure", isManual: true, type: "SUPP", xactId: "", url: "", workAuth: ""
-        };
+        const isCms = jobToEdit && jobToEdit.type === 'CMS';
+        const job = jobToEdit || { jobNumber: "", customer: "", estimator: currentEstimator || "Unassigned", isManual: true, type: "SUPP", lastFollowUp: "", lastContact: "", url: "", received: "", inspected: "", sent: "", approved: "", workAuth: "" };
 
         const overlay = document.createElement("div");
         overlay.className = "modal-overlay";
         overlay.innerHTML = `
             <div class="modal-box">
-                <h2>${isNew ? 'Add Supplement / CO' : 'Edit Supplement'}</h2>
-                <div class="modal-field"><label>Job Slideboard URL (Auto-fills Job #)</label><input type="text" id="m-url" value="${job.url || ''}" placeholder="Paste Slideboard URL here..."></div>
-                <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
-                <div class="modal-field"><label>Type</label><select id="m-type"><option value="SUPP" ${job.type==='SUPP'?'selected':''}>Supplement</option><option value="CO" ${job.type==='CO'?'selected':''}>Change Order</option></select></div>
-                <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${job.jobNumber}"></div>
-                <div class="modal-field"><label>Customer</label><input type="text" id="m-cust" value="${job.customer}"></div>
-                <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${job.estimator}"></div>
-                <div class="modal-field"><label>Date Received</label><input type="date" id="m-rec" value="${job.received}"></div>
-                <div class="modal-field"><label>Date Inspected</label><input type="date" id="m-ins" value="${job.inspected}"></div>
-                <div class="modal-field"><label>Date Sent</label><input type="date" id="m-sen" value="${job.sent}"></div>
-                <div class="modal-field"><label>Date Approved</label><input type="date" id="m-app" value="${job.approved}"></div>
-                <div class="modal-field"><label>Date CO Signed (Leave blank if not signed)</label><input type="date" id="m-auth" value="${job.workAuth || ''}"></div>
-                <div class="modal-field"><label>XactID (Optional)</label><input type="text" id="m-xact" value="${job.xactId || ''}"></div>
+                <h2 style="margin-top:0">${isCms ? 'Log CMS Contact' : (isNew ? 'Add Supplement' : 'Edit Entry')}</h2>
+                <div class="modal-field"><label>Last Follow Up (Resets Aging)</label><input type="date" id="m-fol" value="${job.lastFollowUp || ''}"></div>
+                <div class="modal-field"><label>Last Contact (Weekly Check)</label><input type="date" id="m-con" value="${job.lastContact || ''}"></div>
+                
+                ${!isCms ? `
+                    <hr>
+                    <div class="modal-field"><label>Job Slideboard URL (Auto-fills Job #)</label><input type="text" id="m-url" value="${job.url || ''}"></div>
+                    <div class="modal-field"><label>Type</label><select id="m-type"><option value="SUPP" ${job.type==='SUPP'?'selected':''}>Supplement</option><option value="CO" ${job.type==='CO'?'selected':''}>Change Order</option></select></div>
+                    <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${job.jobNumber}"></div>
+                    <div class="modal-field"><label>Customer</label><input type="text" id="m-cust" value="${job.customer}"></div>
+                    <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${job.estimator}"></div>
+                    
+                    <div class="modal-field"><label>Date Received</label><input type="date" id="m-rec" value="${job.received}"></div>
+                    <div class="modal-field"><label>Date Inspected</label><input type="date" id="m-ins" value="${job.inspected}"></div>
+                    <div class="modal-field"><label>Date Estimate Sent</label><input type="date" id="m-sen" value="${job.sent}"></div>
+                    <div class="modal-field"><label>Date Estimate Approved</label><input type="date" id="m-app" value="${job.approved}"></div>
+                    <div class="modal-field"><label>Date CO Signed (Clears Signed Badge)</label><input type="date" id="m-auth" value="${job.workAuth || ''}"></div>
+                ` : `<p style="font-size:12px"><b>Job:</b> ${job.jobNumber} - ${job.customer}</p>`}
+                
                 <div class="modal-btns">
-                    ${!isNew ? '<button class="btn-delete" id="m-del">DELETE</button>' : ''}
+                    ${(!isNew && !isCms) ? '<button class="btn-delete" id="m-del">DELETE</button>' : ''}
                     <button class="btn-cancel" id="m-can">Cancel</button>
-                    <button class="btn-save" id="m-sav">Save Changes</button>
+                    <button class="btn-save" id="m-sav">Save</button>
                 </div>
             </div>
         `;
         document.body.appendChild(overlay);
 
+        // Auto-fill Job Number listener restored
         const urlInput = document.getElementById('m-url');
         const jobInput = document.getElementById('m-job');
-        urlInput.addEventListener('input', (e) => {
-            const val = e.target.value;
-            const match = val.match(/[?&]JobNumber=([^&#]+)/);
-            if (match && match[1]) jobInput.value = decodeURIComponent(match[1]);
-        });
-
-        document.getElementById('m-can').onclick = () => overlay.remove();
-        if(!isNew) {
-            document.getElementById('m-del').onclick = () => {
-                if(confirm("Delete this manual entry?")) {
-                    const filtered = getManualJobs().filter(j => j.uniqueId !== jobToEdit.uniqueId);
-                    saveManualJobs(filtered);
-                    overlay.remove();
-                    renderDashboard(cmsData, currentEstimator);
-                }
-            };
+        if (urlInput && jobInput) {
+            urlInput.addEventListener('input', (e) => {
+                const val = e.target.value;
+                const match = val.match(/[?&]JobNumber=([^&#]+)/);
+                if (match && match[1]) jobInput.value = decodeURIComponent(match[1]);
+            });
         }
 
-        document.getElementById('m-sav').onclick = () => {
-            const updated = {
-                ...job,
-                type: document.getElementById('m-type').value,
-                jobNumber: document.getElementById('m-job').value,
-                customer: document.getElementById('m-cust').value,
-                estimator: document.getElementById('m-est').value,
-                received: document.getElementById('m-rec').value,
-                inspected: document.getElementById('m-ins').value,
-                sent: document.getElementById('m-sen').value,
-                approved: document.getElementById('m-app').value,
-                workAuth: document.getElementById('m-auth').value,
-                xactId: document.getElementById('m-xact').value,
-                url: document.getElementById('m-url').value || "#",
-                isManual: true
+        document.getElementById('m-can').onclick = () => overlay.remove();
+        if (document.getElementById('m-del')) {
+            document.getElementById('m-del').onclick = () => {
+                saveManualJobs(getManualJobs().filter(m => m.uniqueId !== job.uniqueId));
+                overlay.remove();
+                renderDashboard(cmsData, currentEstimator);
             };
+        }
+        document.getElementById('m-sav').onclick = () => {
+            const fol = document.getElementById('m-fol').value;
+            const con = document.getElementById('m-con').value;
 
-            let manuals = getManualJobs();
-            if (isNew) {
-                manuals.push(updated);
+            if (isCms) {
+                const overrides = getOverrides();
+                overrides[job.jobNumber] = { lastFollowUp: fol, lastContact: con };
+                saveOverrides(overrides);
             } else {
-                manuals = manuals.map(m => (m.uniqueId === jobToEdit.uniqueId) ? updated : m);
+                let manuals = getManualJobs();
+                const updated = {
+                    ...job,
+                    lastFollowUp: fol, lastContact: con,
+                    type: document.getElementById('m-type').value,
+                    jobNumber: document.getElementById('m-job').value,
+                    customer: document.getElementById('m-cust').value,
+                    estimator: document.getElementById('m-est').value,
+                    received: document.getElementById('m-rec').value,
+                    inspected: document.getElementById('m-ins').value,
+                    sent: document.getElementById('m-sen').value,
+                    approved: document.getElementById('m-app').value,
+                    workAuth: document.getElementById('m-auth').value,
+                    url: document.getElementById('m-url').value,
+                    uniqueId: job.uniqueId || Date.now().toString()
+                };
+                if (isNew) manuals.push(updated);
+                else manuals = manuals.map(m => m.uniqueId === job.uniqueId ? updated : m);
+                saveManualJobs(manuals);
             }
-            
-            saveManualJobs(manuals);
             overlay.remove();
-            renderDashboard(cmsData, updated.estimator);
+            renderDashboard(cmsData, currentEstimator);
         };
     }
 }();
