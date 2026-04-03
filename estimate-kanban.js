@@ -42,6 +42,7 @@ javascript:!function() {
             if (!jobNum) return null;
 
             return {
+                uniqueId: `cms-${jobNum}`,
                 jobNumber: jobNum,
                 customer: getVal(COL.customer),
                 estimator: getVal(COL.estimator) || "Unassigned",
@@ -75,27 +76,31 @@ javascript:!function() {
         renderDashboard(cmsData);
     }
 
-    /* --- LOGIC --- */
+    /* --- UPDATED PHASE LOGIC --- */
     function processJobLogic(job) {
         const origEstFloat = parseFloat((job.origEstimate || "").replace(/[^0-9.-]+/g,"")) || 0;
         const dedFloat = parseFloat((job.deductible || "").replace(/[^0-9.-]+/g,"")) || 0;
         job.isWarranty = job.division === "Warranty";
 
+        const hasDate = (d) => d && d !== "" && !d.toLowerCase().includes("null");
+
         if (job.isWarranty) {
             job.phase = "Warranty";
             job.aging = getDaysSince(job.received);
-        } else if (!job.inspected) {
-            job.phase = "Inspection";
-            job.aging = getDaysSince(job.received);
-        } else if (!job.sent) {
-            job.phase = "Estimate";
-            job.aging = getDaysSince(job.inspected);
-        } else if (!job.approved || job.approved === "") {
-            job.phase = "Approval";
-            job.aging = getDaysSince(job.sent);
-        } else {
+        } 
+        /* Preemptive check: start from the end of the workflow */
+        else if (hasDate(job.approved)) {
             job.phase = "Process";
             job.aging = getDaysSince(job.approved);
+        } else if (hasDate(job.sent)) {
+            job.phase = "Approval";
+            job.aging = getDaysSince(job.sent);
+        } else if (hasDate(job.inspected)) {
+            job.phase = "Estimate";
+            job.aging = getDaysSince(job.inspected);
+        } else {
+            job.phase = "Inspection";
+            job.aging = getDaysSince(job.received);
         }
 
         if (job.isManual) {
@@ -277,6 +282,7 @@ javascript:!function() {
     function openEditModal(jobToEdit, cmsData, currentEstimator) {
         const isNew = !jobToEdit;
         const job = jobToEdit || { 
+            uniqueId: Date.now().toString(), 
             jobNumber: "", customer: "", estimator: currentEstimator || "Unassigned", 
             received: new Date().toLocaleDateString(), inspected: "", sent: "", 
             approved: "", division: "Structure", isManual: true, type: "SUPP", xactId: "", url: "", workAuth: ""
@@ -320,7 +326,7 @@ javascript:!function() {
         if(!isNew) {
             document.getElementById('m-del').onclick = () => {
                 if(confirm("Delete this manual entry?")) {
-                    const filtered = getManualJobs().filter(j => j.jobNumber !== jobToEdit.jobNumber);
+                    const filtered = getManualJobs().filter(j => j.uniqueId !== jobToEdit.uniqueId);
                     saveManualJobs(filtered);
                     overlay.remove();
                     renderDashboard(cmsData, currentEstimator);
@@ -346,12 +352,14 @@ javascript:!function() {
             };
 
             let manuals = getManualJobs();
-            if (isNew) manuals.push(updated);
-            else manuals = manuals.map(m => (m.jobNumber === jobToEdit.jobNumber) ? updated : m);
+            if (isNew) {
+                manuals.push(updated);
+            } else {
+                manuals = manuals.map(m => (m.uniqueId === jobToEdit.uniqueId) ? updated : m);
+            }
             
             saveManualJobs(manuals);
             overlay.remove();
-            /* Re-render specifically using the estimator from the saved job to stay on correct tab */
             renderDashboard(cmsData, updated.estimator);
         };
     }
