@@ -176,28 +176,79 @@ function renderDashboard(activeEstimator = null) {
 }
 
 function openModal(id = null) {
-    const est = allEstimates.get(id) || { estimator: "Unassigned", isManual: true, type: "SUPP" };
+    const isNew = !id;
+    // Get existing estimate or create a skeleton for a new manual one
+    const est = allEstimates.get(id) || { 
+        estimator: document.querySelector(".tab-btn.active")?.innerText.split(' ')[0] || "Unassigned", 
+        isManual: true, 
+        type: "SUPP",
+        jobNumber: "", customer: "", url: "",
+        received: "", inspected: "", sent: "", approved: "", workAuth: ""
+    };
+
     const isCms = est.type === 'CMS';
 
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
     overlay.innerHTML = `
         <div class="modal-box">
-            <h3>${isCms ? 'Log Contact' : 'Edit Supplement'}</h3>
-            <div class="modal-field"><label>Last Follow Up (Reset Aging)</label><input type="date" id="f-fol" value="${est.lastFollowUp}"></div>
-            <div class="modal-field"><label>Last Contact (Weekly)</label><input type="date" id="f-con" value="${est.lastContact}"></div>
-            ${!isCms ? `<div class="modal-field"><label>Job #</label><input type="text" id="f-job" value="${est.jobNumber || ''}"></div>` : ''}
+            <h3 style="margin-top:0">${isCms ? 'Log CMS Contact' : (isNew ? 'Add Supplement/CO' : 'Edit Local Entry')}</h3>
+            
+            <div class="modal-field"><label>Last Follow Up (Resets Aging)</label><input type="date" id="m-fol" value="${est.lastFollowUp || ''}"></div>
+            <div class="modal-field"><label>Last Contact (Weekly Check)</label><input type="date" id="m-con" value="${est.lastContact || ''}"></div>
+            
+            ${!isCms ? `
+                <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
+                <div class="modal-field"><label>Job Slideboard URL (Auto-fills Job #)</label><input type="text" id="m-url" value="${est.url || ''}"></div>
+                <div class="modal-field"><label>Type</label>
+                    <select id="m-type" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        <option value="SUPP" ${est.type==='SUPP'?'selected':''}>Supplement</option>
+                        <option value="CO" ${est.type==='CO'?'selected':''}>Change Order</option>
+                    </select>
+                </div>
+                <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${est.jobNumber}"></div>
+                <div class="modal-field"><label>Customer</label><input type="text" id="m-cust" value="${est.customer}"></div>
+                <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${est.estimator}"></div>
+                
+                <div class="modal-field"><label>Date Received</label><input type="date" id="m-rec" value="${est.received}"></div>
+                <div class="modal-field"><label>Date Inspected</label><input type="date" id="m-ins" value="${est.inspected}"></div>
+                <div class="modal-field"><label>Date Estimate Sent</label><input type="date" id="m-sen" value="${est.sent}"></div>
+                <div class="modal-field"><label>Date Estimate Approved</label><input type="date" id="m-app" value="${est.approved}"></div>
+                <div class="modal-field"><label>Date Signed/Auth (Clears Badge)</label><input type="date" id="m-auth" value="${est.workAuth || ''}"></div>
+            ` : `<p style="font-size:12px; color:#666;">Editing CMS Job: <b>${est.jobNumber}</b></p>`}
+            
             <div class="modal-btns">
+                ${(!isNew && !isCms) ? '<button class="btn-delete" id="m-del" style="background:#e74c3c; color:white; margin-right:auto;">Delete</button>' : ''}
                 <button onclick="this.closest('.modal-overlay').remove()">Cancel</button>
-                <button class="btn-save" id="btn-save">Save</button>
+                <button class="btn-save" id="m-sav" style="background:#3498db; color:white;">Save</button>
             </div>
         </div>
     `;
     document.body.appendChild(overlay);
 
-    document.getElementById("btn-save").onclick = () => {
-        const fol = document.getElementById("f-fol").value;
-        const con = document.getElementById("f-con").value;
+    // Restore the URL -> Job Number listener
+    const urlInput = document.getElementById('m-url');
+    const jobInput = document.getElementById('m-job');
+    if (urlInput && jobInput) {
+        urlInput.addEventListener('input', (e) => {
+            const match = e.target.value.match(/[?&]JobNumber=([^&#]+)/);
+            if (match && match[1]) jobInput.value = decodeURIComponent(match[1]);
+        });
+    }
+
+    // Delete Logic
+    if (document.getElementById('m-del')) {
+        document.getElementById('m-del').onclick = () => {
+            const mans = getStorage(MANUAL_STORAGE_KEY).filter(m => m.uniqueId !== est.uniqueId);
+            saveStorage(MANUAL_STORAGE_KEY, mans);
+            location.reload();
+        };
+    }
+
+    // Save Logic
+    document.getElementById('m-sav').onclick = () => {
+        const fol = document.getElementById('m-fol').value;
+        const con = document.getElementById('m-con').value;
 
         if (isCms) {
             const ov = getStorage(CMS_OVERRIDE_KEY);
@@ -205,11 +256,30 @@ function openModal(id = null) {
             saveStorage(CMS_OVERRIDE_KEY, ov);
         } else {
             let mans = getStorage(MANUAL_STORAGE_KEY);
-            const data = { ...est, lastFollowUp: fol, lastContact: con, jobNumber: document.getElementById("f-job")?.value || est.jobNumber, uniqueId: est.uniqueId || Date.now().toString() };
-            mans = est.uniqueId ? mans.map(m => m.uniqueId === est.uniqueId ? data : m) : [...mans, data];
+            const updatedData = {
+                ...est,
+                lastFollowUp: fol,
+                lastContact: con,
+                type: document.getElementById('m-type').value,
+                jobNumber: document.getElementById('m-job').value,
+                customer: document.getElementById('m-cust').value,
+                estimator: document.getElementById('m-est').value,
+                received: document.getElementById('m-rec').value,
+                inspected: document.getElementById('m-ins').value,
+                sent: document.getElementById('m-sen').value,
+                approved: document.getElementById('m-app').value,
+                workAuth: document.getElementById('m-auth').value,
+                url: document.getElementById('m-url').value,
+                uniqueId: est.uniqueId || Date.now().toString(),
+                isManual: true
+            };
+
+            if (isNew) mans.push(updatedData);
+            else mans = mans.map(m => m.uniqueId === est.uniqueId ? updatedData : m);
+            
             saveStorage(MANUAL_STORAGE_KEY, mans);
         }
-        location.reload(); // Refresh to re-initialize with new merged data
+        location.reload();
     };
 }
 
@@ -261,9 +331,10 @@ function getStyles() {
 
 function updateBoard(estimator) {
     const board = document.getElementById("board");
-    const filtered = [...allEstimates.values()].filter(e => e.estimator === estimator);
+    const allJobs = [...allEstimates.values()];
+    const filtered = allJobs.filter(e => e.estimator === estimator);
     
-    // 1. Render Kanban Columns
+    // 1. Render Kanban Columns (Inspection, Estimate, Approval, Process)
     const phases = ["Inspection", "Estimate", "Approval", "Process"];
     phases.forEach(p => {
         const col = document.createElement("div");
@@ -272,6 +343,7 @@ function updateBoard(estimator) {
         const cardList = document.createElement("div");
         cardList.className = "card-list";
 
+        // Filter out Warranty from the main Kanban columns as it lives in the sidebar
         filtered.filter(e => e.phase === p && e.division !== "Warranty")
             .sort((a, b) => b.aging - a.aging)
             .forEach(est => {
@@ -279,12 +351,13 @@ function updateBoard(estimator) {
                 card.className = `job-card ${est.isManual ? 'manual' : ''} ${est.severity}`;
                 card.innerHTML = `
                     <div class="aging-tag">${est.aging}d</div>
-                    <div style="font-weight:bold; font-size: 13px; color:#2c3e50;">${est.jobNumber}</div>
-                    <div style="font-size:11px; color:#7f8c8d; margin-bottom:8px;">${est.customer}</div>
+                    <div style="font-weight:bold; font-size: 12px; color:#2c3e50;">${est.jobNumber}</div>
+                    <div style="font-size:11px; color:#7f8c8d;">${est.customer}</div>
                     <div class="badges">
-                        ${est.needsContact ? '<span class="badge badge-urgent">Contact Due</span>' : ''}
-                        ${est.needsWorkAuth ? '<span class="badge badge-auth">Need Auth</span>' : ''}
-                        ${est.needsSignedCO ? '<span class="badge badge-auth">Signed CO?</span>' : ''}
+                        ${est.isManual ? `<span class="badge badge-manual">EDIT ${est.type}</span>` : ''}
+                        ${est.needsContact ? '<span class="badge badge-urgent">CONTACT DUE</span>' : ''}
+                        ${est.needsWorkAuth ? '<span class="badge badge-auth">NEED AUTH</span>' : ''}
+                        ${est.needsSignedCO ? '<span class="badge badge-auth">NEEDS SIGNED CO</span>' : ''}
                     </div>
                 `;
                 card.onclick = () => openModal(est.uniqueId);
@@ -294,28 +367,42 @@ function updateBoard(estimator) {
         board.appendChild(col);
     });
 
-    // 2. Render Sidebar for Specials
+    // 2. The Sidebar (Warranty, Processing, etc.)
     const sidebar = document.createElement("div");
     sidebar.className = "sidebar";
     
-    const addSidebarSection = (title, items, color) => {
-        if (items.length === 0) return;
-        const sec = document.createElement("div");
-        sec.innerHTML = `<h4>${title} (${items.length})</h4>`;
-        items.forEach(i => {
-            const div = document.createElement("div");
-            div.className = "sidebar-item";
-            div.style.borderLeftColor = color;
-            div.innerHTML = `<strong>${i.jobNumber}</strong><br>${i.customer}`;
-            div.onclick = () => i.isManual ? openModal(i.uniqueId) : window.open(i.url, '_blank');
-            sec.appendChild(div);
+    const createSidebarSection = (title, jobList, accentColor) => {
+        if (jobList.length === 0) return;
+        const section = document.createElement("div");
+        section.className = "sidebar-section";
+        section.innerHTML = `<h4>${title} (${jobList.length})</h4>`;
+        
+        jobList.forEach(j => {
+            const item = document.createElement("div");
+            item.className = "sidebar-item";
+            item.style.borderLeft = `3px solid ${accentColor}`;
+            item.innerHTML = `<b>${j.jobNumber}</b><br>${j.customer}`;
+            
+            item.onclick = () => {
+                // If it's a manual job or specifically needs a modal (like contact), open modal
+                if (j.isManual || title.includes("Contact")) {
+                    openModal(j.uniqueId);
+                } else {
+                    window.open(j.url, "_blank");
+                }
+            };
+            section.appendChild(item);
         });
-        sidebar.appendChild(sec);
+        sidebar.appendChild(section);
     };
 
-    addSidebarSection("Warranty Jobs", filtered.filter(e => e.division === "Warranty"), "#3498db");
-    addSidebarSection("Needs Processing", filtered.filter(e => e.needsProcessing), "#27ae60");
-    addSidebarSection("Missing Deductible", filtered.filter(e => e.needsDeductibleEntry), "#e67e22");
+    // Populate Sidebar using the class getters
+    createSidebarSection("Contact Needed", filtered.filter(j => j.needsContact), "#e74c3c");
+    createSidebarSection("Warranty Jobs", filtered.filter(j => j.division === "Warranty"), "#3498db");
+    createSidebarSection("Needs Processing", filtered.filter(j => j.needsProcessing), "#27ae60");
+    createSidebarSection("Needs Work Auth", filtered.filter(j => j.needsWorkAuth), "#8e44ad");
+    createSidebarSection("Needs Signed CO", filtered.filter(j => j.needsSignedCO), "#8e44ad");
+    createSidebarSection("Enter Deductible", filtered.filter(j => j.needsDeductibleEntry), "#d35400");
 
     board.appendChild(sidebar);
 }
