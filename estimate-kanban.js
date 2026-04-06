@@ -21,6 +21,7 @@
             this.type = data.type || 'CMS'; 
             this.url = data.url || "#";
             this.isManual = !!data.isManual;
+            this.xactId = data.xactId;
 
             // Dates
             this.received = data.received;
@@ -104,7 +105,8 @@
             const COL = { jobNum: find("Job Number"), customer: find("Customer"), estimator: find("Estimator"), 
                           received: find("Date Received"), inspected: find("Date Inspected"), sent: find("Date Estimate Sent"),
                           approved: find("Date Estimate Approved"), workAuth: find("Date of Work Authorization"),
-                          deductible: find("Deductible Amount"), division: find("Division"), origEstimate: find("Original Estimate") };
+                          deductible: find("Deductible Amount"), division: find("Division"), origEstimate: find("Original Estimate"),
+                          xactId: find("Xact TransactionID")};
 
             const data = [...document.querySelectorAll(CONFIG.SELECTORS.ROWS)].map(row => {
                 const c = row.querySelectorAll("td");
@@ -120,7 +122,8 @@
                     deductible: c[COL.deductible]?.textContent.trim(),
                     division: c[COL.division]?.textContent.trim(),
                     origEstimate: c[COL.origEstimate]?.textContent.trim(),
-                    url: c[COL.jobNum]?.querySelector("a")?.href || "#"
+                    url: c[COL.jobNum]?.querySelector("a")?.href || "#",
+                    xactId: c[COL.xactId]?.textContent.trim()
                 };
             }).filter(j => j.jobNumber);
 
@@ -183,9 +186,11 @@
                 <div style="font-weight:bold; font-size:12px;"><a href="${est.url}" target="_blank" onclick="event.stopPropagation()">${est.jobNumber}</a></div>
                 <div style="font-size:11px; color:#666;">${est.customer}</div>
                 <div class="badges">
-                    ${est.isManual ? `<span class="badge badge-manual">EDIT ${est.type}</span>` : ''}
+                    ${est.xactId ? `<span class="badge badge-manual"><a href="https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${est.xactId}" target="_blank" onclick="event.stopPropagation()">XACT</a></span>`: ''}
+                    ${est.isManual ? `<span class="badge badge-manual">${est.type}</span>` : ''}
                     ${est.tasks.needsContact ? '<span class="badge badge-urgent">CONTACT DUE</span>' : ''}
                     ${est.tasks.needsWorkAuth || est.tasks.needsSignedCO ? '<span class="badge badge-auth">NEED AUTH</span>' : ''}
+                    
                 </div>
             `;
             card.onclick = () => window.App.openModal(est.uniqueId);
@@ -237,6 +242,7 @@
                 .job-card.danger { border-left-color: #e74c3c; }
                 .aging-tag { position: absolute; top: 8px; right: 8px; font-size: 10px; font-weight: bold; color: #95a5a6; }
                 .badge { display: inline-block; font-size: 9px; padding: 2px 5px; border-radius: 3px; color: white; margin-top: 5px; margin-right: 3px; font-weight: bold; }
+                .badge a { color: inherit; text-decoration: none; }
                 .badge-urgent { background: #e74c3c; }
                 .badge-auth { background: #8e44ad; }
                 .badge-manual { background: #f39c12; }
