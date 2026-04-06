@@ -70,7 +70,7 @@
             return {
                 needsContact: this.phase === "Approval" && this._getDaysSince(effectiveContact) > 7,
                 needsSignedCO: this.type === "CO" && !this.workAuth,
-                needsWorkAuth: this.type === "CMS" && !this.workAuth && !this.division === "Warranty",
+                needsWorkAuth: this.type === "CMS" && !this.workAuth && this.division !== "Warranty",
                 needsDeductible: this.type === "CMS" && this.division === "Structure" && this.deductible === 0
             };
         }
