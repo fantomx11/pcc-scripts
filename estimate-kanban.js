@@ -199,7 +199,6 @@
             const sections = [
                 { t: "Contact Needed", f: j => j.tasks.needsContact, c: "#e74c3c" },
                 { t: "Warranty Jobs", f: j => j.division === "Warranty", c: "#3498db" },
-                { t: "Needs Processing", f: j => j.tasks.needsProcessing, c: "#27ae60" },
                 { t: "Needs Work Auth", f: j => j.tasks.needsWorkAuth, c: "#8e44ad" },
                 { t: "Needs Signed CO", f: j => j.tasks.needsSignedCO, c: "#8e44ad" },
                 { t: "Enter Deductible", f: j => j.tasks.needsDeductible, c: "#d35400" }
