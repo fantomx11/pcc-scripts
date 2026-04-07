@@ -314,6 +314,38 @@
 
               .btn-cancel { background: #ecf0f1; color: #34495e; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
               .btn-cancel:hover { background: #bdc3c7; }
+
+              @media print {
+                /* Hide the sidebar and navigation elements */
+                .sidebar, .tabs-bar, .add-btn {
+                    display: none !important;
+                }
+            
+                /* Force the columns to stack vertically so none are cut off */
+                .main-content {
+                    display: block !important;
+                    overflow: visible !important;
+                    width: 100% !important;
+                    padding: 0 !important;
+                }
+            
+                /* Ensure each column takes up the full width of the paper */
+                .phase-col {
+                    margin-bottom: 30px !important;
+                    background: white !important;
+                }
+            
+                /* Adjust the card list to show all items */
+                .card-list {
+                    overflow: visible !important;
+                    display: block !important;
+                }
+            
+                /* Remove background colors to save ink and improve clarity */
+                body {
+                    background: white !important;
+                    color: black !important;
+                }
             `;
         }
     };
