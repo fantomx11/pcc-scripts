@@ -350,31 +350,25 @@
         }
     };
 
-        const overlay = document.createElement("div");
-        overlay.className = "modal-overlay";
-        overlay.innerHTML = `
-            <div class="modal-box">
-                <h2>${isNew ? 'Add Supplement / CO' : 'Edit Supplement'}</h2>
-                <div class="modal-field"><label>Job Slideboard URL (Auto-fills Job #)</label><input type="text" id="m-url" value="${job.url || ''}" placeholder="Paste Slideboard URL here..."></div>
-                <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
-                <div class="modal-field"><label>Type</label><select id="m-type"><option value="SUPP" ${job.type==='SUPP'?'selected':''}>Supplement</option><option value="CO" ${job.type==='CO'?'selected':''}>Change Order</option></select></div>
-                <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${job.jobNumber}"></div>
-                <div class="modal-field"><label>Customer</label><input type="text" id="m-cust" value="${job.customer}"></div>
-                <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${job.estimator}"></div>
-                <div class="modal-field"><label>Date Received</label><input type="date" id="m-rec" value="${job.received}"></div>
-                <div class="modal-field"><label>Date Inspected</label><input type="date" id="m-ins" value="${job.inspected}"></div>
-                <div class="modal-field"><label>Date Sent</label><input type="date" id="m-sen" value="${job.sent}"></div>
-                <div class="modal-field"><label>Date Approved</label><input type="date" id="m-app" value="${job.approved}"></div>
-                <div class="modal-field"><label>Date CO Signed (Leave blank if not signed)</label><input type="date" id="m-auth" value="${job.workAuth || ''}"></div>
-                <div class="modal-field"><label>XactID (Optional)</label><input type="text" id="m-xact" value="${job.xactId || ''}"></div>
-                <div class="modal-btns">
-                    ${!isNew ? '<button class="btn-delete" id="m-del">DELETE</button>' : ''}
-                    <button class="btn-cancel" id="m-can">Cancel</button>
-                    <button class="btn-save" id="m-sav">Save Changes</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(overlay);
+    // --- 6. APP CONTROLLER ---
+    window.App = {
+        async init() {
+            const data = await Scraper.scrape();
+            if (data) { Store.sync(data); View.render(); }
+        },
+        switchTab(est) { View.render(est); },
+        openModal(id = null) {
+          const isNew = !id;
+          // 1. Reference the new Store and active tab logic
+          const activeEstName = document.querySelector(".tab-btn.active")?.textContent.split(' (')[0] || "Unassigned";
+          
+          const est = Store.all.get(id) || { 
+              estimator: activeEstName, 
+              isManual: true, 
+              type: "SUPP",
+              jobNumber: "", customer: "", url: "",
+              received: "", inspected: "", sent: "", approved: "", workAuth: ""
+          };
 
           const isCms = est.type === 'CMS';
 
@@ -431,6 +425,7 @@
               document.getElementById('m-del').onclick = () => {
                   const manuals = Store.get(CONFIG.KEYS.MANUAL).filter(m => m.uniqueId !== est.uniqueId);
                   Store.save(CONFIG.KEYS.MANUAL, manuals);
+                  Store.sync(window.estAccumulator || []);
                   View.render(est.estimator);
               };
           }
