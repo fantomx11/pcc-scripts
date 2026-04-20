@@ -456,7 +456,7 @@
                       approved: document.getElementById('m-app').value,
                       workAuth: document.getElementById('m-auth').value,
                       url: document.getElementById('m-url').value,
-                      xactId: document.getElementById('m-xact').value,
+                      xactId: document.getElementById('m-xact').value !== "" ? document.getElementById('m-xact').value : undefined,
                       uniqueId: est.uniqueId || Date.now().toString(),
                       isManual: true
                   };
