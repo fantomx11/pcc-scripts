@@ -393,7 +393,7 @@
                       <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${est.jobNumber}"></div>
                       <div class="modal-field"><label>Customer</label><input type="text" id="m-cust" value="${est.customer}"></div>
                       <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${est.estimator}"></div>
-                      <div class="modal-field"><label>Estimator</label><input type="text" id="m-xact" value="${est.xactId || ''}"></div>
+                      <div class="modal-field"><label>XactAnalysis ID</label><input type="text" id="m-xact" value="${est.xactId || ''}"></div>
                       
                       <div class="modal-field"><label>Date Received</label><input type="date" id="m-rec" value="${est.received}"></div>
                       <div class="modal-field"><label>Date Inspected</label><input type="date" id="m-ins" value="${est.inspected}"></div>
