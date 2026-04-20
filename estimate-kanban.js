@@ -393,6 +393,7 @@
                       <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${est.jobNumber}"></div>
                       <div class="modal-field"><label>Customer</label><input type="text" id="m-cust" value="${est.customer}"></div>
                       <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${est.estimator}"></div>
+                      <div class="modal-field"><label>Estimator</label><input type="text" id="m-xact" value="${est.xactId}"></div>
                       
                       <div class="modal-field"><label>Date Received</label><input type="date" id="m-rec" value="${est.received}"></div>
                       <div class="modal-field"><label>Date Inspected</label><input type="date" id="m-ins" value="${est.inspected}"></div>
@@ -455,6 +456,7 @@
                       approved: document.getElementById('m-app').value,
                       workAuth: document.getElementById('m-auth').value,
                       url: document.getElementById('m-url').value,
+                      xactId: document.getElementById('m-xact').value,
                       uniqueId: est.uniqueId || Date.now().toString(),
                       isManual: true
                   };
