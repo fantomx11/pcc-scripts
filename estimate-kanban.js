@@ -9,19 +9,54 @@
         }
     };
 
-    // --- 2. THE MODEL (Business Logic) ---
-    class Estimate {
+    class Job {
+        static instances = new Map();
+
         constructor(data) {
-            // Identification & Core Info
-            this.uniqueId = data.uniqueId || `cms-${data.jobNumber}`;
             this.jobNumber = data.jobNumber;
             this.customer = data.customer;
             this.estimator = data.estimator || "Unassigned";
             this.division = data.division;
-            this.type = data.type || 'CMS'; 
             this.url = data.url || "#";
-            this.isManual = !!data.isManual;
             this.xactId = data.xactId;
+            
+            // Register this instance
+            Job.instances.set(this.jobNumber, this);
+        }
+
+        /**
+         * Finds an existing job or creates a new one
+         */
+        static getOrCreate(data, overwrite) {
+              let job = Job.instances.get(data.jobNumber);
+
+              if (!job || overwrite) {
+                  job = new Job(data);
+              } else {
+                  // Fill in missing values if the new data provides them
+                  if ((!job.url || job.url === "#") && data.url) {
+                      job.url = data.url;
+                  }
+                  if (!job.xactId && data.xactId) {
+                      job.xactId = data.xactId;
+                  }
+              }
+              return job;
+          }
+    }
+
+    class Estimate {
+        constructor(data) {
+            // Identification
+            this.uniqueId = data.uniqueId || `cms-${data.jobNumber}`;
+            this._jobNumber = data.jobNumber; // Private reference for lookup
+            this.type = data.type || 'CMS';
+            this.isManual = !!data.isManual;
+
+            this.description = data.description || "Main";
+
+            // Ensure the Job exists
+            Job.getOrCreate(data, !data.isManual);
 
             // Dates
             this.received = data.received;
@@ -37,6 +72,19 @@
             this.deductible = this._parseCurrency(data.deductible);
         }
 
+        // --- Job Reference Getters ---
+        get job() {
+            return Job.instances.get(this._jobNumber);
+        }
+
+        get jobNumber() { return this.job?.jobNumber; }
+        get customer()  { return this.job?.customer; }
+        get estimator() { return this.job?.estimator; }
+        get division()  { return this.job?.division; }
+        get url()       { return this.job?.url; }
+        get xactId()    { return this.job?.xactId; }
+
+        // --- Logic Methods ---
         _parseCurrency(val) {
             if (!val) return 0;
             return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
@@ -48,9 +96,14 @@
             return isNaN(diff) || diff < 0 ? 0 : diff;
         }
 
+        get isActive() {
+          return ['Inspection', 'Estimate', 'Approval', 'Process'].indexOf(this.phase) !== -1;
+        }
+
         get phase() {
             const hasDate = (d) => d && d !== "" && !String(d).toLowerCase().includes("null");
             if (this.division === "Warranty") return "Warranty";
+            if (this.origEstimate > 0) return "Completed";
             if (hasDate(this.approved)) return "Process";
             if (hasDate(this.sent)) return "Approval";
             if (hasDate(this.inspected)) return "Estimate";
@@ -148,7 +201,7 @@
                 <div class="tabs-bar">
                     <div class="tabs">${estimators.map(est => `
                         <button class="tab-btn ${est === activeEstimator ? 'active' : ''}" 
-                                onclick="window.App.switchTab('${est}')">${est} (${list.filter(e=>e.estimator===est).length})</button>
+                                onclick="window.App.switchTab('${est}')">${est} (${list.filter(e=>e.estimator===est && e.isActive).length})</button>
                     `).join('')}</div>
                     <button class="add-btn" onclick="window.App.openModal()">+ ADD SUPP/CO</button>
                 </div>
@@ -184,7 +237,7 @@
             card.innerHTML = `
                 <div class="aging-tag">${est.aging}d</div>
                 <div style="font-weight:bold; font-size:12px;"><a href="${est.url}" target="_blank" onclick="event.stopPropagation()">${est.jobNumber}</a></div>
-                <div style="font-size:11px; color:#666;">${est.customer}</div>
+                <div style="font-size:11px; color:#666;">${est.customer} - ${est.description}</div>
                 <div class="badges">
                     ${est.xactId ? `<span class="badge badge-manual"><a href="https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${est.xactId}" target="_blank" onclick="event.stopPropagation()">XACT</a></span>`: ''}
                     ${est.isManual ? `<span class="badge badge-manual">${est.type}</span>` : ''}
@@ -217,7 +270,7 @@
                     const item = document.createElement("div");
                     item.className = "sidebar-item";
                     item.style.borderLeft = `3px solid ${sec.c}`;
-                    item.innerHTML = `<b>${j.jobNumber}</b><br>${j.customer}`;
+                    item.innerHTML = `<b>${j.jobNumber}</b><br>${j.customer} - ${j.description}`;
                     item.onclick = () => (j.isManual || sec.t.includes("Contact")) ? window.App.openModal(j.uniqueId) : window.open(j.url, "_blank");
                     div.appendChild(item);
                 });
@@ -392,6 +445,7 @@
                       </div>
                       <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${est.jobNumber}"></div>
                       <div class="modal-field"><label>Customer</label><input type="text" id="m-cust" value="${est.customer}"></div>
+                      <div class="modal-field"><label>Description</label><input type="text" id="m-desc" value="${est.description}"></div>
                       <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${est.estimator}"></div>
                       <div class="modal-field"><label>XactAnalysis ID</label><input type="text" id="m-xact" value="${est.xactId || ''}"></div>
                       
@@ -449,6 +503,7 @@
                       type: document.getElementById('m-type').value,
                       jobNumber: document.getElementById('m-job').value,
                       customer: document.getElementById('m-cust').value,
+                      description: document.getElementById('m-desc').value,
                       estimator: document.getElementById('m-est').value,
                       received: document.getElementById('m-rec').value,
                       inspected: document.getElementById('m-ins').value,
