@@ -62,6 +62,7 @@
             this.received = data.received;
             this.inspected = data.inspected;
             this.sent = data.sent;
+            this.reviewed = data.reviewed
             this.approved = data.approved;
             this.workAuth = data.workAuth;
             this.lastFollowUp = data.lastFollowUp || "";
@@ -97,7 +98,7 @@
         }
 
         get isActive() {
-          return ['Inspection', 'Estimate', 'Approval', 'Process'].indexOf(this.phase) !== -1;
+          return ['Inspection', 'Estimate', "Review", 'Approval', 'Process'].indexOf(this.phase) !== -1;
         }
 
         get phase() {
@@ -105,7 +106,14 @@
             if (this.division === "Warranty") return "Warranty";
             if (this.origEstimate > 0) return "Completed";
             if (hasDate(this.approved)) return "Process";
-            if (hasDate(this.sent)) return "Approval";
+            if (this.xactId && hasDate(this.reviewed)) return "Approval";
+            if (hasDate(this.sent)) {
+              if(this.xactId) {
+                return "Review";
+              } else {
+                return "Approval";
+              }
+            }
             if (hasDate(this.inspected)) return "Estimate";
             return "Inspection";
         }
@@ -216,7 +224,7 @@
             const filtered = [...Store.all.values()].filter(e => e.estimator === estimator);
             
             // 1. Kanban Columns
-            ["Inspection", "Estimate", "Approval", "Process"].forEach(p => {
+            ["Inspection", "Estimate", "Review", "Approval", "Process"].forEach(p => {
                 const col = document.createElement("div");
                 col.className = "phase-col";
                 col.innerHTML = `<h3>${p.toUpperCase()}</h3><div class="card-list"></div>`;
@@ -433,6 +441,7 @@
                   
                   <div class="modal-field"><label>Last Follow Up (Resets Aging)</label><input type="date" id="m-fol" value="${est.lastFollowUp || ''}"></div>
                   <div class="modal-field"><label>Last Contact (Weekly Check)</label><input type="date" id="m-con" value="${est.lastContact || ''}"></div>
+                  <div class="modal-field"><label>Estimate Reviewed</label><input type="date" id="m-rev" value="${est.reviewed || ''}"></div>
                   
                   ${!isCms ? `
                       <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
@@ -489,10 +498,11 @@
           document.getElementById('m-sav').onclick = () => {
               const fol = document.getElementById('m-fol').value;
               const con = document.getElementById('m-con').value;
+              const rev = document.getElementById('m-rev').value;
 
               if (isCms) {
                   const ov = Store.get(CONFIG.KEYS.OVERRIDE);
-                  ov[est.jobNumber] = { lastFollowUp: fol, lastContact: con };
+                  ov[est.jobNumber] = { lastFollowUp: fol, lastContact: con, reviewed: rev };
                   Store.save(CONFIG.KEYS.OVERRIDE, ov);
               } else {
                   let mans = Store.get(CONFIG.KEYS.MANUAL);
@@ -511,6 +521,7 @@
                       approved: document.getElementById('m-app').value,
                       workAuth: document.getElementById('m-auth').value,
                       url: document.getElementById('m-url').value,
+                      reviewed: document.getElementById('m-rev').value,
                       xactId: document.getElementById('m-xact').value !== "" ? document.getElementById('m-xact').value : undefined,
                       uniqueId: est.uniqueId || Date.now().toString(),
                       isManual: true
