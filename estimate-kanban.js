@@ -630,6 +630,7 @@
           Store.save(CONFIG.KEYS.MANUAL, manuals);
           Store.sync(window.estAccumulator || []);
           View.render(est.estimator);
+          Store.push();
         };
       }
 
