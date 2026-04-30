@@ -73,6 +73,7 @@
       this._jobNumber = data.jobNumber; // Private reference for lookup
       this.type = data.type || 'CMS';
       this.isManual = !!data.isManual;
+      this.deleted = !!data.deleted; // Capture the soft-delete state
 
       this.description = data.description || "Main";
 
@@ -128,11 +129,12 @@
     }
 
     get isActive() {
+      if(this.deleted) return "false";
       return [Phases.Inspection, Phases.Estimate, Phases.Review, Phases.Approval, Phases.Process].indexOf(this.phase) !== -1;
     }
 
     get phase() {
-      if (this.isWarranty) return "Completed";
+      if (this.isWarranty || this.deleted) return "Completed";
 
       const phase = [
         { phase: Phases.Inspection, isCurrent: true },
@@ -175,16 +177,116 @@
     all: new Map(),
     isSyncing: false,
     API_URL: "https://script.google.com/macros/s/AKfycbyU3a4YSvJ8CMWNDXUHvyCT2wKrokmIQ60NAl9VIS-9RIB3y6lhsXlyPHCK5bKVNSIg/exec",
+    _syncTimeout: null,
 
     get(key) { return JSON.parse(localStorage.getItem(key) || (key.includes('overrides') ? "{}" : "[]")); },
     save(key, data) { localStorage.setItem(key, JSON.stringify(data)); },
+
+    rebuildLocal(scrapedData) {
+      const manuals = this.get(CONFIG.KEYS.MANUAL);
+      const overrides = this.get(CONFIG.KEYS.OVERRIDE);
+      this.all.clear();
+
+      manuals.forEach(m => this.all.set(m.uniqueId, new Estimate(m)));
+      scrapedData.forEach(s => {
+        const extra = overrides[s.jobNumber] || {};
+        const est = new Estimate({ ...s, ...extra });
+        this.all.set(est.uniqueId, est);
+      });
+    },
+
+    async syncRemote(scrapedData, activeEstimator) {
+      if (this._syncTimeout) clearTimeout(this._syncTimeout);
+
+      this.updateStatusUI('syncing');
+
+      this._syncTimeout = setTimeout(async () => {
+        try {
+          const payload = {
+            manual: this.get(CONFIG.KEYS.MANUAL),
+            overrides: this.get(CONFIG.KEYS.OVERRIDE)
+          };
+
+          const resp = await fetch(this.API_URL, {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
+
+          const cloudData = await resp.json();
+
+          // Update local storage with any potential merges from cloud
+          if (cloudData.manual) this.save(CONFIG.KEYS.MANUAL, cloudData.manual);
+          if (cloudData.overrides) this.save(CONFIG.KEYS.OVERRIDE, cloudData.overrides);
+
+          // Final rebuild and re-render to ensure UI matches Cloud reality
+          this.rebuildLocal(scrapedData);
+          View.render(activeEstimator);
+          this.updateStatusUI('saved');
+        } catch (e) {
+          console.error(e);
+          this.updateStatusUI('error');
+        }
+      }, 2000); // 2-second debounce
+    },
+
+    // Inside Store object
+    async initialFetch(scrapedData) {
+      this.updateStatusUI('syncing');
+      try {
+        const resp = await fetch(this.API_URL);
+        const cloudData = await resp.json();
+
+        // Update LocalStorage with fresh cloud data
+        if (cloudData.manual) this.save(CONFIG.KEYS.MANUAL, cloudData.manual);
+        if (cloudData.overrides) this.save(CONFIG.KEYS.OVERRIDE, cloudData.overrides);
+
+        // Rebuild the Map and trigger the "Background Sync Complete" render
+        this.rebuildLocal(scrapedData);
+
+        // Optional: Only re-render if the user is on the 'All' tab 
+        // or keep it simple and just re-render current view
+        const activeTab = document.querySelector(".tab-btn.active")?.textContent.split(' (')[0] || "All";
+        View.render(activeTab);
+
+        this.updateStatusUI('saved');
+      } catch (e) {
+        console.error("Initial sync failed:", e);
+        this.updateStatusUI('error');
+      }
+    },
+
+    // Inside Store object
+    async initialFetch(scrapedData) {
+      this.updateStatusUI('syncing');
+      try {
+        const resp = await fetch(this.API_URL);
+        const cloudData = await resp.json();
+
+        // Update LocalStorage with fresh cloud data
+        if (cloudData.manual) this.save(CONFIG.KEYS.MANUAL, cloudData.manual);
+        if (cloudData.overrides) this.save(CONFIG.KEYS.OVERRIDE, cloudData.overrides);
+
+        // Rebuild the Map and trigger the "Background Sync Complete" render
+        this.rebuildLocal(scrapedData);
+
+        // Optional: Only re-render if the user is on the 'All' tab 
+        // or keep it simple and just re-render current view
+        const activeTab = document.querySelector(".tab-btn.active")?.textContent.split(' (')[0] || "All";
+        View.render(activeTab);
+
+        this.updateStatusUI('saved');
+      } catch (e) {
+        console.error("Initial sync failed:", e);
+        this.updateStatusUI('error');
+      }
+    },
 
     async sync(scrapedData) {
       this.updateStatusUI('syncing');
       try {
         const resp = await fetch(this.API_URL);
         const cloudData = await resp.json();
-        
+
         if (cloudData.manual) this.save(CONFIG.KEYS.MANUAL, cloudData.manual);
         if (cloudData.overrides) this.save(CONFIG.KEYS.OVERRIDE, cloudData.overrides);
         this.updateStatusUI('saved');
@@ -286,6 +388,11 @@
   // --- 5. UI / VIEW LAYER ---
   const View = {
     render(activeEstimator = null) {
+      if (document.querySelector(".modal-overlay")) {
+        console.log("Render blocked: Modal is open.");
+        return;
+      }
+
       const list = [...Store.all.values()];
       const estimators = [...new Set(list.map(e => e.estimator))].sort();
 
@@ -541,20 +648,26 @@
   // --- 6. APP CONTROLLER ---
   window.App = {
     async init() {
-      // Prevent navigation logic
+      // 1. Standard event listeners
       window.addEventListener('beforeunload', (e) => {
-        if (Store.isSyncing) {
+        if (this.isSyncing) {
           e.preventDefault();
-          e.returnValue = 'Data is still syncing to the cloud. Are you sure you want to leave?';
+          e.returnValue = 'Data is still syncing...';
         }
       });
 
       const data = await Scraper.scrape();
       if (data) {
-        await Store.sync(data);
-        View.render();
+        window.estAccumulator = data || [];
+        Store.rebuildLocal(window.estAccumulator);
+        View.render("All");
+
+        if (data) {
+          Store.initialFetch(window.estAccumulator);
+        }
       }
     },
+
     switchTab(est) { View.render(est); },
 
     openModal(id = null) {
@@ -626,11 +739,23 @@
       // 2. Updated Delete Logic using CONFIG and Store
       if (document.getElementById('m-del')) {
         document.getElementById('m-del').onclick = () => {
-          const manuals = Store.get(CONFIG.KEYS.MANUAL).filter(m => m.uniqueId !== est.uniqueId);
-          Store.save(CONFIG.KEYS.MANUAL, manuals);
-          Store.sync(window.estAccumulator || []);
+          let mans = Store.get(CONFIG.KEYS.MANUAL);
+          
+          // Soft delete: Find the item and mark it deleted
+          mans = mans.map(m => {
+            if (m.uniqueId === est.uniqueId) {
+              return { ...m, deleted: true };
+            }
+            return m;
+          });
+
+          Store.save(CONFIG.KEYS.MANUAL, mans);
+          overlay.remove();
+
+          // Rebuild and Sync
+          Store.rebuildLocal(window.estAccumulator || []);
           View.render(est.estimator);
-          Store.push();
+          Store.syncRemote(window.estAccumulator || [], est.estimator);
         };
       }
 
