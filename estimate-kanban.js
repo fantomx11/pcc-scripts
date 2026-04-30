@@ -4,8 +4,6 @@
     KEYS: {
       MANUAL: "manual_estimates_v8",
       OVERRIDE: "cms_overrides_v1",
-      GIST_ID: "cms_gist_id",
-      GIST_TOKEN: "cms_gist_token"
     },
     SELECTORS: {
       HEADER: ".rgHeaderWrapper thead tr",
@@ -169,47 +167,26 @@
   const Store = {
     all: new Map(),
     isSyncing: false,
+    API_URL: "https://script.google.com/macros/s/AKfycbyU3a4YSvJ8CMWNDXUHvyCT2wKrokmIQ60NAl9VIS-9RIB3y6lhsXlyPHCK5bKVNSIg/exec",
 
     get(key) { return JSON.parse(localStorage.getItem(key) || (key.includes('overrides') ? "{}" : "[]")); },
     save(key, data) { localStorage.setItem(key, JSON.stringify(data)); },
 
-    async checkCredentials() {
-      let id = localStorage.getItem(CONFIG.KEYS.GIST_ID);
-      let token = localStorage.getItem(CONFIG.KEYS.GIST_TOKEN);
-
-      if (!id || !token) {
-        id = prompt("Enter your GitHub Gist ID:");
-        token = prompt("Enter your GitHub Personal Access Token:");
-        if (id && token) {
-          localStorage.setItem(CONFIG.KEYS.GIST_ID, id);
-          localStorage.setItem(CONFIG.KEYS.GIST_TOKEN, token);
-        } else {
-          alert("Cloud sync disabled. Credentials missing.");
-          return false;
-        }
-      }
-      return { id, token };
-    },
-
     async sync(scrapedData) {
-      const creds = await this.checkCredentials();
-
-      if (creds) {
-        try {
-          const resp = await fetch(`https://api.github.com/gists/${creds.id}`, {
-            headers: { Authorization: `token ${creds.token}` }
-          });
-          if (resp.ok) {
-            const gistData = await resp.json();
-            const content = JSON.parse(gistData.files["estimates.json"].content);
-            if (content.manual) this.save(CONFIG.KEYS.MANUAL, content.manual);
-            if (content.overrides) this.save(CONFIG.KEYS.OVERRIDE, content.overrides);
-          }
-        } catch (e) {
-          console.error("Cloud pull failed:", e);
-        }
+      this.updateStatusUI('syncing');
+      try {
+        const resp = await fetch(this.API_URL);
+        const cloudData = await resp.json();
+        
+        if (cloudData.manual) this.save(CONFIG.KEYS.MANUAL, cloudData.manual);
+        if (cloudData.overrides) this.save(CONFIG.KEYS.OVERRIDE, cloudData.overrides);
+        this.updateStatusUI('saved');
+      } catch (e) {
+        console.log(e);
+        this.updateStatusUI('error');
       }
 
+      // Rebuild the internal Map
       const manuals = this.get(CONFIG.KEYS.MANUAL);
       const overrides = this.get(CONFIG.KEYS.OVERRIDE);
       this.all.clear();
@@ -238,33 +215,22 @@
     },
 
     async push() {
-      const creds = await this.checkCredentials();
-      if (!creds) return;
-
       this.updateStatusUI('syncing');
-
       const payload = {
         manual: this.get(CONFIG.KEYS.MANUAL),
         overrides: this.get(CONFIG.KEYS.OVERRIDE)
       };
 
       try {
-        const resp = await fetch(`https://api.github.com/gists/${creds.id}`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `token ${creds.token}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            files: { "estimates.json": { content: JSON.stringify(payload, null, 2) } }
-          })
+        await fetch(this.API_URL, {
+          method: "POST",
+          body: JSON.stringify(payload)
         });
-
-        if (!resp.ok) throw new Error();
         this.updateStatusUI('saved');
       } catch (e) {
+        debugger;
+        console.log(e);
         this.updateStatusUI('error');
-        console.error("Cloud push failed");
       }
     }
   };
@@ -507,6 +473,28 @@
               .btn-cancel { background: #ecf0f1; color: #34495e; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
               .btn-cancel:hover { background: #bdc3c7; }
 
+              .sync-indicator { 
+                  display: inline-flex; 
+                  align-items: center; 
+                  margin-right: 15px; 
+                  font-size: 14px; 
+                  color: #95a5a6; 
+              }
+              .spinner {
+                  width: 14px;
+                  height: 14px;
+                  border: 2px solid rgba(255,255,255,.3);
+                  border-radius: 50%;
+                  border-top-color: #fff;
+                  animation: spin 1s ease-in-out infinite;
+                  margin-right: 5px;
+              }
+
+              @keyframes spin { to { transform: rotate(360deg); } }
+              .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+              .status-online { background: #27ae60; }
+              .status-offline { background: #e74c3c; }
+
               @media print {
                 /* Hide the sidebar and navigation elements */
                 .sidebar, .tabs-bar, .add-btn {
@@ -538,27 +526,7 @@
                     background: white !important;
                     color: black !important;
                 }
-
-                .sync-indicator { 
-                    display: inline-flex; 
-                    align-items: center; 
-                    margin-right: 15px; 
-                    font-size: 14px; 
-                    color: #95a5a6; 
-                }
-                .spinner {
-                    width: 14px;
-                    height: 14px;
-                    border: 2px solid rgba(255,255,255,.3);
-                    border-radius: 50%;
-                    border-top-color: #fff;
-                    animation: spin 1s ease-in-out infinite;
-                    margin-right: 5px;
-                }
-                @keyframes spin { to { transform: rotate(360deg); } }
-                .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-                .status-online { background: #27ae60; }
-                .status-offline { background: #e74c3c; }
+              }
             `;
     }
   };
@@ -581,6 +549,7 @@
       }
     },
     switchTab(est) { View.render(est); },
+
     openModal(id = null) {
       const isNew = !id;
       // 1. Reference the new Store and active tab logic
