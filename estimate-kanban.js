@@ -1,7 +1,12 @@
 (() => {
   // --- 1. CONFIGURATION ---
   const CONFIG = {
-    KEYS: { MANUAL: "manual_estimates_v8", OVERRIDE: "cms_overrides_v1" },
+    KEYS: {
+      MANUAL: "manual_estimates_v8",
+      OVERRIDE: "cms_overrides_v1",
+      GIST_ID: "cms_gist_id",
+      GIST_TOKEN: "cms_gist_token"
+    },
     SELECTORS: {
       HEADER: ".rgHeaderWrapper thead tr",
       ROWS: "tr.rgRow, tr.rgAltRow",
@@ -163,9 +168,48 @@
   // --- 3. STORAGE LAYER ---
   const Store = {
     all: new Map(),
+    isSyncing: false,
+
     get(key) { return JSON.parse(localStorage.getItem(key) || (key.includes('overrides') ? "{}" : "[]")); },
     save(key, data) { localStorage.setItem(key, JSON.stringify(data)); },
-    sync(scrapedData) {
+
+    async checkCredentials() {
+      let id = localStorage.getItem(CONFIG.KEYS.GIST_ID);
+      let token = localStorage.getItem(CONFIG.KEYS.GIST_TOKEN);
+
+      if (!id || !token) {
+        id = prompt("Enter your GitHub Gist ID:");
+        token = prompt("Enter your GitHub Personal Access Token:");
+        if (id && token) {
+          localStorage.setItem(CONFIG.KEYS.GIST_ID, id);
+          localStorage.setItem(CONFIG.KEYS.GIST_TOKEN, token);
+        } else {
+          alert("Cloud sync disabled. Credentials missing.");
+          return false;
+        }
+      }
+      return { id, token };
+    },
+
+    async sync(scrapedData) {
+      const creds = await this.checkCredentials();
+
+      if (creds) {
+        try {
+          const resp = await fetch(`https://api.github.com/gists/${creds.id}`, {
+            headers: { Authorization: `token ${creds.token}` }
+          });
+          if (resp.ok) {
+            const gistData = await resp.json();
+            const content = JSON.parse(gistData.files["estimates.json"].content);
+            if (content.manual) this.save(CONFIG.KEYS.MANUAL, content.manual);
+            if (content.overrides) this.save(CONFIG.KEYS.OVERRIDE, content.overrides);
+          }
+        } catch (e) {
+          console.error("Cloud pull failed:", e);
+        }
+      }
+
       const manuals = this.get(CONFIG.KEYS.MANUAL);
       const overrides = this.get(CONFIG.KEYS.OVERRIDE);
       this.all.clear();
@@ -175,6 +219,53 @@
         const est = new Estimate({ ...s, ...extra });
         this.all.set(est.uniqueId, est);
       });
+    },
+
+    updateStatusUI(status) {
+      const container = document.getElementById("sync-status");
+      if (!container) return;
+
+      if (status === 'syncing') {
+        container.innerHTML = `<div class="spinner"></div> <span style="font-size:10px; color:white;">SYNCING...</span>`;
+        this.isSyncing = true;
+      } else if (status === 'error') {
+        container.innerHTML = `<div class="status-dot status-offline"></div> <span style="font-size:10px; color:#e74c3c;">SYNC ERROR</span>`;
+        this.isSyncing = false;
+      } else {
+        container.innerHTML = `<div class="status-dot status-online"></div> <span style="font-size:10px; color:#95a5a6;">CLOUD SAVED</span>`;
+        this.isSyncing = false;
+      }
+    },
+
+    async push() {
+      const creds = await this.checkCredentials();
+      if (!creds) return;
+
+      this.updateStatusUI('syncing');
+
+      const payload = {
+        manual: this.get(CONFIG.KEYS.MANUAL),
+        overrides: this.get(CONFIG.KEYS.OVERRIDE)
+      };
+
+      try {
+        const resp = await fetch(`https://api.github.com/gists/${creds.id}`, {
+          method: "PATCH",
+          headers: {
+            Authorization: `token ${creds.token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            files: { "estimates.json": { content: JSON.stringify(payload, null, 2) } }
+          })
+        });
+
+        if (!resp.ok) throw new Error();
+        this.updateStatusUI('saved');
+      } catch (e) {
+        this.updateStatusUI('error');
+        console.error("Cloud push failed");
+      }
     }
   };
 
@@ -224,14 +315,14 @@
     render(activeEstimator = null) {
       const list = [...Store.all.values()];
       const estimators = [...new Set(list.map(e => e.estimator))].sort();
-      
+
       // Default to "All" if no estimator is specified
       if (activeEstimator === null) activeEstimator = "All";
 
       document.body.innerHTML = `<style>${this._getStyles()}</style>`;
       const container = document.createElement("div");
       container.className = "dash-container";
-      
+
       // Create the "All" tab + individual estimator tabs
       const tabsHtml = `
         <button class="tab-btn ${activeEstimator === 'All' ? 'active' : ''}" 
@@ -243,11 +334,14 @@
       `;
 
       container.innerHTML = `
-        <div class="tabs-bar">
-            <div class="tabs">${tabsHtml}</div>
-            <button class="add-btn" onclick="window.App.openModal()">+ ADD SUPP/CO</button>
-        </div>
-        <div class="main-content" id="board"></div>
+          <div class="tabs-bar">
+              <div class="tabs">${tabsHtml}</div>
+              <div style="display: flex; align-items: center;">
+                  <div id="sync-status" class="sync-indicator"></div>
+                  <button class="add-btn" onclick="window.App.openModal()">+ ADD SUPP/CO</button>
+              </div>
+          </div>
+          <div class="main-content" id="board"></div>
       `;
       document.body.appendChild(container);
       this._buildBoard(activeEstimator);
@@ -257,7 +351,7 @@
     _buildBoard(estimator) {
       const board = document.getElementById("board");
       // Logic: if estimator is 'All', show everyone. Otherwise, filter by name.
-      const filtered = [...Store.all.values()].filter(e => 
+      const filtered = [...Store.all.values()].filter(e =>
         estimator === "All" ? true : e.estimator === estimator
       );
 
@@ -265,7 +359,7 @@
         const col = document.createElement("div");
         col.className = "phase-col";
         col.innerHTML = `<h3>${p.toUpperCase()}</h3><div class="card-list"></div>`;
-        
+
         filtered.filter(e => e.phase === p && e.division !== "Warranty")
           .sort((a, b) => b.aging - a.aging)
           .forEach(est => col.querySelector(".card-list").appendChild(this._createCard(est)));
@@ -444,6 +538,27 @@
                     background: white !important;
                     color: black !important;
                 }
+
+                .sync-indicator { 
+                    display: inline-flex; 
+                    align-items: center; 
+                    margin-right: 15px; 
+                    font-size: 14px; 
+                    color: #95a5a6; 
+                }
+                .spinner {
+                    width: 14px;
+                    height: 14px;
+                    border: 2px solid rgba(255,255,255,.3);
+                    border-radius: 50%;
+                    border-top-color: #fff;
+                    animation: spin 1s ease-in-out infinite;
+                    margin-right: 5px;
+                }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+                .status-online { background: #27ae60; }
+                .status-offline { background: #e74c3c; }
             `;
     }
   };
@@ -451,9 +566,18 @@
   // --- 6. APP CONTROLLER ---
   window.App = {
     async init() {
+      // Prevent navigation logic
+      window.addEventListener('beforeunload', (e) => {
+        if (Store.isSyncing) {
+          e.preventDefault();
+          e.returnValue = 'Data is still syncing to the cloud. Are you sure you want to leave?';
+        }
+      });
+
       const data = await Scraper.scrape();
       if (data) {
-        Store.sync(data); View.render();
+        await Store.sync(data);
+        View.render();
       }
     },
     switchTab(est) { View.render(est); },
@@ -582,6 +706,8 @@
 
         // 3. Trigger a re-render of the current estimator's view
         View.render(est.estimator);
+
+        Store.push();
       };
     }
   };
