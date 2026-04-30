@@ -129,7 +129,7 @@
     }
 
     get isActive() {
-      if(this.deleted) return "false";
+      if(this.deleted) return false;
       return [Phases.Inspection, Phases.Estimate, Phases.Review, Phases.Approval, Phases.Process].indexOf(this.phase) !== -1;
     }
 
