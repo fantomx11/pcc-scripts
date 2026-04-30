@@ -406,7 +406,7 @@
       // Create the "All" tab + individual estimator tabs
       const tabsHtml = `
         <button class="tab-btn ${activeEstimator === 'All' ? 'active' : ''}" 
-                onclick="window.App.switchTab('All')">ALL (${list.filter(e => e.isActive).length})</button>
+                onclick="window.App.switchTab('All')">All (${list.filter(e => e.isActive).length})</button>
         ${estimators.map(est => `
             <button class="tab-btn ${est === activeEstimator ? 'active' : ''}" 
                     onclick="window.App.switchTab('${est}')">${est} (${list.filter(e => e.estimator === est && e.isActive).length})</button>
