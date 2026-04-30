@@ -23,6 +23,13 @@
 
   const hasDate = (d) => !isNaN(new Date(d).getTime());
 
+  const formatDateForInput = (dateStr) => {
+    if (!dateStr || dateStr === "null") return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    return d.toISOString().split('T')[0];
+  };
+
   class Job {
     static instances = new Map();
 
@@ -571,9 +578,9 @@
               <div class="modal-box">
                   <h3 style="margin-top:0">${isCms ? 'Log CMS Contact' : (isNew ? 'Add Supplement/CO' : 'Edit Local Entry')}</h3>
                   
-                  <div class="modal-field"><label>Last Follow Up (Resets Aging)</label><input type="date" id="m-fol" value="${est.lastFollowUp || ''}"></div>
-                  <div class="modal-field"><label>Last Contact (Weekly Check)</label><input type="date" id="m-con" value="${est.lastContact || ''}"></div>
-                  <div class="modal-field"><label>Estimate Reviewed</label><input type="date" id="m-rev" value="${est.reviewed || ''}"></div>
+                  <div class="modal-field"><label>Last Follow Up (Resets Aging)</label><input type="date" id="m-fol" value="${formatDateForInput(est.lastFollowUp) || ''}"></div>
+                  <div class="modal-field"><label>Last Contact (Weekly Check)</label><input type="date" id="m-con" value="${formatDateForInput(est.lastContact) || ''}"></div>
+                  <div class="modal-field"><label>Estimate Reviewed</label><input type="date" id="m-rev" value="${formatDateForInput(est.reviewed) || ''}"></div>
                   
                   ${!isCms ? `
                       <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
@@ -590,11 +597,11 @@
                       <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${est.estimator}"></div>
                       <div class="modal-field"><label>XactAnalysis ID</label><input type="text" id="m-xact" value="${est.xactId || ''}"></div>
                       
-                      <div class="modal-field"><label>Date Received</label><input type="date" id="m-rec" value="${est.received}"></div>
-                      <div class="modal-field"><label>Date Inspected</label><input type="date" id="m-ins" value="${est.inspected}"></div>
-                      <div class="modal-field"><label>Date Estimate Sent</label><input type="date" id="m-sen" value="${est.sent}"></div>
-                      <div class="modal-field"><label>Date Estimate Approved</label><input type="date" id="m-app" value="${est.approved}"></div>
-                      <div class="modal-field"><label>Date Signed/Auth (Clears Badge)</label><input type="date" id="m-auth" value="${est.workAuth || ''}"></div>
+                      <div class="modal-field"><label>Date Received</label><input type="date" id="m-rec" value="${formatDateForInput(est.received)}"></div>
+                      <div class="modal-field"><label>Date Inspected</label><input type="date" id="m-ins" value="${formatDateForInput(est.inspected)}"></div>
+                      <div class="modal-field"><label>Date Estimate Sent</label><input type="date" id="m-sen" value="${formatDateForInput(est.sent)}"></div>
+                      <div class="modal-field"><label>Date Estimate Approved</label><input type="date" id="m-app" value="${formatDateForInput(est.approved)}"></div>
+                      <div class="modal-field"><label>Date Signed/Auth (Clears Badge)</label><input type="date" id="m-auth" value="${formatDateForInput(est.workAuth) || ''}"></div>
                   ` : `<p style="font-size:12px; color:#666;">Editing CMS Job: <b>${est.jobNumber}</b></p>`}
                   
                   <div class="modal-btns" style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
