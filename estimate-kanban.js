@@ -1,307 +1,331 @@
 (() => {
-    // --- 1. CONFIGURATION ---
-    const CONFIG = {
-        KEYS: { MANUAL: "manual_estimates_v8", OVERRIDE: "cms_overrides_v1" },
-        SELECTORS: {
-            HEADER: ".rgHeaderWrapper thead tr",
-            ROWS: "tr.rgRow, tr.rgAltRow",
-            PAGER: ".rgNumPart .rgCurrentPage"
-        }
-    };
+  // --- 1. CONFIGURATION ---
+  const CONFIG = {
+    KEYS: { MANUAL: "manual_estimates_v8", OVERRIDE: "cms_overrides_v1" },
+    SELECTORS: {
+      HEADER: ".rgHeaderWrapper thead tr",
+      ROWS: "tr.rgRow, tr.rgAltRow",
+      PAGER: ".rgNumPart .rgCurrentPage"
+    }
+  };
 
-    const hasDate = (d) => !isNaN(new Date(d).getTime());
+  const Phases = {
+    "Inspection": "Inspection",
+    "Estimate": "Estimate",
+    "Review": "Review",
+    "Approval": "Approval",
+    "Process": "Process",
+    "Completed": "Completed"
+  };
 
-    class Job {
-        static instances = new Map();
+  const hasDate = (d) => !isNaN(new Date(d).getTime());
 
-        constructor(data) {
-            this.jobNumber = data.jobNumber;
-            this.customer = data.customer;
-            this.estimator = data.estimator || "Unassigned";
-            this.division = data.division;
-            this.url = data.url || "#";
-            this.xactId = data.xactId;
-            
-            // Register this instance
-            Job.instances.set(this.jobNumber, this);
-        }
+  class Job {
+    static instances = new Map();
 
-        /**
-         * Finds an existing job or creates a new one
-         */
-        static getOrCreate(data, overwrite) {
-              let job = Job.instances.get(data.jobNumber);
+    constructor(data) {
+      this.jobNumber = data.jobNumber;
+      this.customer = data.customer;
+      this.estimator = data.estimator || "Unassigned";
+      this.division = data.division;
+      this.url = data.url || "#";
+      this.xactId = data.xactId;
 
-              if (!job || overwrite) {
-                  job = new Job(data);
-              } else {
-                  // Fill in missing values if the new data provides them
-                  if ((!job.url || job.url === "#") && data.url) {
-                      job.url = data.url;
-                  }
-                  if (!job.xactId && data.xactId) {
-                      job.xactId = data.xactId;
-                  }
-              }
-              return job;
-          }
+      // Register this instance
+      Job.instances.set(this.jobNumber, this);
     }
 
-    class Estimate {
-        constructor(data) {
-            // Identification
-            this.uniqueId = data.uniqueId || `cms-${data.jobNumber}`;
-            this._jobNumber = data.jobNumber; // Private reference for lookup
-            this.type = data.type || 'CMS';
-            this.isManual = !!data.isManual;
+    /**
+     * Finds an existing job or creates a new one
+     */
+    static getOrCreate(data, overwrite) {
+      let job = Job.instances.get(data.jobNumber);
 
-            this.description = data.description || "Main";
-
-            // Ensure the Job exists
-            Job.getOrCreate(data, !data.isManual);
-
-            // Dates
-            this.received = data.received;
-            this.inspected = data.inspected;
-            this.sent = data.sent;
-            this.reviewed = data.reviewed
-            this.approved = data.approved;
-            this.workAuth = data.workAuth;
-            this.lastFollowUp = data.lastFollowUp || "";
-            this.lastContact = data.lastContact || "";
-
-            // Financials
-            this.origEstimate = this._parseCurrency(data.origEstimate);
-            this.deductible = this._parseCurrency(data.deductible);
+      if (!job || overwrite) {
+        job = new Job(data);
+      } else {
+        // Fill in missing values if the new data provides them
+        if ((!job.url || job.url === "#") && data.url) {
+          job.url = data.url;
         }
-
-        // --- Job Reference Getters ---
-        get job() {
-            return Job.instances.get(this._jobNumber);
+        if (!job.xactId && data.xactId) {
+          job.xactId = data.xactId;
         }
+      }
+      return job;
+    }
+  }
 
-        get jobNumber() { return this.job?.jobNumber; }
-        get customer()  { return this.job?.customer; }
-        get estimator() { return this.job?.estimator; }
-        get division()  { return this.job?.division; }
-        get url()       { return this.job?.url; }
-        get xactId()    { return this.job?.xactId; }
+  class Estimate {
+    constructor(data) {
+      // Identification
+      this.uniqueId = data.uniqueId || `cms-${data.jobNumber}`;
+      this._jobNumber = data.jobNumber; // Private reference for lookup
+      this.type = data.type || 'CMS';
+      this.isManual = !!data.isManual;
 
-        get isReviewRequired() { return this.xactId && this.type !== "CO"; }
+      this.description = data.description || "Main";
 
-        get isWarranty() { return this.division === "Warranty"; }
-        get isInspected() { return hasDate(this.inspected); }
-        get isSent() { return hasDate(this.sent); }
-        get isReviewed() { return hasDate(this.reviewed); }
-        get isApproved() { return hasDate(this.approved); }
-        get isProcessed() { return this.origEstimate > 0; }
+      // Ensure the Job exists
+      Job.getOrCreate(data, !data.isManual);
 
-        // --- Logic Methods ---
-        _parseCurrency(val) {
-            if (!val) return 0;
-            return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
-        }
+      // Dates
+      this.received = data.received;
+      this.inspected = data.inspected;
+      this.sent = data.sent;
+      this.reviewed = data.reviewed
+      this.approved = data.approved;
+      this.workAuth = data.workAuth;
+      this.lastFollowUp = data.lastFollowUp || "";
+      this.lastContact = data.lastContact || "";
 
-        _getDaysSince(dateStr) {
-            if (!dateStr || String(dateStr).toLowerCase().includes("null") || dateStr === "") return 0;
-            const diff = Math.floor((new Date() - new Date(dateStr)) / 864e5);
-            return isNaN(diff) || diff < 0 ? 0 : diff;
-        }
-
-        get isActive() {
-          return ['Inspection', 'Estimate', "Review", 'Approval', 'Process'].indexOf(this.phase) !== -1;
-        }
-
-        get phase() {
-          if (this.isWarranty) return "Completed";
-
-          const phase = [
-            {phase: "Inspection", isCurrent: true },
-            {phase: "Estimate", isCurrent: this.isInspected },
-            {phase: "Review", isCurrent: this.isSent },
-            {phase: "Approval", isCurrent: !this.isReviewRequired && this.isSent || this.isReviewed},
-            {phase: "Process", isCurrent: this.isApproved },
-            {phase: "Completed", isCurrent: this.isProcessed }
-          ].findLast(e => e.isCurrent).phase;
-
-          return phase;
-        }
-
-        get aging() {
-          const strategy = {
-              "Inspection": () => this._getDaysSince(this.received),
-              "Estimate":   () => this._getDaysSince(this.inspected),
-              "Review":     () => this._getDaysSince(this.sent),
-              "Approval":   () => Math.max(this.isReviewRequired ? this._getDaysSince(this.reviewed) : this._getDaysSince(this.sent), this._getDaysSince(this.lastFollowUp)),
-              "Process":    () => this._getDaysSince(this.approved),
-              "Completed":  () => 0
-            };
-
-            return (strategy[this.phase] || (() => 0))();
-        }
-
-        get tasks() {
-            const effectiveContact = this.lastContact || this.inspected || this.received;
-            return {
-                needsContact: this.phase === "Approval" && this._getDaysSince(effectiveContact) > 7,
-                needsSignedCO: this.type === "CO" && !this.workAuth,
-                needsWorkAuth: this.type === "CMS" && !this.workAuth && this.division !== "Warranty",
-                needsDeductible: this.type === "CMS" && this.division === "Structure" && this.deductible === 0
-            };
-        }
+      // Financials
+      this.origEstimate = this._parseCurrency(data.origEstimate);
+      this.deductible = this._parseCurrency(data.deductible);
     }
 
-    // --- 3. STORAGE LAYER ---
-    const Store = {
-        all: new Map(),
-        get(key) { return JSON.parse(localStorage.getItem(key) || (key.includes('overrides') ? "{}" : "[]")); },
-        save(key, data) { localStorage.setItem(key, JSON.stringify(data)); },
-        sync(scrapedData) {
-            const manuals = this.get(CONFIG.KEYS.MANUAL);
-            const overrides = this.get(CONFIG.KEYS.OVERRIDE);
-            this.all.clear();
-            manuals.forEach(m => this.all.set(m.uniqueId, new Estimate(m)));
-            scrapedData.forEach(s => {
-                const extra = overrides[s.jobNumber] || {};
-                const est = new Estimate({ ...s, ...extra });
-                this.all.set(est.uniqueId, est);
-            });
-        }
-    };
+    // --- Job Reference Getters ---
+    get job() {
+      return Job.instances.get(this._jobNumber);
+    }
 
-    // --- 4. SCRAPER ENGINE ---
-    const Scraper = {
-        async scrape() {
-            const headerRow = document.querySelector(CONFIG.SELECTORS.HEADER);
-            if (!headerRow) return [];
-            const cells = [...headerRow.querySelectorAll("th")].map(c => c.textContent.trim().toLowerCase());
-            const find = (txt) => cells.indexOf(txt.toLowerCase());
-            const COL = { jobNum: find("Job Number"), customer: find("Customer"), estimator: find("Estimator"), 
-                          received: find("Date Received"), inspected: find("Date Inspected"), sent: find("Date Estimate Sent"),
-                          approved: find("Date Estimate Approved"), workAuth: find("Date of Work Authorization"),
-                          deductible: find("Deductible Amount"), division: find("Division"), origEstimate: find("Original Estimate"),
-                          xactId: find("Xact TransactionID")};
+    get jobNumber() { return this.job?.jobNumber; }
+    get customer() { return this.job?.customer; }
+    get estimator() { return this.job?.estimator; }
+    get division() { return this.job?.division; }
+    get url() { return this.job?.url; }
+    get xactId() { return this.job?.xactId; }
 
-            const data = [...document.querySelectorAll(CONFIG.SELECTORS.ROWS)].map(row => {
-                const c = row.querySelectorAll("td");
-                return {
-                    jobNumber: c[COL.jobNum]?.textContent.trim(),
-                    customer: c[COL.customer]?.textContent.trim(),
-                    estimator: c[COL.estimator]?.textContent.trim() || "Unassigned",
-                    received: c[COL.received]?.textContent.trim(),
-                    inspected: c[COL.inspected]?.textContent.trim(),
-                    sent: c[COL.sent]?.textContent.trim(),
-                    approved: c[COL.approved]?.textContent.trim(),
-                    workAuth: c[COL.workAuth]?.textContent.trim(),
-                    deductible: c[COL.deductible]?.textContent.trim(),
-                    division: c[COL.division]?.textContent.trim(),
-                    origEstimate: c[COL.origEstimate]?.textContent.trim(),
-                    url: c[COL.jobNum]?.querySelector("a")?.href || "#",
-                    xactId: c[COL.xactId]?.textContent.trim()
-                };
-            }).filter(j => j.jobNumber);
+    get isReviewRequired() { return this.xactId && this.type !== "CO"; }
 
-            window.estAccumulator = (window.estAccumulator || []).concat(data);
-            const nextBtn = document.querySelector(CONFIG.SELECTORS.PAGER)?.nextElementSibling;
-            if (nextBtn && nextBtn.tagName === "A") { nextBtn.click(); return null; }
-            return window.estAccumulator;
-        }
-    };
+    get isWarranty() { return this.division === "Warranty"; }
+    get isInspected() { return hasDate(this.inspected); }
+    get isSent() { return hasDate(this.sent); }
+    get isReviewed() { return hasDate(this.reviewed); }
+    get isApproved() { return hasDate(this.approved); }
+    get isProcessed() { return this.origEstimate > 0; }
 
-    // --- 5. UI / VIEW LAYER ---
-    const View = {
-        render(activeEstimator = null) {
-            const list = [...Store.all.values()];
-            const estimators = [...new Set(list.map(e => e.estimator))].sort();
-            activeEstimator = activeEstimator || (estimators.length ? estimators[0] : null);
+    // --- Logic Methods ---
+    _parseCurrency(val) {
+      if (!val) return 0;
+      return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
+    }
 
-            document.body.innerHTML = `<style>${this._getStyles()}</style>`;
-            const container = document.createElement("div");
-            container.className = "dash-container";
-            container.innerHTML = `
-                <div class="tabs-bar">
-                    <div class="tabs">${estimators.map(est => `
-                        <button class="tab-btn ${est === activeEstimator ? 'active' : ''}" 
-                                onclick="window.App.switchTab('${est}')">${est} (${list.filter(e=>e.estimator===est && e.isActive).length})</button>
-                    `).join('')}</div>
-                    <button class="add-btn" onclick="window.App.openModal()">+ ADD SUPP/CO</button>
-                </div>
-                <div class="main-content" id="board"></div>
-            `;
-            document.body.appendChild(container);
-            if (activeEstimator) this._buildBoard(activeEstimator);
-        },
+    _getDaysSince(dateStr) {
+      if (!dateStr || String(dateStr).toLowerCase().includes("null") || dateStr === "") return 0;
+      const diff = Math.floor((new Date() - new Date(dateStr)) / 864e5);
+      return isNaN(diff) || diff < 0 ? 0 : diff;
+    }
 
-        _buildBoard(estimator) {
-            const board = document.getElementById("board");
-            const filtered = [...Store.all.values()].filter(e => e.estimator === estimator);
-            
-            // 1. Kanban Columns
-            ["Inspection", "Estimate", "Review", "Approval", "Process"].forEach(p => {
-                const col = document.createElement("div");
-                col.className = "phase-col";
-                col.innerHTML = `<h3>${p.toUpperCase()}</h3><div class="card-list"></div>`;
-                filtered.filter(e => e.phase === p && e.division !== "Warranty")
-                    .sort((a, b) => b.aging - a.aging)
-                    .forEach(est => col.querySelector(".card-list").appendChild(this._createCard(est)));
-                board.appendChild(col);
-            });
+    get isActive() {
+      return [Phases.Inspection, Phases.Estimate, Phases.Review, Phases.Approval, Phases.Process].indexOf(this.phase) !== -1;
+    }
 
-            // 2. Sidebar
-            board.appendChild(this._createSidebar(filtered));
-        },
+    get phase() {
+      if (this.isWarranty) return "Completed";
 
-        _createCard(est) {
-            const card = document.createElement("div");
-            const severity = est.aging >= 10 ? 'danger' : (est.aging >= 5 ? 'warning' : 'normal');
-            card.className = `job-card ${est.isManual ? 'manual' : ''} ${severity}`;
-            card.innerHTML = `
+      const phase = [
+        { phase: Phases.Inspection, isCurrent: true },
+        { phase: Phases.Estimate, isCurrent: this.isInspected },
+        { phase: Phases.Review, isCurrent: this.isSent },
+        { phase: Phases.Approval, isCurrent: !this.isReviewRequired && this.isSent || this.isReviewed },
+        { phase: Phases.Process, isCurrent: this.isApproved },
+        { phase: Phases.Completed, isCurrent: this.isProcessed }
+      ].findLast(e => e.isCurrent).phase;
+
+      return phase;
+    }
+
+    get aging() {
+      const strategy = {
+        [Phases.Inspection]: () => this._getDaysSince(this.received),
+        [Phases.Estimate]: () => this._getDaysSince(this.inspected),
+        [Phases.Review]: () => this._getDaysSince(this.sent),
+        [Phases.Approval]: () => Math.max(this.isReviewRequired ? this._getDaysSince(this.reviewed) : this._getDaysSince(this.sent), this._getDaysSince(this.lastFollowUp)),
+        [Phases.Process]: () => this._getDaysSince(this.approved),
+        [Phases.Completed]: () => 0
+      };
+
+      return (strategy[this.phase] || (() => 0))();
+    }
+
+    get tasks() {
+      const effectiveContact = this.lastContact || this.inspected || this.received;
+      return {
+        needsContact: this.phase === Phases.Approval && this._getDaysSince(effectiveContact) > 7,
+        needsSignedCO: this.type === "CO" && !this.workAuth,
+        needsWorkAuth: this.type === "CMS" && !this.workAuth && !this.isWarranty,
+        needsDeductible: this.type === "CMS" && this.division === "Structure" && this.deductible === 0
+      };
+    }
+  }
+
+  // --- 3. STORAGE LAYER ---
+  const Store = {
+    all: new Map(),
+    get(key) { return JSON.parse(localStorage.getItem(key) || (key.includes('overrides') ? "{}" : "[]")); },
+    save(key, data) { localStorage.setItem(key, JSON.stringify(data)); },
+    sync(scrapedData) {
+      const manuals = this.get(CONFIG.KEYS.MANUAL);
+      const overrides = this.get(CONFIG.KEYS.OVERRIDE);
+      this.all.clear();
+      manuals.forEach(m => this.all.set(m.uniqueId, new Estimate(m)));
+      scrapedData.forEach(s => {
+        const extra = overrides[s.jobNumber] || {};
+        const est = new Estimate({ ...s, ...extra });
+        this.all.set(est.uniqueId, est);
+      });
+    }
+  };
+
+  // --- 4. SCRAPER ENGINE ---
+  const Scraper = {
+    async scrape() {
+      const headerRow = document.querySelector(CONFIG.SELECTORS.HEADER);
+      if (!headerRow) return [];
+      const cells = [...headerRow.querySelectorAll("th")].map(c => c.textContent.trim().toLowerCase());
+      const find = (txt) => cells.indexOf(txt.toLowerCase());
+      const COL = {
+        jobNum: find("Job Number"), customer: find("Customer"), estimator: find("Estimator"),
+        received: find("Date Received"), inspected: find("Date Inspected"), sent: find("Date Estimate Sent"),
+        approved: find("Date Estimate Approved"), workAuth: find("Date of Work Authorization"),
+        deductible: find("Deductible Amount"), division: find("Division"), origEstimate: find("Original Estimate"),
+        xactId: find("Xact TransactionID")
+      };
+
+      const data = [...document.querySelectorAll(CONFIG.SELECTORS.ROWS)].map(row => {
+        const c = row.querySelectorAll("td");
+        return {
+          jobNumber: c[COL.jobNum]?.textContent.trim(),
+          customer: c[COL.customer]?.textContent.trim(),
+          estimator: c[COL.estimator]?.textContent.trim() || "Unassigned",
+          received: c[COL.received]?.textContent.trim(),
+          inspected: c[COL.inspected]?.textContent.trim(),
+          sent: c[COL.sent]?.textContent.trim(),
+          approved: c[COL.approved]?.textContent.trim(),
+          workAuth: c[COL.workAuth]?.textContent.trim(),
+          deductible: c[COL.deductible]?.textContent.trim(),
+          division: c[COL.division]?.textContent.trim(),
+          origEstimate: c[COL.origEstimate]?.textContent.trim(),
+          url: c[COL.jobNum]?.querySelector("a")?.href || "#",
+          xactId: c[COL.xactId]?.textContent.trim()
+        };
+      }).filter(j => j.jobNumber);
+
+      window.estAccumulator = (window.estAccumulator || []).concat(data);
+      const nextBtn = document.querySelector(CONFIG.SELECTORS.PAGER)?.nextElementSibling;
+      if (nextBtn && nextBtn.tagName === "A") { nextBtn.click(); return null; }
+      return window.estAccumulator;
+    }
+  };
+
+  // --- 5. UI / VIEW LAYER ---
+  const View = {
+    render(activeEstimator = null) {
+      const list = [...Store.all.values()];
+      const estimators = [...new Set(list.map(e => e.estimator))].sort();
+      
+      // Default to "All" if no estimator is specified
+      if (activeEstimator === null) activeEstimator = "All";
+
+      document.body.innerHTML = `<style>${this._getStyles()}</style>`;
+      const container = document.createElement("div");
+      container.className = "dash-container";
+      
+      // Create the "All" tab + individual estimator tabs
+      const tabsHtml = `
+        <button class="tab-btn ${activeEstimator === 'All' ? 'active' : ''}" 
+                onclick="window.App.switchTab('All')">ALL (${list.filter(e => e.isActive).length})</button>
+        ${estimators.map(est => `
+            <button class="tab-btn ${est === activeEstimator ? 'active' : ''}" 
+                    onclick="window.App.switchTab('${est}')">${est} (${list.filter(e => e.estimator === est && e.isActive).length})</button>
+        `).join('')}
+      `;
+
+      container.innerHTML = `
+        <div class="tabs-bar">
+            <div class="tabs">${tabsHtml}</div>
+            <button class="add-btn" onclick="window.App.openModal()">+ ADD SUPP/CO</button>
+        </div>
+        <div class="main-content" id="board"></div>
+      `;
+      document.body.appendChild(container);
+      this._buildBoard(activeEstimator);
+    },
+
+
+    _buildBoard(estimator) {
+      const board = document.getElementById("board");
+      // Logic: if estimator is 'All', show everyone. Otherwise, filter by name.
+      const filtered = [...Store.all.values()].filter(e => 
+        estimator === "All" ? true : e.estimator === estimator
+      );
+
+      [Phases.Inspection, Phases.Estimate, Phases.Review, Phases.Approval, Phases.Process].forEach(p => {
+        const col = document.createElement("div");
+        col.className = "phase-col";
+        col.innerHTML = `<h3>${p.toUpperCase()}</h3><div class="card-list"></div>`;
+        
+        filtered.filter(e => e.phase === p && e.division !== "Warranty")
+          .sort((a, b) => b.aging - a.aging)
+          .forEach(est => col.querySelector(".card-list").appendChild(this._createCard(est)));
+        board.appendChild(col);
+      });
+
+      board.appendChild(this._createSidebar(filtered));
+    },
+
+    _createCard(est) {
+      const card = document.createElement("div");
+      const severity = est.aging >= 10 ? 'danger' : (est.aging >= 5 ? 'warning' : 'normal');
+      card.className = `job-card ${est.isManual ? 'manual' : ''} ${severity}`;
+      card.innerHTML = `
                 <div class="aging-tag">${est.aging}d</div>
                 <div style="font-weight:bold; font-size:12px;"><a href="${est.url}" target="_blank" onclick="event.stopPropagation()">${est.jobNumber}</a></div>
                 <div style="font-size:11px; color:#666;">${est.customer} - ${est.description}</div>
                 <div class="badges">
-                    ${est.xactId ? `<span class="badge badge-manual"><a href="https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${est.xactId}" target="_blank" onclick="event.stopPropagation()">XACT</a></span>`: ''}
+                    ${est.xactId ? `<span class="badge badge-manual"><a href="https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${est.xactId}" target="_blank" onclick="event.stopPropagation()">XACT</a></span>` : ''}
                     ${est.isManual ? `<span class="badge badge-manual">${est.type}</span>` : ''}
                     ${est.tasks.needsContact ? '<span class="badge badge-urgent">CONTACT DUE</span>' : ''}
                     ${est.tasks.needsWorkAuth || est.tasks.needsSignedCO ? '<span class="badge badge-auth">NEED AUTH</span>' : ''}
                     
                 </div>
             `;
-            card.onclick = () => window.App.openModal(est.uniqueId);
-            return card;
-        },
+      card.onclick = () => window.App.openModal(est.uniqueId);
+      return card;
+    },
 
-        _createSidebar(jobs) {
-            const sidebar = document.createElement("div");
-            sidebar.className = "sidebar";
-            const sections = [
-                { t: "Contact Needed", f: j => j.tasks.needsContact, c: "#e74c3c" },
-                { t: "Warranty Jobs", f: j => j.division === "Warranty", c: "#3498db" },
-                { t: "Needs Work Auth", f: j => j.tasks.needsWorkAuth, c: "#8e44ad" },
-                { t: "Needs Signed CO", f: j => j.tasks.needsSignedCO, c: "#8e44ad" },
-                { t: "Enter Deductible", f: j => j.tasks.needsDeductible, c: "#d35400" }
-            ];
+    _createSidebar(jobs) {
+      const sidebar = document.createElement("div");
+      sidebar.className = "sidebar";
+      const sections = [
+        { t: "Contact Needed", f: j => j.tasks.needsContact, c: "#e74c3c" },
+        { t: "Warranty Jobs", f: j => j.division === "Warranty", c: "#3498db" },
+        { t: "Needs Work Auth", f: j => j.tasks.needsWorkAuth, c: "#8e44ad" },
+        { t: "Needs Signed CO", f: j => j.tasks.needsSignedCO, c: "#8e44ad" },
+        { t: "Enter Deductible", f: j => j.tasks.needsDeductible, c: "#d35400" }
+      ];
 
-            sections.forEach(sec => {
-                const list = jobs.filter(sec.f);
-                if (!list.length) return;
-                const div = document.createElement("div");
-                div.innerHTML = `<h4>${sec.t} (${list.length})</h4>`;
-                list.forEach(j => {
-                    const item = document.createElement("div");
-                    item.className = "sidebar-item";
-                    item.style.borderLeft = `3px solid ${sec.c}`;
-                    item.innerHTML = `<b>${j.jobNumber}</b><br>${j.customer} - ${j.description}`;
-                    item.onclick = () => (j.isManual || sec.t.includes("Contact")) ? window.App.openModal(j.uniqueId) : window.open(j.url, "_blank");
-                    div.appendChild(item);
-                });
-                sidebar.appendChild(div);
-            });
-            return sidebar;
-        },
+      sections.forEach(sec => {
+        const list = jobs.filter(sec.f);
+        if (!list.length) return;
+        const div = document.createElement("div");
+        div.innerHTML = `<h4>${sec.t} (${list.length})</h4>`;
+        list.forEach(j => {
+          const item = document.createElement("div");
+          item.className = "sidebar-item";
+          item.style.borderLeft = `3px solid ${sec.c}`;
+          item.innerHTML = `<b>${j.jobNumber}</b><br>${j.customer} - ${j.description}`;
+          item.onclick = () => (j.isManual || sec.t.includes("Contact")) ? window.App.openModal(j.uniqueId) : window.open(j.url, "_blank");
+          div.appendChild(item);
+        });
+        sidebar.appendChild(div);
+      });
+      return sidebar;
+    },
 
-        _getStyles() {
-            return `
+    _getStyles() {
+      return `
                 body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; }
                 .dash-container { display: flex; flex-direction: column; height: 100vh; }
                 .tabs-bar { display: flex; background: #2c3e50; padding: 0 15px; justify-content: space-between; align-items: center; min-height: 45px; }
@@ -421,35 +445,36 @@
                     color: black !important;
                 }
             `;
-        }
-    };
+    }
+  };
 
-    // --- 6. APP CONTROLLER ---
-    window.App = {
-        async init() {
-            const data = await Scraper.scrape();
-            if (data) {
-              Store.sync(data); View.render(); }
-        },
-        switchTab(est) { View.render(est); },
-        openModal(id = null) {
-          const isNew = !id;
-          // 1. Reference the new Store and active tab logic
-          const activeEstName = document.querySelector(".tab-btn.active")?.textContent.split(' (')[0] || "Unassigned";
-          
-          const est = Store.all.get(id) || { 
-              estimator: activeEstName, 
-              isManual: true, 
-              type: "SUPP",
-              jobNumber: "", customer: "", url: "",
-              received: "", inspected: "", sent: "", approved: "", workAuth: ""
-          };
+  // --- 6. APP CONTROLLER ---
+  window.App = {
+    async init() {
+      const data = await Scraper.scrape();
+      if (data) {
+        Store.sync(data); View.render();
+      }
+    },
+    switchTab(est) { View.render(est); },
+    openModal(id = null) {
+      const isNew = !id;
+      // 1. Reference the new Store and active tab logic
+      const activeEstName = document.querySelector(".tab-btn.active")?.textContent.split(' (')[0] || "Unassigned";
 
-          const isCms = est.type === 'CMS';
+      const est = Store.all.get(id) || {
+        estimator: activeEstName,
+        isManual: true,
+        type: "SUPP",
+        jobNumber: "", customer: "", url: "",
+        received: "", inspected: "", sent: "", approved: "", workAuth: ""
+      };
 
-          const overlay = document.createElement("div");
-          overlay.className = "modal-overlay";
-          overlay.innerHTML = `
+      const isCms = est.type === 'CMS';
+
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.innerHTML = `
               <div class="modal-box">
                   <h3 style="margin-top:0">${isCms ? 'Log CMS Contact' : (isNew ? 'Add Supplement/CO' : 'Edit Local Entry')}</h3>
                   
@@ -462,8 +487,8 @@
                       <div class="modal-field"><label>Job Slideboard URL (Auto-fills Job #)</label><input type="text" id="m-url" value="${est.url || ''}"></div>
                       <div class="modal-field"><label>Type</label>
                           <select id="m-type" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
-                              <option value="SUPP" ${est.type==='SUPP'?'selected':''}>Supplement</option>
-                              <option value="CO" ${est.type==='CO'?'selected':''}>Change Order</option>
+                              <option value="SUPP" ${est.type === 'SUPP' ? 'selected' : ''}>Supplement</option>
+                              <option value="CO" ${est.type === 'CO' ? 'selected' : ''}>Change Order</option>
                           </select>
                       </div>
                       <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${est.jobNumber}"></div>
@@ -486,80 +511,80 @@
                   </div>
               </div>
           `;
-          document.body.appendChild(overlay);
+      document.body.appendChild(overlay);
 
-          // URL Parsing Logic
-          const urlInput = document.getElementById('m-url');
-          const jobInput = document.getElementById('m-job');
-          if (urlInput && jobInput) {
-              urlInput.addEventListener('input', (e) => {
-                  const match = e.target.value.match(/[?&]JobNumber=([^&#]+)/);
-                  if (match && match[1]) jobInput.value = decodeURIComponent(match[1]);
-              });
-          }
-
-          // 2. Updated Delete Logic using CONFIG and Store
-          if (document.getElementById('m-del')) {
-              document.getElementById('m-del').onclick = () => {
-                  const manuals = Store.get(CONFIG.KEYS.MANUAL).filter(m => m.uniqueId !== est.uniqueId);
-                  Store.save(CONFIG.KEYS.MANUAL, manuals);
-                  Store.sync(window.estAccumulator || []);
-                  View.render(est.estimator);
-              };
-          }
-
-          // 3. Updated Save Logic using CONFIG and Store
-          document.getElementById('m-sav').onclick = () => {
-              const fol = document.getElementById('m-fol').value;
-              const con = document.getElementById('m-con').value;
-              const rev = document.getElementById('m-rev').value;
-
-              if (isCms) {
-                  const ov = Store.get(CONFIG.KEYS.OVERRIDE);
-                  ov[est.jobNumber] = { lastFollowUp: fol, lastContact: con, reviewed: rev };
-                  Store.save(CONFIG.KEYS.OVERRIDE, ov);
-              } else {
-                  let mans = Store.get(CONFIG.KEYS.MANUAL);
-                  const updatedData = {
-                      ...est,
-                      lastFollowUp: fol,
-                      lastContact: con,
-                      type: document.getElementById('m-type').value,
-                      jobNumber: document.getElementById('m-job').value,
-                      customer: document.getElementById('m-cust').value,
-                      description: document.getElementById('m-desc').value,
-                      estimator: document.getElementById('m-est').value,
-                      received: document.getElementById('m-rec').value,
-                      inspected: document.getElementById('m-ins').value,
-                      sent: document.getElementById('m-sen').value,
-                      approved: document.getElementById('m-app').value,
-                      workAuth: document.getElementById('m-auth').value,
-                      url: document.getElementById('m-url').value,
-                      reviewed: document.getElementById('m-rev').value,
-                      xactId: document.getElementById('m-xact').value !== "" ? document.getElementById('m-xact').value : undefined,
-                      uniqueId: est.uniqueId || Date.now().toString(),
-                      isManual: true
-                  };
-
-                  if (isNew) mans.push(updatedData);
-                  else mans = mans.map(m => m.uniqueId === est.uniqueId ? updatedData : m);
-                  
-                  Store.save(CONFIG.KEYS.MANUAL, mans);
-              }
-
-              // --- RE-RENDER LOGIC ---
-              // 1. Remove the modal overlay
-              overlay.remove();
-
-              // 2. Re-sync the store with the new local data
-              // We pass window.estAccumulator which holds the current scraped data
-              Store.sync(window.estAccumulator || []);
-
-              // 3. Trigger a re-render of the current estimator's view
-              View.render(est.estimator);
-          };
+      // URL Parsing Logic
+      const urlInput = document.getElementById('m-url');
+      const jobInput = document.getElementById('m-job');
+      if (urlInput && jobInput) {
+        urlInput.addEventListener('input', (e) => {
+          const match = e.target.value.match(/[?&]JobNumber=([^&#]+)/);
+          if (match && match[1]) jobInput.value = decodeURIComponent(match[1]);
+        });
       }
-    };
 
-    window.App.init();
+      // 2. Updated Delete Logic using CONFIG and Store
+      if (document.getElementById('m-del')) {
+        document.getElementById('m-del').onclick = () => {
+          const manuals = Store.get(CONFIG.KEYS.MANUAL).filter(m => m.uniqueId !== est.uniqueId);
+          Store.save(CONFIG.KEYS.MANUAL, manuals);
+          Store.sync(window.estAccumulator || []);
+          View.render(est.estimator);
+        };
+      }
+
+      // 3. Updated Save Logic using CONFIG and Store
+      document.getElementById('m-sav').onclick = () => {
+        const fol = document.getElementById('m-fol').value;
+        const con = document.getElementById('m-con').value;
+        const rev = document.getElementById('m-rev').value;
+
+        if (isCms) {
+          const ov = Store.get(CONFIG.KEYS.OVERRIDE);
+          ov[est.jobNumber] = { lastFollowUp: fol, lastContact: con, reviewed: rev };
+          Store.save(CONFIG.KEYS.OVERRIDE, ov);
+        } else {
+          let mans = Store.get(CONFIG.KEYS.MANUAL);
+          const updatedData = {
+            ...est,
+            lastFollowUp: fol,
+            lastContact: con,
+            type: document.getElementById('m-type').value,
+            jobNumber: document.getElementById('m-job').value,
+            customer: document.getElementById('m-cust').value,
+            description: document.getElementById('m-desc').value,
+            estimator: document.getElementById('m-est').value,
+            received: document.getElementById('m-rec').value,
+            inspected: document.getElementById('m-ins').value,
+            sent: document.getElementById('m-sen').value,
+            approved: document.getElementById('m-app').value,
+            workAuth: document.getElementById('m-auth').value,
+            url: document.getElementById('m-url').value,
+            reviewed: document.getElementById('m-rev').value,
+            xactId: document.getElementById('m-xact').value !== "" ? document.getElementById('m-xact').value : undefined,
+            uniqueId: est.uniqueId || Date.now().toString(),
+            isManual: true
+          };
+
+          if (isNew) mans.push(updatedData);
+          else mans = mans.map(m => m.uniqueId === est.uniqueId ? updatedData : m);
+
+          Store.save(CONFIG.KEYS.MANUAL, mans);
+        }
+
+        // --- RE-RENDER LOGIC ---
+        // 1. Remove the modal overlay
+        overlay.remove();
+
+        // 2. Re-sync the store with the new local data
+        // We pass window.estAccumulator which holds the current scraped data
+        Store.sync(window.estAccumulator || []);
+
+        // 3. Trigger a re-render of the current estimator's view
+        View.render(est.estimator);
+      };
+    }
+  };
+
+  window.App.init();
 })();
