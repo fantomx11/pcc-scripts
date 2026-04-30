@@ -9,6 +9,8 @@
         }
     };
 
+    const hasDate = (d) => !isNaN(new Date(d).getTime());
+
     class Job {
         static instances = new Map();
 
@@ -85,6 +87,15 @@
         get url()       { return this.job?.url; }
         get xactId()    { return this.job?.xactId; }
 
+        get isReviewRequired() { return this.xactId && this.type !== "CO"; }
+
+        get isWarranty() { return this.division === "Warranty"; }
+        get isInspected() { return hasDate(this.inspected); }
+        get isSent() { return hasDate(this.sent); }
+        get isReviewed() { return hasDate(this.reviewed); }
+        get isApproved() { return hasDate(this.approved); }
+        get isProcessed() { return this.origEstimate > 0; }
+
         // --- Logic Methods ---
         _parseCurrency(val) {
             if (!val) return 0;
@@ -102,29 +113,31 @@
         }
 
         get phase() {
-            const hasDate = (d) => d && d !== "" && !String(d).toLowerCase().includes("null");
-            if (this.division === "Warranty") return "Warranty";
-            if (this.origEstimate > 0) return "Completed";
-            if (hasDate(this.approved)) return "Process";
-            if (this.xactId && hasDate(this.reviewed)) return "Approval";
-            if (hasDate(this.sent)) {
-              if(this.xactId && this.type !== "CO") {
-                return "Review";
-              } else {
-                return "Approval";
-              }
-            }
-            if (hasDate(this.inspected)) return "Estimate";
-            return "Inspection";
+          if (this.isWarranty) return "Completed";
+
+          const phase = [
+            {phase: "Inspection", isCurrent: true },
+            {phase: "Estimate", isCurrent: this.isInspected },
+            {phase: "Review", isCurrent: this.isSent },
+            {phase: "Approval", isCurrent: !this.isReviewRequired && this.isSent || this.isReviewed},
+            {phase: "Process", isCurrent: this.isApproved },
+            {phase: "Completed", isCurrent: this.isProcessed }
+          ].findLast(e => e.isCurrent).phase;
+
+          return phase;
         }
 
         get aging() {
-            const hasDate = (d) => d && d !== "" && !String(d).toLowerCase().includes("null");
-            const refDate = (this.phase === "Approval" && hasDate(this.lastFollowUp)) 
-                ? this.lastFollowUp 
-                : (this.phase === "Process" ? this.approved : 
-                  (this.phase === "Estimate" ? this.inspected : this.received));
-            return this._getDaysSince(refDate);
+          const strategy = {
+              "Inspection": () => this._getDaysSince(this.received),
+              "Estimate":   () => this._getDaysSince(this.inspected),
+              "Review":     () => this._getDaysSince(this.sent),
+              "Approval":   () => Math.max(this.isReviewRequired ? this._getDaysSince(this.reviewed) : this._getDaysSince(this.sent), this._getDaysSince(this.lastFollowUp)),
+              "Process":    () => this._getDaysSince(this.approved),
+              "Completed":  () => 0
+            };
+
+            return (strategy[this.phase] || (() => 0))();
         }
 
         get tasks() {
@@ -415,7 +428,8 @@
     window.App = {
         async init() {
             const data = await Scraper.scrape();
-            if (data) { Store.sync(data); View.render(); }
+            if (data) {
+              Store.sync(data); View.render(); }
         },
         switchTab(est) { View.render(est); },
         openModal(id = null) {
