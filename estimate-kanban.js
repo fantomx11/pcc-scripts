@@ -108,7 +108,7 @@
             if (hasDate(this.approved)) return "Process";
             if (this.xactId && hasDate(this.reviewed)) return "Approval";
             if (hasDate(this.sent)) {
-              if(this.xactId) {
+              if(this.xactId && this.type !== "CO") {
                 return "Review";
               } else {
                 return "Approval";
