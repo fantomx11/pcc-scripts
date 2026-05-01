@@ -123,7 +123,7 @@
     }
 
     _getDaysSince(dateStr) {
-      if (!dateStr || String(dateStr).toLowerCase().includes("null") || dateStr === "") return 0;
+      if (!dateStr || String(dateStr).toLowerCase().includes("null") || dateStr === "") return Infinity;
       const diff = Math.floor((new Date() - new Date(dateStr)) / 864e5);
       return isNaN(diff) || diff < 0 ? 0 : diff;
     }
@@ -153,7 +153,7 @@
         [Phases.Inspection]: () => this._getDaysSince(this.received),
         [Phases.Estimate]: () => this._getDaysSince(this.inspected),
         [Phases.Review]: () => this._getDaysSince(this.sent),
-        [Phases.Approval]: () => Math.min(this.isReviewRequired ? this._getDaysSince(this.reviewed) : this._getDaysSince(this.sent), this.lastFollowUp === "" ? Infinity : this._getDaysSince(this.lastFollowUp)),
+        [Phases.Approval]: () => Math.min(this.isReviewRequired ? this._getDaysSince(this.reviewed) : this._getDaysSince(this.sent), this._getDaysSince(this.lastFollowUp)),
         [Phases.Process]: () => this._getDaysSince(this.approved),
         [Phases.Completed]: () => 0
       };
