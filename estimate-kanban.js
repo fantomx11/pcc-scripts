@@ -18,6 +18,7 @@
     "Review": "Review",
     "Approval": "Approval",
     "Process": "Process",
+    "AssignPM": "Assign PM",    
     "Completed": "Completed"
   };
 
@@ -40,6 +41,7 @@
       this.division = data.division;
       this.url = data.url || "#";
       this.xactId = data.xactId;
+      this.supervisor = data.supervisor || "";
 
       // Register this instance
       Job.instances.set(this.jobNumber, this);
@@ -106,6 +108,7 @@
     get division() { return this.job?.division; }
     get url() { return this.job?.url; }
     get xactId() { return this.job?.xactId; }
+    get supervisor() { return this.job?.supervisor || ""; }
 
     get isReviewRequired() { return this.xactId && this.type !== "CO"; }
 
@@ -115,6 +118,7 @@
     get isReviewed() { return hasDate(this.reviewed); }
     get isApproved() { return hasDate(this.approved); }
     get isProcessed() { return this.origEstimate > 0; }
+    get hasSupervisor() { return this.supervisor !== ""; }
 
     // --- Logic Methods ---
     _parseCurrency(val) {
@@ -142,7 +146,8 @@
         { phase: Phases.Review, isCurrent: this.isSent },
         { phase: Phases.Approval, isCurrent: !this.isReviewRequired && this.isSent || this.isReviewed },
         { phase: Phases.Process, isCurrent: this.isApproved },
-        { phase: Phases.Completed, isCurrent: this.isProcessed }
+        { phase: Phases.AssignPM, isCurrent: this.isProcessed && !this.hasSupervisor && this.division === "Structure" },
+        { phase: Phases.Completed, isCurrent: this.isProcessed && this.hasSupervisor }
       ].findLast(e => e.isCurrent).phase;
 
       return phase;
@@ -356,6 +361,7 @@
         received: find("Date Received"), inspected: find("Date Inspected"), sent: find("Date Estimate Sent"),
         approved: find("Date Estimate Approved"), workAuth: find("Date of Work Authorization"),
         deductible: find("Deductible Amount"), division: find("Division"), origEstimate: find("Original Estimate"),
+        supervisor: find("Supervisor"),
         xactId: find("Xact TransactionID")
       };
 
@@ -374,6 +380,7 @@
           division: c[COL.division]?.textContent.trim(),
           origEstimate: c[COL.origEstimate]?.textContent.trim(),
           url: c[COL.jobNum]?.querySelector("a")?.href || "#",
+          supervisor: c[COL.supervisor]?.textContent.trim(),
           xactId: c[COL.xactId]?.textContent.trim()
         };
       }).filter(j => j.jobNumber);
@@ -430,12 +437,11 @@
 
     _buildBoard(estimator) {
       const board = document.getElementById("board");
-      // Logic: if estimator is 'All', show everyone. Otherwise, filter by name.
       const filtered = [...Store.all.values()].filter(e =>
         estimator === "All" ? true : e.estimator === estimator
       );
 
-      [Phases.Inspection, Phases.Estimate, Phases.Review, Phases.Approval, Phases.Process].forEach(p => {
+      [Phases.Inspection, Phases.Estimate, Phases.Review, Phases.Approval, Phases.Process, Phases.AssignPM].forEach(p => {
         const col = document.createElement("div");
         col.className = "phase-col";
         col.innerHTML = `<h3>${p.toUpperCase()}</h3><div class="card-list"></div>`;
@@ -705,10 +711,7 @@
                           </select>
                       </div>
                       <div class="modal-field"><label>Job #</label><input type="text" id="m-job" value="${est.jobNumber}"></div>
-                      <div class="modal-field"><label>Customer</label><input type="text" id="m-cust" value="${est.customer}"></div>
                       <div class="modal-field"><label>Description</label><input type="text" id="m-desc" value="${est.description}"></div>
-                      <div class="modal-field"><label>Estimator</label><input type="text" id="m-est" value="${est.estimator}"></div>
-                      <div class="modal-field"><label>XactAnalysis ID</label><input type="text" id="m-xact" value="${est.xactId || ''}"></div>
                       
                       <div class="modal-field"><label>Date Received</label><input type="date" id="m-rec" value="${formatDateForInput(est.received)}"></div>
                       <div class="modal-field"><label>Date Inspected</label><input type="date" id="m-ins" value="${formatDateForInput(est.inspected)}"></div>
@@ -777,9 +780,7 @@
             lastContact: con,
             type: document.getElementById('m-type').value,
             jobNumber: document.getElementById('m-job').value,
-            customer: document.getElementById('m-cust').value,
             description: document.getElementById('m-desc').value,
-            estimator: document.getElementById('m-est').value,
             received: document.getElementById('m-rec').value,
             inspected: document.getElementById('m-ins').value,
             sent: document.getElementById('m-sen').value,
@@ -787,7 +788,6 @@
             workAuth: document.getElementById('m-auth').value,
             url: document.getElementById('m-url').value,
             reviewed: document.getElementById('m-rev').value,
-            xactId: document.getElementById('m-xact').value !== "" ? document.getElementById('m-xact').value : undefined,
             uniqueId: est.uniqueId || Date.now().toString(),
             isManual: true
           };
@@ -806,8 +806,11 @@
         // We pass window.estAccumulator which holds the current scraped data
         Store.sync(window.estAccumulator || []);
 
-        // 3. Trigger a re-render of the current estimator's view
-        View.render(est.estimator);
+        Store.rebuildLocal(window.estAccumulator || []); 
+
+        // Trigger Render
+        const activeTab = document.querySelector(".tab-btn.active")?.textContent.split(' (')[0] || "All";
+        View.render(activeTab);        
 
         Store.push();
       };
