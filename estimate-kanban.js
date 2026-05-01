@@ -153,7 +153,7 @@
         [Phases.Inspection]: () => this._getDaysSince(this.received),
         [Phases.Estimate]: () => this._getDaysSince(this.inspected),
         [Phases.Review]: () => this._getDaysSince(this.sent),
-        [Phases.Approval]: () => Math.min(this.isReviewRequired ? this._getDaysSince(this.reviewed) : this._getDaysSince(this.sent), this._getDaysSince(this.lastFollowUp)),
+        [Phases.Approval]: () => Math.min(this.isReviewRequired ? this._getDaysSince(this.reviewed) : this._getDaysSince(this.sent), this.lastFollowUp === "" ? Infinity : this._getDaysSince(this.lastFollowUp)),
         [Phases.Process]: () => this._getDaysSince(this.approved),
         [Phases.Completed]: () => 0
       };
