@@ -434,21 +434,35 @@
       this._buildBoard(activeEstimator);
     },
 
-
     _buildBoard(estimator) {
       const board = document.getElementById("board");
       const filtered = [...Store.all.values()].filter(e =>
         estimator === "All" ? true : e.estimator === estimator
       );
 
-      [Phases.Inspection, Phases.Estimate, Phases.Review, Phases.Approval, Phases.Process, Phases.AssignPM].forEach(p => {
+      // Define our groups for styling
+      const phaseGroups = {
+        [Phases.Inspection]: "group-pre-con",
+        [Phases.Estimate]: "group-pre-con",
+        [Phases.Review]: "group-pre-con",
+        [Phases.Approval]: "group-pre-con",
+        [Phases.Process]: "group-pre-con",
+        [Phases.AssignPM]: "group-pm"
+      }
+
+      Object.keys(phaseGroups).forEach(p => {
         const col = document.createElement("div");
-        col.className = "phase-col";
+        
+        // Determine which group class to apply
+        const groupClass = phaseGroups[p];
+        col.className = `phase-col ${groupClass}`;
+        
         col.innerHTML = `<h3>${p.toUpperCase()}</h3><div class="card-list"></div>`;
 
         filtered.filter(e => e.phase === p && e.division !== "Warranty")
           .sort((a, b) => b.aging - a.aging)
           .forEach(est => col.querySelector(".card-list").appendChild(this._createCard(est)));
+        
         board.appendChild(col);
       });
 
@@ -609,6 +623,13 @@
                   animation: spin 1s ease-in-out infinite;
                   margin-right: 5px;
               }
+
+              /* Group Styling */
+              .phase-col.group-pre-con { background: #e3f2fd; border-top: 4px solid #2196f3; } /* Light Blue */
+              .phase-col.group-pm { background: #f1f8e9; border-top: 4px solid #8bc34a; }      /* Light Green */
+
+              .phase-col.group-pre-con h3 { color: #0d47a1; border-bottom-color: #bbdefb; }
+              .phase-col.group-pm h3 { color: #33691e; border-bottom-color: #dcedc8; }
 
               @keyframes spin { to { transform: rotate(360deg); } }
               .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
