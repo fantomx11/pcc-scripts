@@ -402,43 +402,88 @@
 
       const list = [...Store.all.values()];
       const estimators = [...new Set(list.map(e => e.estimator))].sort();
+      const divisions = [...new Set(list.map(e => e.division))].filter(Boolean).sort();
 
       // Default to "All" if no estimator is specified
       if (activeEstimator === null) activeEstimator = "All";
 
-      document.body.innerHTML = `<style>${this._getStyles()}</style>`;
-      const container = document.createElement("div");
-      container.className = "dash-container";
+      let container = document.querySelector(".dash-container");
+
+      if (!container) {
+        // Initial full render if it doesn't exist
+        document.body.innerHTML = `<style>${this._getStyles()}</style>`;
+        container = document.createElement("div");
+        container.className = "dash-container";
+        document.body.appendChild(container);
+      }
+
+      const existingFilter = document.getElementById("division-filter");
+      const previousSelections = existingFilter 
+        ? Array.from(existingFilter.selectedOptions).map(opt => opt.value) 
+        : null;
+
+      const passesDivFilter = (job) => !previousSelections || previousSelections.includes(job.division);
 
       // Create the "All" tab + individual estimator tabs
       const tabsHtml = `
         <button class="tab-btn ${activeEstimator === 'All' ? 'active' : ''}" 
-                onclick="window.App.switchTab('All')">All (${list.filter(e => e.isActive).length})</button>
+                onclick="window.App.switchTab('All')">All (${list.filter(e => e.isActive && passesDivFilter(e)).length})</button>
         ${estimators.map(est => `
             <button class="tab-btn ${est === activeEstimator ? 'active' : ''}" 
-                    onclick="window.App.switchTab('${est}')">${est} (${list.filter(e => e.estimator === est && e.isActive).length})</button>
+                    onclick="window.App.switchTab('${est}')">${est} (${list.filter(e => e.estimator === est && e.isActive && passesDivFilter(e)).length})</button>
         `).join('')}
       `;
 
-      container.innerHTML = `
-          <div class="tabs-bar">
-              <div class="tabs">${tabsHtml}</div>
-              <div style="display: flex; align-items: center;">
-                  <div id="sync-status" class="sync-indicator"></div>
-                  <button class="add-btn" onclick="window.App.openModal()">+ ADD SUPP/CO</button>
+      if (!container.innerHTML) {
+        container.innerHTML = `
+            <div class="tabs-bar">
+                <div class="tabs">${tabsHtml}</div>
+                <div style="display: flex; align-items: center;">
+                  <div class="filter-group">
+                      <label>Divisions:</label>
+                      <select id="division-filter" class="multi-select-dropdown" multiple size="1">
+                          ${divisions.map(div => {
+                              // If we have previousSelections, use them. Otherwise, default to all 'selected'.
+                              const isSelected = previousSelections 
+                                  ? previousSelections.includes(div) 
+                                  : true;
+                              return `<option value="${div}" ${isSelected ? 'selected' : ''}>${div}</option>`;
+                          }).join('')}
+                      </select>
+                  </div>              
+                  <div style="display: flex; align-items: center;">
+                      <div id="sync-status" class="sync-indicator"></div>
+                      <button class="add-btn" onclick="window.App.openModal()">+ ADD SUPP/CO</button>
+                  </div>
               </div>
-          </div>
-          <div class="main-content" id="board"></div>
-      `;
-      document.body.appendChild(container);
+            </div>
+            <div class="main-content" id="board"></div>
+        `;
+        
+        // Initial listener attachment
+        document.getElementById('division-filter').addEventListener('change', () => {
+            this.render(activeEstimator);
+        });
+      } else {
+        // Partial Update: Just update the tabs and tab bar counts
+        container.querySelector(".tabs").innerHTML = tabsHtml;
+      } 
+
       this._buildBoard(activeEstimator);
     },
 
     _buildBoard(estimator) {
       const board = document.getElementById("board");
-      const filtered = [...Store.all.values()].filter(e =>
-        estimator === "All" ? true : e.estimator === estimator
-      );
+
+      board.innerHTML = "";
+
+      const selectedDivisions = Array.from(document.getElementById('division-filter').selectedOptions).map(opt => opt.value);
+
+      const filtered = [...Store.all.values()].filter(e => {
+        const estimatorMatch = (estimator === "All" ? true : e.estimator === estimator);
+        const divisionMatch = selectedDivisions.includes(e.division);
+        return estimatorMatch && divisionMatch;
+    });
 
       // Define our groups for styling
       const phaseGroups = {
@@ -630,6 +675,29 @@
 
               .phase-col.group-pre-con h3 { color: #0d47a1; border-bottom-color: #bbdefb; }
               .phase-col.group-pm h3 { color: #33691e; border-bottom-color: #dcedc8; }
+
+              .filter-group {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  background: #34495e;
+                  padding: 5px 10px;
+                  border-radius: 4px;
+                  margin-right: 15px;
+              }
+              .filter-group label {
+                  color: #ecf0f1;
+                  font-size: 11px;
+                  font-weight: bold;
+              }
+              .multi-select-dropdown {
+                  background: #fff;
+                  border: 1px solid #ddd;
+                  border-radius: 3px;
+                  font-size: 11px;
+                  padding: 2px;
+                  min-width: 120px;
+              }
 
               @keyframes spin { to { transform: rotate(360deg); } }
               .status-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
