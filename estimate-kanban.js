@@ -487,7 +487,16 @@
         const estimatorMatch = (estimator === "All" ? true : e.estimator === estimator);
         const divisionMatch = selectedDivisions.includes(e.division);
         return estimatorMatch && divisionMatch;
-    });
+      });
+
+      const phaseDescriptions = {
+        [Phases.Inspection]: "Default phase for all new jobs before an inspection date is entered.",
+        [Phases.Estimate]: "Jobs that have been inspected but do not have an 'Estimate Sent' date yet.",
+        [Phases.Review]: "Estimates that have been sent and have an Xactimate ID, but no 'Reviewed' date.",
+        [Phases.Approval]: "Estimates sent/reviewed that are waiting for an 'Approved' date.",
+        [Phases.Process]: "Jobs approved but awaiting processing (Total Estimates > $0).",
+        [Phases.AssignPM]: "Structure jobs that are processed but do not have a Supervisor assigned. Adding an invoice date will bypass PM assignment."
+      };
 
       // Define our groups for styling
       const phaseGroups = {
@@ -506,7 +515,8 @@
         const groupClass = phaseGroups[p];
         col.className = `phase-col ${groupClass}`;
         
-        col.innerHTML = `<h3>${p.toUpperCase()}</h3><div class="card-list"></div>`;
+        const description = phaseDescriptions[p] || "";
+        col.innerHTML = `<h3 title="${description}" style="cursor:help;">${p.toUpperCase()}</h3><div class="card-list"></div>`;
 
         filtered.filter(e => e.phase === p && e.division !== "Warranty")
           .sort((a, b) => b.aging - a.aging)
