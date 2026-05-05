@@ -54,7 +54,7 @@
             let ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Gemini//WorkOrderCalendar//EN'];
             data.forEach(ev => {
                 ics.push('BEGIN:VEVENT');
-                ics.push(`SUMMARY:${ev.wo}: ${ev.summary}`);
+                ics.push(`SUMMARY:${ev.summary}`);
                 ics.push(`DTSTART;VALUE=DATE:${Exporter.formatDate(ev.start).split('T')[0]}`);
                 /* ICS end dates are exclusive, so we add 1 day if it's an all-day event */
                 const endD = new Date(ev.end);
@@ -127,7 +127,7 @@
                     html += `<div class="day-c"><span class="d-num">${d}</span>`;
                     data.forEach(ev => {
                         if (cur >= new Date(ev.start) && cur <= new Date(ev.end)) 
-                            html += `<div class="ev-box"><b>${ev.wo}</b><br>${ev.summary}</div>`;
+                            html += `<div class="ev-box"><br>${ev.summary}</div>`;
                     });
                     html += `</div>`;
                 }
