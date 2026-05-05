@@ -101,25 +101,38 @@
             const policy = (window.trustedTypes?.createPolicy) ? 
                 window.trustedTypes.createPolicy('calendarPolicy', { createHTML: (h) => h }) : { createHTML: (s) => s };
             
-            const months = {};
-            data.forEach(ev => {
-                const d = new Date(ev.start);
-                const key = `${d.toLocaleString('default', { month: 'long' })} ${d.getFullYear()}`;
-                if (!months[key]) months[key] = [];
-                months[key].push(ev);
+            let minDate = new Date();
+            let maxDate = new Date();
+            data.forEach((ev, i) => {
+                const s = new Date(ev.start);
+                const e = new Date(ev.end);
+                if (i === 0 || s < minDate) minDate = new Date(s);
+                if (i === 0 || e > maxDate) maxDate = new Date(e);
             });
+
+            const monthsToRender = [];
+            let currentTrack = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+            while (currentTrack <= maxDate) {
+                monthsToRender.push(new Date(currentTrack));
+                currentTrack.setMonth(currentTrack.getMonth() + 1);
+            }            
 
             let html = UI.getStyles() + `<div class="toolbar">
                 <button class="btn btn-print" onclick="window.print()">Print Calendar</button>
                 <button id="download-ics" class="btn btn-ics">Download .ICS for Outlook/Google</button>
             </div>`;
 
-            Object.keys(months).sort((a,b) => new Date(a) - new Date(b)).forEach(mKey => {
-                const [mName, year] = mKey.split(' ');
-                const first = new Date(mName + " 1, " + year);
+            monthsToRender.forEach(monthDate => {
+              const year = monthDate.getFullYear();
+                const monthIdx = monthDate.getMonth();
+
+                const mName = monthDate.toLocaleString('default', { month: 'long' });
+
+                const first = new Date(year, monthIdx, 1);
                 const offset = first.getDay();
                 const daysInMonth = new Date(year, first.getMonth() + 1, 0).getDate();
-                html += `<div class="month-box"><h2>${mKey}</h2><div class="grid">`;
+
+                html += `<div class="month-box"><h2>${mName}</h2><div class="grid">`;
                 ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => html += `<div class="day-h">${d}</div>`);
                 for(let i=0; i<offset; i++) html += `<div class="day-c" style="background:#f9f9f9"></div>`;
                 for(let d=1; d<=daysInMonth; d++) {
