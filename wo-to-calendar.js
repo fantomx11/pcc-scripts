@@ -28,16 +28,14 @@
             }
             return (map.wo !== -1 && map.start !== -1) ? map : null;
         },
-
         parsePage: (indices) => {
             const data = State.get();
             const existing = new Set(data.map(d => d.wo));
             document.querySelectorAll('.rgRow, .rgAltRow').forEach(row => {
                 const cells = row.querySelectorAll('td');
                 const wo = cells[indices.wo]?.innerText.trim();
-                const start = cells[indices.start]?.innerText.trim().split(' ')[0];
-                const end = cells[indices.end]?.innerText.trim().split(' ')[0];
-
+                const start = cells[indices.start]?.innerText.trim();
+                const end = cells[indices.end]?.innerText.trim();
                 if (wo && start && start !== '---' && !existing.has(wo)) {
                     data.push({ wo, summary: cells[indices.summary]?.innerText.trim(), start, end });
                 }
@@ -47,14 +45,33 @@
         }
     };
 
-    const Pagination = {
-        info: () => {
-            const info = document.querySelector('.rgInfoPart');
-            if (!info) return { isLast: true };
-            const match = info.innerText.match(/Page\s+(\d+)\s+of\s+(\d+)/i);
-            return match ? { isLast: parseInt(match[1]) >= parseInt(match[2]) } : { isLast: true };
+    const Exporter = {
+        formatDate: (dateStr) => {
+            const d = new Date(dateStr);
+            return d.toISOString().replace(/-|:|\.\d+/g, '').split('T')[0] + 'T090000';
         },
-        advance: () => document.querySelector('input.rgPageNext')?.click()
+        generateICS: (data) => {
+            let ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Gemini//WorkOrderCalendar//EN'];
+            data.forEach(ev => {
+                ics.push('BEGIN:VEVENT');
+                ics.push(`SUMMARY:${ev.wo}: ${ev.summary}`);
+                ics.push(`DTSTART;VALUE=DATE:${Exporter.formatDate(ev.start).split('T')[0]}`);
+                /* ICS end dates are exclusive, so we add 1 day if it's an all-day event */
+                const endD = new Date(ev.end);
+                endD.setDate(endD.getDate() + 1);
+                ics.push(`DTEND;VALUE=DATE:${endD.toISOString().replace(/-|:|\.\d+/g, '').split('T')[0]}`);
+                ics.push('END:VEVENT');
+            });
+            ics.push('END:VCALENDAR');
+            return ics.join('\n');
+        },
+        downloadFile: (content, filename) => {
+            const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
     };
 
     const UI = {
@@ -65,22 +82,22 @@
             el.innerHTML = `<h3>Scraping...</h3><div style="font-size:22px;font-weight:bold;">${count} Items</div><p>Advancing... Click bookmark when loaded.</p>`;
             if (!el.parentElement) document.body.appendChild(el);
         },
-
-        getStyles: () => `
-            <style>
-                body { font-family: "Segoe UI", Roboto, sans-serif; padding: 30px; background: #f0f2f5; color: #3c4043; }
-                .month-box { background: white; padding: 30px; border-radius: 12px; margin-bottom: 50px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); page-break-after: always; }
-                h2 { text-align: center; color: #1a73e8; margin-top: 0; border-bottom: 2px solid #e8f0fe; padding-bottom: 15px; }
-                .grid { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid #dadce0; border-left: 1px solid #dadce0; }
-                .day-h { background: #f8f9fa; padding: 12px; text-align: center; font-weight: 600; border-right: 1px solid #dadce0; border-bottom: 3px solid #1a73e8; font-size: 13px; text-transform: uppercase; color: #70757a; }
-                .day-c { min-height: 140px; border-right: 1px solid #dadce0; border-bottom: 1px solid #dadce0; padding: 8px; position: relative; background: #fff; }
-                .d-num { font-weight: 700; color: #dadce0; font-size: 16px; display: block; margin-bottom: 8px; }
-                .ev-box { font-size: 11px; background: #e8f0fe; border-left: 4px solid #1a73e8; padding: 6px; margin-top: 6px; border-radius: 4px; line-height: 1.4; color: #1967d2; }
-                .empty { background: #f1f3f4; }
-                @media print { body { background: white; padding: 0; } .month-box { box-shadow: none; border: 1px solid #eee; } }
-            </style>`,
-
-        renderCalendar: (data) => {
+        getStyles: () => `<style>
+            body { font-family: "Segoe UI", sans-serif; padding: 30px; background: #f0f2f5; }
+            .toolbar { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+            .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+            .btn-ics { background: #34a853; color: white; }
+            .btn-print { background: #1a73e8; color: white; }
+            .month-box { background: white; padding: 30px; border-radius: 12px; margin-bottom: 50px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); page-break-after: always; }
+            h2 { text-align: center; color: #1a73e8; margin-top: 0; }
+            .grid { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid #dadce0; border-left: 1px solid #dadce0; }
+            .day-h { background: #f8f9fa; padding: 12px; text-align: center; font-weight: 600; border-right: 1px solid #dadce0; border-bottom: 3px solid #1a73e8; }
+            .day-c { min-height: 120px; border-right: 1px solid #dadce0; border-bottom: 1px solid #dadce0; padding: 8px; background: #fff; }
+            .d-num { font-weight: 700; color: #dadce0; font-size: 16px; }
+            .ev-box { font-size: 10px; background: #e8f0fe; border-left: 4px solid #1a73e8; padding: 4px; margin-top: 5px; border-radius: 4px; color: #1967d2; }
+            @media print { .toolbar { display: none; } body { background: white; padding: 0; } }
+        </style>`,
+        render: (data) => {
             const policy = (window.trustedTypes?.createPolicy) ? 
                 window.trustedTypes.createPolicy('calendarPolicy', { createHTML: (h) => h }) : { createHTML: (s) => s };
             
@@ -92,23 +109,25 @@
                 months[key].push(ev);
             });
 
-            let html = UI.getStyles();
+            let html = UI.getStyles() + `<div class="toolbar">
+                <button class="btn btn-print" onclick="window.print()">Print Calendar</button>
+                <button id="download-ics" class="btn btn-ics">Download .ICS for Outlook/Google</button>
+            </div>`;
+
             Object.keys(months).sort((a,b) => new Date(a) - new Date(b)).forEach(mKey => {
                 const [mName, year] = mKey.split(' ');
                 const first = new Date(mName + " 1, " + year);
                 const offset = first.getDay();
                 const daysInMonth = new Date(year, first.getMonth() + 1, 0).getDate();
-
                 html += `<div class="month-box"><h2>${mKey}</h2><div class="grid">`;
                 ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => html += `<div class="day-h">${d}</div>`);
-                for(let i=0; i<offset; i++) html += `<div class="day-c empty"></div>`;
+                for(let i=0; i<offset; i++) html += `<div class="day-c" style="background:#f9f9f9"></div>`;
                 for(let d=1; d<=daysInMonth; d++) {
                     const cur = new Date(year, first.getMonth(), d);
                     html += `<div class="day-c"><span class="d-num">${d}</span>`;
                     data.forEach(ev => {
-                        if (cur >= new Date(ev.start) && cur <= new Date(ev.end)) {
-                            html += `<div class="ev-box">${ev.summary}</div>`;
-                        }
+                        if (cur >= new Date(ev.start) && cur <= new Date(ev.end)) 
+                            html += `<div class="ev-box"><b>${ev.wo}</b><br>${ev.summary}</div>`;
                     });
                     html += `</div>`;
                 }
@@ -117,24 +136,28 @@
 
             const win = window.open('', '_blank', 'width=1200,height=900');
             win.document.body.innerHTML = policy.createHTML(html);
+            
+            /* Add ICS download event listener to the new window */
+            win.document.getElementById('download-ics').onclick = () => {
+                const icsContent = Exporter.generateICS(data);
+                Exporter.downloadFile(icsContent, 'WorkOrders.ics');
+            };
         }
     };
 
-    /* Main Execution Flow */
+    /* Execution */
     const indices = Scraper.getIndices();
-    if (!indices) return alert('Required columns not found.');
-
+    if (!indices) return alert('Columns not found.');
     const count = Scraper.parsePage(indices);
-    const pg = Pagination.info();
+    const pg = (document.querySelector('.rgInfoPart')?.innerText.match(/Page\s+(\d+)\s+of\s+(\d+)/i)) || [0,1,1];
 
-    if (!pg.isLast) {
+    if (parseInt(pg[1]) < parseInt(pg[2])) {
         UI.showOverlay(count);
-        Pagination.advance();
+        document.querySelector('input.rgPageNext')?.click();
     } else {
         const finalData = State.get();
         State.clear();
         document.getElementById(CONFIG.OVERLAY_ID)?.remove();
-        if (finalData.length) UI.renderCalendar(finalData);
-        else alert('No data collected.');
+        if (finalData.length) UI.render(finalData);
     }
 })();
