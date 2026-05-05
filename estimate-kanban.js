@@ -91,6 +91,7 @@
       this.workAuth = data.workAuth;
       this.lastFollowUp = data.lastFollowUp || "";
       this.lastContact = data.lastContact || "";
+      this.invoiced = data.invoiced;
 
       // Financials
       this.origEstimate = this._parseCurrency(data.origEstimate);
@@ -118,6 +119,7 @@
     get isReviewed() { return hasDate(this.reviewed); }
     get isApproved() { return hasDate(this.approved); }
     get isProcessed() { return this.origEstimate > 0; }
+    get isInvoiced() { return hasDate(this.invoiced); }
     get hasSupervisor() { return this.supervisor !== ""; }
 
     // --- Logic Methods ---
@@ -147,7 +149,7 @@
         { phase: Phases.Approval, isCurrent: !this.isReviewRequired && this.isSent || this.isReviewed },
         { phase: Phases.Process, isCurrent: this.isApproved },
         { phase: Phases.AssignPM, isCurrent: this.isProcessed && !this.hasSupervisor && this.division === "Structure" },
-        { phase: Phases.Completed, isCurrent: this.isProcessed && this.hasSupervisor }
+        { phase: Phases.Completed, isCurrent: (this.isProcessed && this.hasSupervisor) || this.isInvoiced }
       ].findLast(e => e.isCurrent).phase;
 
       return phase;
@@ -362,7 +364,8 @@
         approved: find("Date Estimate Approved"), workAuth: find("Date of Work Authorization"),
         deductible: find("Deductible Amount"), division: find("Division"), origEstimate: find("Original Estimate"),
         supervisor: find("Supervisor"),
-        xactId: find("Xact TransactionID")
+        xactId: find("Xact TransactionID"),
+        invoiced: find("Date Invoiced")
       };
 
       const data = [...document.querySelectorAll(CONFIG.SELECTORS.ROWS)].map(row => {
@@ -381,6 +384,7 @@
           origEstimate: c[COL.origEstimate]?.textContent.trim(),
           url: c[COL.jobNum]?.querySelector("a")?.href || "#",
           supervisor: c[COL.supervisor]?.textContent.trim(),
+          invoiced: c[COL.invoiced]?.textContent.trim(),
           xactId: c[COL.xactId]?.textContent.trim()
         };
       }).filter(j => j.jobNumber);
