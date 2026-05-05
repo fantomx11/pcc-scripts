@@ -172,9 +172,9 @@
       const effectiveContact = this.lastContact || this.inspected || this.received;
       return {
         needsContact: this.phase === Phases.Approval && this._getDaysSince(effectiveContact) > 7,
-        needsSignedCO: this.type === "CO" && !this.workAuth,
-        needsWorkAuth: this.type === "CMS" && !this.workAuth && !this.isWarranty,
-        needsDeductible: this.type === "CMS" && this.division === "Structure" && this.deductible === 0
+        needsSignedCO: this.type === "CO" && !this.workAuth && !this.isInvoiced,
+        needsWorkAuth: this.type === "CMS" && !this.workAuth && !this.isWarranty && !this.isInvoiced,
+        needsDeductible: this.type === "CMS" && this.division === "Structure" && this.deductible === 0 && !this.isInvoiced
       };
     }
   }
