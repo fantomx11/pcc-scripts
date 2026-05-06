@@ -1,4 +1,4 @@
-const {html} = await import('./modules/libs.js');
+const {html} = await import('../modules/libs.js');
 
 export const SyncIndicator = ({ status }) => {
     const config = {
