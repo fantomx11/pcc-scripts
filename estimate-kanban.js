@@ -1,4 +1,7 @@
 (async () => {
+  const { h, render } = await import('https://esm.sh/preact');
+  const { useState, useEffect } = await import('https://esm.sh/preact/hooks');
+  
   const App = window.App = window.App || {};
 
   const Components = {};

@@ -58,37 +58,17 @@ export class Estimate {
 
   get isActive() {
     if (this.deleted) return false;
-    return [Phases.Inspection, Phases.Estimate, Phases.Review, Phases.Approval, Phases.Process].indexOf(this.phase) !== -1;
+    
+    this.phase.active;
   }
 
   get phase() {
-    if (this.isWarranty || this.deleted) return "Completed";
-
-    const phase = [
-      { phase: KanbanPhases.Inspection, isCurrent: true },
-      { phase: KanbanPhases.Estimate, isCurrent: this.isInspected },
-      { phase: KanbanPhases.Review, isCurrent: this.isSent },
-      { phase: KanbanPhases.Approval, isCurrent: !this.isReviewRequired && this.isSent || this.isReviewed },
-      { phase: KanbanPhases.Process, isCurrent: this.isApproved },
-      { phase: KanbanPhases.AssignPM, isCurrent: this.isProcessed && !this.hasSupervisor && this.division === "Structure" },
-      { phase: KanbanPhases.Completed, isCurrent: (this.isProcessed && this.hasSupervisor) || this.isInvoiced }
-    ].findLast(e => e.isCurrent).phase.name;
-
-    return phase;
+    if (this.isWarranty || this.deleted) return KanbanPhases.Completed;
+    return KanbanPhases.determinePhase(this);
   }
 
   get aging() {
-    const strategy = {
-      [KanbanPhases.Inspection.name]: () => getDaysSince(this.received),
-      [KanbanPhases.Estimate.name]: () => getDaysSince(this.inspected),
-      [KanbanPhases.Review.name]: () => getDaysSince(this.sent),
-      [KanbanPhases.Approval.name]: () => Math.min(this.isReviewRequired ? getDaysSince(this.reviewed) : getDaysSince(this.sent), getDaysSince(this.lastFollowUp)),
-      [KanbanPhases.Process.name]: () => getDaysSince(this.approved),
-      [KanbanPhases.AssignPM.name]: () => 0,
-      [KanbanPhases.Completed.name]: () => 0
-    };
-
-    return (strategy[this.phase] || (() => 0))();
+    return (this.phase?.aging || () => 0)(this);
   }
 
   get tasks() {
