@@ -1,400 +1,47 @@
-(() => {
+(async () => {
+  const App = window.App = window.App || {};
+
+  const Components = {};
+
+  ({EstimatorTabs: Components.EstimatorTabs} = await import("./components/EstimatorTabs.js"));
+  ({FilterGroup: Components.FilterGroup} = await import("./components/FilterGroup.js"));
+  ({JobCard: Components.JobCard} = await import("./components/JobCard.js"));
+  ({KanbanBoard: Components.KanbanBoard} = await import("./components/KanbanBoard.js"));
+  ({Modal: Components.Modal} = await import("./components/Modal.js"));
+  ({Sidebar: Components.Sidebar} = await import("./components/Sidebar.js"));
+  ({SyncIndicator: Components.SyncIndicator} = await import("./components/SyncIndicator.js"));
+
   // --- 1. CONFIGURATION ---
   const CONFIG = {
     KEYS: {
       MANUAL: "manual_estimates_v8",
       OVERRIDE: "cms_overrides_v1",
-    },
-    SELECTORS: {
-      HEADER: ".rgHeaderWrapper thead tr",
-      ROWS: "tr.rgRow, tr.rgAltRow",
-      PAGER: ".rgNumPart .rgCurrentPage"
     }
   };
 
-  const Phases = {
-    "Inspection": "Inspection",
-    "Estimate": "Estimate",
-    "Review": "Review",
-    "Approval": "Approval",
-    "Process": "Process",
-    "AssignPM": "Assign PM",    
-    "Completed": "Completed"
-  };
+  const { KanbanPhases } = await import("./modules/enums.js");
+  const { formatDateForInput } = await import("./modules/libs.js");
 
-  const hasDate = (d) => !isNaN(new Date(d).getTime());
-
-  const formatDateForInput = (dateStr) => {
-    if (!dateStr || dateStr === "null") return "";
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return "";
-    return d.toISOString().split('T')[0];
-  };
-
-  class Job {
-    static instances = new Map();
-
-    constructor(data) {
-      this.jobNumber = data.jobNumber;
-      this.customer = data.customer;
-      this.estimator = data.estimator || "Unassigned";
-      this.division = data.division;
-      this.url = data.url || "#";
-      this.xactId = data.xactId;
-      this.supervisor = data.supervisor || "";
-
-      // Register this instance
-      Job.instances.set(this.jobNumber, this);
-    }
-
-    /**
-     * Finds an existing job or creates a new one
-     */
-    static getOrCreate(data, overwrite) {
-      let job = Job.instances.get(data.jobNumber);
-
-      if (!job || overwrite) {
-        job = new Job(data);
-      } else {
-        // Fill in missing values if the new data provides them
-        if ((!job.url || job.url === "#") && data.url) {
-          job.url = data.url;
-        }
-        if (!job.xactId && data.xactId) {
-          job.xactId = data.xactId;
-        }
-      }
-      return job;
-    }
-  }
-
-  class Estimate {
-    constructor(data) {
-      // Identification
-      this.uniqueId = data.uniqueId || `cms-${data.jobNumber}`;
-      this._jobNumber = data.jobNumber; // Private reference for lookup
-      this.type = data.type || 'CMS';
-      this.isManual = !!data.isManual;
-      this.deleted = !!data.deleted; // Capture the soft-delete state
-
-      this.description = data.description || "Main";
-
-      // Ensure the Job exists
-      Job.getOrCreate(data, !data.isManual);
-
-      // Dates
-      this.received = data.received;
-      this.inspected = data.inspected;
-      this.sent = data.sent;
-      this.reviewed = data.reviewed
-      this.approved = data.approved;
-      this.workAuth = data.workAuth;
-      this.lastFollowUp = data.lastFollowUp || "";
-      this.lastContact = data.lastContact || "";
-      this.invoiced = data.invoiced;
-
-      // Financials
-      this.origEstimate = this._parseCurrency(data.origEstimate);
-      this.deductible = this._parseCurrency(data.deductible);
-    }
-
-    // --- Job Reference Getters ---
-    get job() {
-      return Job.instances.get(this._jobNumber);
-    }
-
-    get jobNumber() { return this.job?.jobNumber; }
-    get customer() { return this.job?.customer; }
-    get estimator() { return this.job?.estimator; }
-    get division() { return this.job?.division; }
-    get url() { return this.job?.url; }
-    get xactId() { return this.job?.xactId; }
-    get supervisor() { return this.job?.supervisor || ""; }
-
-    get isReviewRequired() { return this.xactId && this.type !== "CO"; }
-
-    get isWarranty() { return this.division === "Warranty"; }
-    get isInspected() { return hasDate(this.inspected); }
-    get isSent() { return hasDate(this.sent); }
-    get isReviewed() { return hasDate(this.reviewed); }
-    get isApproved() { return hasDate(this.approved); }
-    get isProcessed() { return this.origEstimate > 0; }
-    get isInvoiced() { return hasDate(this.invoiced); }
-    get hasSupervisor() { return this.supervisor !== ""; }
-
-    // --- Logic Methods ---
-    _parseCurrency(val) {
-      if (!val) return 0;
-      return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
-    }
-
-    _getDaysSince(dateStr) {
-      if (!dateStr || String(dateStr).toLowerCase().includes("null") || dateStr === "") return Infinity;
-      const diff = Math.floor((new Date() - new Date(dateStr)) / 864e5);
-      return isNaN(diff) || diff < 0 ? 0 : diff;
-    }
-
-    get isActive() {
-      if(this.deleted) return false;
-      return [Phases.Inspection, Phases.Estimate, Phases.Review, Phases.Approval, Phases.Process].indexOf(this.phase) !== -1;
-    }
-
-    get phase() {
-      if (this.isWarranty || this.deleted) return "Completed";
-
-      const phase = [
-        { phase: Phases.Inspection, isCurrent: true },
-        { phase: Phases.Estimate, isCurrent: this.isInspected },
-        { phase: Phases.Review, isCurrent: this.isSent },
-        { phase: Phases.Approval, isCurrent: !this.isReviewRequired && this.isSent || this.isReviewed },
-        { phase: Phases.Process, isCurrent: this.isApproved },
-        { phase: Phases.AssignPM, isCurrent: this.isProcessed && !this.hasSupervisor && this.division === "Structure" },
-        { phase: Phases.Completed, isCurrent: (this.isProcessed && this.hasSupervisor) || this.isInvoiced }
-      ].findLast(e => e.isCurrent).phase;
-
-      return phase;
-    }
-
-    get aging() {
-      const strategy = {
-        [Phases.Inspection]: () => this._getDaysSince(this.received),
-        [Phases.Estimate]: () => this._getDaysSince(this.inspected),
-        [Phases.Review]: () => this._getDaysSince(this.sent),
-        [Phases.Approval]: () => Math.min(this.isReviewRequired ? this._getDaysSince(this.reviewed) : this._getDaysSince(this.sent), this._getDaysSince(this.lastFollowUp)),
-        [Phases.Process]: () => this._getDaysSince(this.approved),
-        [Phases.Completed]: () => 0
-      };
-
-      return (strategy[this.phase] || (() => 0))();
-    }
-
-    get tasks() {
-      const effectiveContact = this.lastContact || this.inspected || this.received;
-      return {
-        needsContact: this.phase === Phases.Approval && this._getDaysSince(effectiveContact) > 7,
-        needsSignedCO: this.type === "CO" && !this.workAuth && !this.isInvoiced,
-        needsWorkAuth: this.type === "CMS" && !this.workAuth && !this.isWarranty && !this.isInvoiced,
-        needsDeductible: this.type === "CMS" && this.division === "Structure" && this.deductible === 0 && !this.isInvoiced
-      };
-    }
-  }
-
-  // --- 3. STORAGE LAYER ---
-  const Store = {
-    all: new Map(),
-    isSyncing: false,
-    API_URL: "https://script.google.com/macros/s/AKfycbyU3a4YSvJ8CMWNDXUHvyCT2wKrokmIQ60NAl9VIS-9RIB3y6lhsXlyPHCK5bKVNSIg/exec",
-    _syncTimeout: null,
-
-    get(key) { return JSON.parse(localStorage.getItem(key) || (key.includes('overrides') ? "{}" : "[]")); },
-    save(key, data) { localStorage.setItem(key, JSON.stringify(data)); },
-
-    rebuildLocal(scrapedData) {
-      const manuals = this.get(CONFIG.KEYS.MANUAL);
-      const overrides = this.get(CONFIG.KEYS.OVERRIDE);
-      this.all.clear();
-
-      manuals.forEach(m => this.all.set(m.uniqueId, new Estimate(m)));
-      scrapedData.forEach(s => {
-        const extra = overrides[s.jobNumber] || {};
-        const est = new Estimate({ ...s, ...extra });
-        this.all.set(est.uniqueId, est);
-      });
-    },
-
-    async syncRemote(scrapedData, activeEstimator) {
-      if (this._syncTimeout) clearTimeout(this._syncTimeout);
-
-      this.updateStatusUI('syncing');
-
-      this._syncTimeout = setTimeout(async () => {
-        try {
-          const payload = {
-            manual: this.get(CONFIG.KEYS.MANUAL),
-            overrides: this.get(CONFIG.KEYS.OVERRIDE)
-          };
-
-          const resp = await fetch(this.API_URL, {
-            method: "POST",
-            body: JSON.stringify(payload)
-          });
-
-          const cloudData = await resp.json();
-
-          // Update local storage with any potential merges from cloud
-          if (cloudData.manual) this.save(CONFIG.KEYS.MANUAL, cloudData.manual);
-          if (cloudData.overrides) this.save(CONFIG.KEYS.OVERRIDE, cloudData.overrides);
-
-          // Final rebuild and re-render to ensure UI matches Cloud reality
-          this.rebuildLocal(scrapedData);
-          View.render(activeEstimator);
-          this.updateStatusUI('saved');
-        } catch (e) {
-          console.error(e);
-          this.updateStatusUI('error');
-        }
-      }, 2000); // 2-second debounce
-    },
-
-    // Inside Store object
-    async initialFetch(scrapedData) {
-      this.updateStatusUI('syncing');
-      try {
-        const resp = await fetch(this.API_URL);
-        const cloudData = await resp.json();
-
-        // Update LocalStorage with fresh cloud data
-        if (cloudData.manual) this.save(CONFIG.KEYS.MANUAL, cloudData.manual);
-        if (cloudData.overrides) this.save(CONFIG.KEYS.OVERRIDE, cloudData.overrides);
-
-        // Rebuild the Map and trigger the "Background Sync Complete" render
-        this.rebuildLocal(scrapedData);
-
-        // Optional: Only re-render if the user is on the 'All' tab 
-        // or keep it simple and just re-render current view
-        const activeTab = document.querySelector(".tab-btn.active")?.textContent.split(' (')[0] || "All";
-        View.render(activeTab);
-
-        this.updateStatusUI('saved');
-      } catch (e) {
-        console.error("Initial sync failed:", e);
-        this.updateStatusUI('error');
-      }
-    },
-
-    // Inside Store object
-    async initialFetch(scrapedData) {
-      this.updateStatusUI('syncing');
-      try {
-        const resp = await fetch(this.API_URL);
-        const cloudData = await resp.json();
-
-        // Update LocalStorage with fresh cloud data
-        if (cloudData.manual) this.save(CONFIG.KEYS.MANUAL, cloudData.manual);
-        if (cloudData.overrides) this.save(CONFIG.KEYS.OVERRIDE, cloudData.overrides);
-
-        // Rebuild the Map and trigger the "Background Sync Complete" render
-        this.rebuildLocal(scrapedData);
-
-        // Optional: Only re-render if the user is on the 'All' tab 
-        // or keep it simple and just re-render current view
-        const activeTab = document.querySelector(".tab-btn.active")?.textContent.split(' (')[0] || "All";
-        View.render(activeTab);
-
-        this.updateStatusUI('saved');
-      } catch (e) {
-        console.error("Initial sync failed:", e);
-        this.updateStatusUI('error');
-      }
-    },
-
-    async sync(scrapedData) {
-      this.updateStatusUI('syncing');
-      try {
-        const resp = await fetch(this.API_URL);
-        const cloudData = await resp.json();
-
-        if (cloudData.manual) this.save(CONFIG.KEYS.MANUAL, cloudData.manual);
-        if (cloudData.overrides) this.save(CONFIG.KEYS.OVERRIDE, cloudData.overrides);
-        this.updateStatusUI('saved');
-      } catch (e) {
-        console.log(e);
-        this.updateStatusUI('error');
-      }
-
-      // Rebuild the internal Map
-      const manuals = this.get(CONFIG.KEYS.MANUAL);
-      const overrides = this.get(CONFIG.KEYS.OVERRIDE);
-      this.all.clear();
-      manuals.forEach(m => this.all.set(m.uniqueId, new Estimate(m)));
-      scrapedData.forEach(s => {
-        const extra = overrides[s.jobNumber] || {};
-        const est = new Estimate({ ...s, ...extra });
-        this.all.set(est.uniqueId, est);
-      });
-    },
-
-    updateStatusUI(status) {
-      const container = document.getElementById("sync-status");
-      if (!container) return;
-
-      if (status === 'syncing') {
-        container.innerHTML = `<div class="spinner"></div> <span style="font-size:10px; color:white;">SYNCING...</span>`;
-        this.isSyncing = true;
-      } else if (status === 'error') {
-        container.innerHTML = `<div class="status-dot status-offline"></div> <span style="font-size:10px; color:#e74c3c;">SYNC ERROR</span>`;
-        this.isSyncing = false;
-      } else {
-        container.innerHTML = `<div class="status-dot status-online"></div> <span style="font-size:10px; color:#95a5a6;">CLOUD SAVED</span>`;
-        this.isSyncing = false;
-      }
-    },
-
-    async push() {
-      this.updateStatusUI('syncing');
-      const payload = {
-        manual: this.get(CONFIG.KEYS.MANUAL),
-        overrides: this.get(CONFIG.KEYS.OVERRIDE)
-      };
-
-      try {
-        await fetch(this.API_URL, {
-          method: "POST",
-          body: JSON.stringify(payload)
-        });
-        this.updateStatusUI('saved');
-      } catch (e) {
-        debugger;
-        console.log(e);
-        this.updateStatusUI('error');
-      }
-    }
-  };
+  const { Estimate } = await import("./classes/Estimate.js");
+  const { Scraper } = await import("./classes/Scraper.js");
+  const { Store } = await import("./classes/Store.js");
 
   // --- 4. SCRAPER ENGINE ---
-  const Scraper = {
-    async scrape() {
-      const headerRow = document.querySelector(CONFIG.SELECTORS.HEADER);
-      if (!headerRow) return [];
-      const cells = [...headerRow.querySelectorAll("th")].map(c => c.textContent.trim().toLowerCase());
-      const find = (txt) => cells.indexOf(txt.toLowerCase());
-      const COL = {
-        jobNum: find("Job Number"), customer: find("Customer"), estimator: find("Estimator"),
-        received: find("Date Received"), inspected: find("Date Inspected"), sent: find("Date Estimate Sent"),
-        approved: find("Date Estimate Approved"), workAuth: find("Date of Work Authorization"),
-        deductible: find("Deductible Amount"), division: find("Division"), origEstimate: find("Original Estimate"),
-        supervisor: find("Supervisor"),
-        xactId: find("Xact TransactionID"),
-        invoiced: find("Date Invoiced")
-      };
-
-      const data = [...document.querySelectorAll(CONFIG.SELECTORS.ROWS)].map(row => {
-        const c = row.querySelectorAll("td");
-        return {
-          jobNumber: c[COL.jobNum]?.textContent.trim(),
-          customer: c[COL.customer]?.textContent.trim(),
-          estimator: c[COL.estimator]?.textContent.trim() || "Unassigned",
-          received: c[COL.received]?.textContent.trim(),
-          inspected: c[COL.inspected]?.textContent.trim(),
-          sent: c[COL.sent]?.textContent.trim(),
-          approved: c[COL.approved]?.textContent.trim(),
-          workAuth: c[COL.workAuth]?.textContent.trim(),
-          deductible: c[COL.deductible]?.textContent.trim(),
-          division: c[COL.division]?.textContent.trim(),
-          origEstimate: c[COL.origEstimate]?.textContent.trim(),
-          url: c[COL.jobNum]?.querySelector("a")?.href || "#",
-          supervisor: c[COL.supervisor]?.textContent.trim(),
-          invoiced: c[COL.invoiced]?.textContent.trim(),
-          xactId: c[COL.xactId]?.textContent.trim()
-        };
-      }).filter(j => j.jobNumber);
-
-      window.estAccumulator = (window.estAccumulator || []).concat(data);
-      const nextBtn = document.querySelector(CONFIG.SELECTORS.PAGER)?.nextElementSibling;
-      if (nextBtn && nextBtn.tagName === "A") { nextBtn.click(); return null; }
-      return window.estAccumulator;
+  const scraper = App.scraper = App.scraper || new Scraper({
+    rowMapper: {
+      "Job Number": cell => ({ jobNum: cell.textContent.trim(), url: cell.querySelector("a")?.href }),
+      "Estimator": cell => ({ "estimator": cell.textContent.trim() || "Unassigned" }),
+      "Date Received": cell => ({ "received": cell.textContent.trim() }),
+      "Date Inspected": cell => ({ "inspected": cell.textContent.trim() }),
+      "Date Estimate Sent": cell => ({ "sent": cell.textContent.trim() }),
+      "Date Estimate Approved": cell => ({ "approved": cell.textContent.trim() }),
+      "Date of Work Authorization": cell => ({ "workAuth": cell.textContent.trim() }),
+      "Deductible Amount": cell => ({ "deductible": cell.textContent.trim() }),
+      "Original Estimate": cell => ({ "origEstimate": cell.textContent.trim() }),
+      "Xact TransactionID": cell => ({ "xactId": cell.textContent.trim() }),
+      "Date Invoiced": cell => ({ "invoiced": cell.textContent.trim() })
     }
-  };
+  });
 
   // --- 5. UI / VIEW LAYER ---
   const View = {
@@ -422,8 +69,8 @@
       }
 
       const existingFilter = document.getElementById("division-filter");
-      const previousSelections = existingFilter 
-        ? Array.from(existingFilter.selectedOptions).map(opt => opt.value) 
+      const previousSelections = existingFilter
+        ? Array.from(existingFilter.selectedOptions).map(opt => opt.value)
         : null;
 
       const passesDivFilter = (job) => !previousSelections || previousSelections.includes(job.division);
@@ -447,12 +94,12 @@
                       <label>Divisions:</label>
                       <select id="division-filter" class="multi-select-dropdown" multiple size="1">
                           ${divisions.map(div => {
-                              // If we have previousSelections, use them. Otherwise, default to all 'selected'.
-                              const isSelected = previousSelections 
-                                  ? previousSelections.includes(div) 
-                                  : true;
-                              return `<option value="${div}" ${isSelected ? 'selected' : ''}>${div}</option>`;
-                          }).join('')}
+          // If we have previousSelections, use them. Otherwise, default to all 'selected'.
+          const isSelected = previousSelections
+            ? previousSelections.includes(div)
+            : true;
+          return `<option value="${div}" ${isSelected ? 'selected' : ''}>${div}</option>`;
+        }).join('')}
                       </select>
                   </div>              
                   <div style="display: flex; align-items: center;">
@@ -463,15 +110,15 @@
             </div>
             <div class="main-content" id="board"></div>
         `;
-        
+
         // Initial listener attachment
         document.getElementById('division-filter').addEventListener('change', () => {
-            this.render(activeEstimator);
+          this.render(activeEstimator);
         });
       } else {
         // Partial Update: Just update the tabs and tab bar counts
         container.querySelector(".tabs").innerHTML = tabsHtml;
-      } 
+      }
 
       this._buildBoard(activeEstimator);
     },
@@ -510,18 +157,18 @@
 
       Object.keys(phaseGroups).forEach(p => {
         const col = document.createElement("div");
-        
+
         // Determine which group class to apply
         const groupClass = phaseGroups[p];
         col.className = `phase-col ${groupClass}`;
-        
+
         const description = phaseDescriptions[p] || "";
         col.innerHTML = `<h3 title="${description}" style="cursor:help;">${p.toUpperCase()}</h3><div class="card-list"></div>`;
 
         filtered.filter(e => e.phase === p && e.division !== "Warranty")
           .sort((a, b) => b.aging - a.aging)
           .forEach(est => col.querySelector(".card-list").appendChild(this._createCard(est)));
-        
+
         board.appendChild(col);
       });
 
@@ -846,7 +493,7 @@
       if (document.getElementById('m-del')) {
         document.getElementById('m-del').onclick = () => {
           let mans = Store.get(CONFIG.KEYS.MANUAL);
-          
+
           // Soft delete: Find the item and mark it deleted
           mans = mans.map(m => {
             if (m.uniqueId === est.uniqueId) {
@@ -909,11 +556,11 @@
         // We pass window.estAccumulator which holds the current scraped data
         Store.sync(window.estAccumulator || []);
 
-        Store.rebuildLocal(window.estAccumulator || []); 
+        Store.rebuildLocal(window.estAccumulator || []);
 
         // Trigger Render
         const activeTab = document.querySelector(".tab-btn.active")?.textContent.split(' (')[0] || "All";
-        View.render(activeTab);        
+        View.render(activeTab);
 
         Store.push();
       };
