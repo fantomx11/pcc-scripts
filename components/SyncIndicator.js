@@ -1,3 +1,5 @@
+const {html} = await import('./modules/libs.js');
+
 export const SyncIndicator = ({ status }) => {
     const config = {
       syncing: { class: 'spinner', text: 'SYNCING...', color: 'white' },
@@ -9,7 +11,7 @@ export const SyncIndicator = ({ status }) => {
     return html`
       <div class="sync-indicator">
         <div class="${current.class}"></div>
-        <span style="font-size:10px; color:${current.color}; ml-1">${current.text}</span>
+        <span style="font-size:10px; color:${current.color}; margin-left: 4px">${current.text}</span>
       </div>
     `;
   };
