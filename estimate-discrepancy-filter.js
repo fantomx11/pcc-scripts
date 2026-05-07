@@ -35,7 +35,7 @@ javascript:!function() {
         jobNum: headerCells.findIndex(c => c.textContent.trim() === "Job Number"),
         est: headerCells.findIndex(c => c.textContent.trim() === "Total Estimates"),
         status: headerCells.findIndex(c => c.textContent.trim() === "Job Status"),
-        inv: headerCells.findIndex(c => c.textContent.trim() === "Invoiced Subtotal")
+        inv: headerCells.findIndex(c => c.textContent.trim() === "Total Invoiced")
     };
 
     const scrapedJobs = [...document.querySelectorAll("tr.rgRow, tr.rgAltRow")].map(row => {
