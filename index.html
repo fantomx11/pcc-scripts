@@ -38,11 +38,36 @@
         code { background: #f4f4f4; padding: 2px 5px; border-radius: 4px; font-size: 0.9em; }
         ol { margin: 10px 0 0 20px; padding: 0; }
         li { margin-bottom: 5px; }
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            background: #000;
+        }
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
     </style>
 </head>
 <body>
 
     <h1>PCC Script Directory</h1>
+    <div class="video-container">
+        <iframe 
+            src="https://www.youtube.com/embed/0Dh2yphC1CE" 
+            title="PCC Scripts Tutorial" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+            allowfullscreen>
+        </iframe>
+    </div>
     <p>Drag the blue buttons to your Bookmarks Bar. Click them while on the CMS to activate the script.</p>
 
     <ul class="bookmarklet-list">
