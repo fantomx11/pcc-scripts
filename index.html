@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCC Scripts Hub</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; max-width: 700px; margin: 40px auto; padding: 0 20px; color: #333; }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .bookmarklet-list { list-style: none; padding: 0; }
+        .bookmarklet-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+        }
+        .instructions { padding-right: 20px; }
+        .btn-container { min-width: 150px; text-align: right; }
+        .btn { 
+            display: inline-block; 
+            background: #007bff; 
+            color: white; 
+            padding: 10px 16px; 
+            text-decoration: none; 
+            border-radius: 4px; 
+            font-weight: bold;
+            cursor: move;
+            white-space: nowrap;
+        }
+        .description { font-style: italic; }
+        .btn:hover { background: #0056b3; }
+        code { background: #f4f4f4; padding: 2px 5px; border-radius: 4px; font-size: 0.9em; }
+        ol { margin: 10px 0 0 20px; padding: 0; }
+        li { margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <h1>PCC Script Directory</h1>
+    <p>Drag the blue buttons to your Bookmarks Bar. Click them while on the CMS to activate the script.</p>
+
+    <ul class="bookmarklet-list">
+        <li class="bookmarklet-item">
+            <div class="instructions">
+                <div><strong>Job Dashboard</strong></div>
+                <p class="description">This script is provides a full featured dashboard for active jobs including links to XActanalysis if the job is an assignment.</p>
+                <ol>
+                    <li>Open the <a href="https://dash-ngs.net/NextGear/Enterprise/Module/Reports/ViewDynamicReport.aspx?ID=100890" target="_blank">Job List Report</a></li>
+                    <li>Make sure you are on page 1</li>
+                    <li>Click the bookmarklet and let the next page load</li>
+                    <li>Repeat step 3 until all pages have been processed and the report renders</li>
+                </ol>
+            </div>
+            <div class="btn-container">
+                <a class="btn" href="javascript:(function(){var s=document.createElement('script');s.src='https://fantomx11.github.io/pcc-scripts/simplify-job-list.js?t='+Date.now();document.body.appendChild(s);})();">Simplify Jobs</a>
+            </div>
+        </li>
+
+        <li class="bookmarklet-item">
+            <div class="instructions">
+                <div><strong>Rich Text Notes</strong></div>
+                <p class="description">This script adds functionality for formatted notes and note templates.</p>
+                <ol>
+                    <li>Open a Job's notes and click "+ Add New"</li>
+                    <li>Once the note editor is visible, click the bookmarklet</li>
+                </ol>
+            </div>
+            <div class="btn-container">
+                <a class="btn" href="javascript:(function(){var s=document.createElement('script');s.src='https://fantomx11.github.io/pcc-scripts/rich-text-notes.js?t='+Date.now();document.body.appendChild(s);})();">Rich Text Notes</a>
+            </div>
+        </li>
+
+        <li class="bookmarklet-item">
+            <div class="instructions">
+                <div><strong>Estimate Kanban</strong></div>
+                <p class="description">This script is for estimators to visually track the progress of an estimate.</p>
+                <ol>
+                    <li>Open the <a href="https://dash-ngs.net/NextGear/Enterprise/Module/Reports/ViewDynamicReport.aspx?ID=127919" target="_blank">Estimate Kanban Report</a></li>
+                    <li>Make sure you are on page 1</li>
+                    <li>Click the bookmarklet and let the next page load</li>
+                    <li>Repeat step 3 until all pages have been processed and the report renders</li>
+                </ol>
+            </div>
+            <div class="btn-container">
+                <a class="btn" href="javascript:(function(){var s=document.createElement('script');s.src='https://fantomx11.github.io/pcc-scripts/estimate-kanban.js?t='+Date.now();document.body.appendChild(s);})();">Estimate Kanban</a>
+            </div>
+        </li>
+
+        <li class="bookmarklet-item">
+            <div class="instructions">
+                <div><strong>WO to Calendar</strong></div>
+                <p class="description">This script displays work orders in a calendar view and provides a download link so that the calendar can be imported into an external calendar app.</p>
+                <ol>
+                    <li>Navigate to the <strong>Work Orders</strong> page</li>
+                    <li>Make sure you are on the first page</li>
+                    <li>Click the bookmarklet and let the next page load</li>
+                    <li>Repeat step 3 until all pages are processed and the calendar renders</li>
+                </ol>
+            </div>
+            <div class="btn-container">
+                <a class="btn" href="javascript:(function(){var s=document.createElement('script');s.src='https://fantomx11.github.io/pcc-scripts/wo-to-calendar.js?t='+Date.now();document.body.appendChild(s);})();">WO to Calendar</a>
+            </div>
+        </li>
+
+        <li class="bookmarklet-item">
+            <div class="instructions">
+                <div><strong>Estimate Discrepancy Filter</strong></div>
+                <p class="description">This script is for accounting to highlight which jobs have estimate amounts and invoice amounts that do not match.</p>
+                <ol>
+                    <li>Open the <a href="https://dash-ngs.net/NextGear/Enterprise/Module/Reports/ViewDynamicReport.aspx?ID=100890" target="_blank">Job List Report</a></li>
+                    <li>Make sure you are on page 1</li>
+                    <li>Click the bookmarklet and let the next page load</li>
+                    <li>Repeat step 3 until all pages have been processed and the report renders</li>
+                </ol>
+            </div>
+            <div class="btn-container">
+                <a class="btn" href="javascript:(function(){var s=document.createElement('script');s.src='https://fantomx11.github.io/pcc-scripts/estimate-discrepancy-filter.js?t='+Date.now();document.body.appendChild(s);})();">Estimate Filter</a>
+            </div>
+        </li>
+    </ul>
+
+</body>
+</html>
