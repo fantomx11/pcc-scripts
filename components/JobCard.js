@@ -1,4 +1,4 @@
-const {html} = await import("../modules/libs.js");
+const {html} = await import("../modules/lib.js");
 
 export const JobCard = ({ est, onOpen }) => {
   const severity = est.aging >= 10 ? 'danger' : (est.aging >= 5 ? 'warning' : 'normal');

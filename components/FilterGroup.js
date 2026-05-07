@@ -1,4 +1,4 @@
-const {html} = await import("../modules/libs.js");
+const {html} = await import("../modules/lib.js");
 
 export const FilterGroup = ({ divisions, onFilterChange }) => {
   return html`

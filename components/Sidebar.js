@@ -1,4 +1,4 @@
-const {html} = await import("../modules/libs.js");
+const {html} = await import("../modules/lib.js");
 
 export const Sidebar = ({ jobs, activeEstimator }) => {
   const selectedDivisions = Array.from(document.getElementById('division-filter')?.selectedOptions || []).map(opt => opt.value);

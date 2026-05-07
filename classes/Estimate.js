@@ -1,6 +1,6 @@
 const { Job } = await import("./Job.js");
 const { KanbanPhases } = await import("../modules/enums.js");
-const { isDate, getDaysSince, parseCurrency } = await import("../modules/libs.js");
+const { isDate, getDaysSince, parseCurrency } = await import("../modules/lib.js");
 
 export class Estimate {
   constructor(data) {
