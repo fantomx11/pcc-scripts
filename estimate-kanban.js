@@ -1,5 +1,5 @@
 (async () => {
-  const devMode = true;
+  const devMode = false;
 
   const baseUrl = devMode ? "https://cdn.statically.io/gh/fantomx11/pcc-scripts@dev" : "https://fantomx11.github.io/pcc-scripts";
   
