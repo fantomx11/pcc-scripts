@@ -39,7 +39,7 @@ export class Scraper {
     const rows = [...document.querySelectorAll(this.selectors.ROWS)];
     
     const pageData = rows.map(row => {
-      const cells = row.querySelectorAll("td");
+      const cells = [...row.querySelectorAll("td")];
       if (!cells.length || !cells[0].textContent.trim()) return null;
 
       const mappedCells = cells.reduce((acc, cell, index) => {
