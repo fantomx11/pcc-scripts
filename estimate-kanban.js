@@ -36,7 +36,7 @@
   // --- 4. SCRAPER ENGINE ---
   const scraper = App.scraper = App.scraper || new Scraper({
     rowMapper: {
-      "Job Number": cell => ({ jobNum: cell.textContent.trim(), url: cell.querySelector("a")?.href }),
+      "Job Number": cell => ({ jobNumber: cell.textContent.trim(), url: cell.querySelector("a")?.href }),
       "Estimator": cell => ({ "estimator": cell.textContent.trim() || "Unassigned" }),
       "Date Received": cell => ({ "received": cell.textContent.trim() }),
       "Date Inspected": cell => ({ "inspected": cell.textContent.trim() }),
@@ -173,16 +173,17 @@
 
   // --- 6. APP CONTROLLER ---
   App.init = async function init() {
-    // 1. Standard event listeners
-    window.addEventListener('beforeunload', (e) => {
-      if (this.isSyncing) {
-        e.preventDefault();
-        e.returnValue = 'Data is still syncing...';
-      }
-    });
-
     const scrapedData = scraper.scrape(); // Use your existing Scraper object
     if (scrapedData) {
+      window.addEventListener('beforeunload', (e) => {
+        if (this.isSyncing) {
+          e.preventDefault();
+          e.returnValue = 'Data is still syncing...';
+        }
+      });
+
+      App.store = Store;
+
       Store.rebuildLocal(scrapedData, Estimate); // Use your existing Store object
       const root = document.body;
       root.innerHTML = ''; // Clear for fresh React mount
