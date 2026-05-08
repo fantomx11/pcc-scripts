@@ -68,7 +68,7 @@ export class Estimate {
   }
 
   get aging() {
-    return (this.phase?.aging || () => 0)(this);
+    return (this.phase?.aging || (() => 0))(this);
   }
 
   get tasks() {

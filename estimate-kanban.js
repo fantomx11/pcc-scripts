@@ -1,4 +1,8 @@
 (async () => {
+  const devMode = true;
+
+  const baseUrl = devMode ? "https://cdn.statically.io/gh/fantomx11/pcc-scripts@dev" : "https://fantomx11.github.io/pcc-scripts";
+  
   const { h, render } = await import('https://esm.sh/preact');
   const { useState, useEffect } = await import('https://esm.sh/preact/hooks');
 
@@ -6,13 +10,13 @@
 
   const Components = {};
 
-  ({ EstimatorTabs: Components.EstimatorTabs } = await import("./components/EstimatorTabs.js"));
-  ({ FilterGroup: Components.FilterGroup } = await import("./components/FilterGroup.js"));
-  ({ JobCard: Components.JobCard } = await import("./components/JobCard.js"));
-  ({ KanbanBoard: Components.KanbanBoard } = await import("./components/KanbanBoard.js"));
-  ({ Modal: Components.Modal } = await import("./components/Modal.js"));
-  ({ Sidebar: Components.Sidebar } = await import("./components/Sidebar.js"));
-  ({ SyncIndicator: Components.SyncIndicator } = await import("./components/SyncIndicator.js"));
+  ({ EstimatorTabs: Components.EstimatorTabs } = await import("${baseUrl}/components/EstimatorTabs.js"));
+  ({ FilterGroup: Components.FilterGroup } = await import("${baseUrl}/components/FilterGroup.js"));
+  ({ JobCard: Components.JobCard } = await import("${baseUrl}/components/JobCard.js"));
+  ({ KanbanBoard: Components.KanbanBoard } = await import("${baseUrl}/components/KanbanBoard.js"));
+  ({ Modal: Components.Modal } = await import("${baseUrl}/components/Modal.js"));
+  ({ Sidebar: Components.Sidebar } = await import("${baseUrl}/components/Sidebar.js"));
+  ({ SyncIndicator: Components.SyncIndicator } = await import("${baseUrl}/components/SyncIndicator.js"));
 
   // --- 1. CONFIGURATION ---
   const CONFIG = {
@@ -22,12 +26,12 @@
     }
   };
 
-  const { KanbanPhases } = await import("./modules/enums.js");
-  const { formatDateForInput } = await import("./modules/lib.js");
+  const { KanbanPhases } = await import("${baseUrl}/modules/enums.js");
+  const { formatDateForInput } = await import("${baseUrl}/modules/lib.js");
 
-  const { Estimate } = await import("./classes/Estimate.js");
-  const { Scraper } = await import("./classes/Scraper.js");
-  const { Store } = await import("./classes/Store.js");
+  const { Estimate } = await import("${baseUrl}/classes/Estimate.js");
+  const { Scraper } = await import("${baseUrl}/classes/Scraper.js");
+  const { Store } = await import("${baseUrl}/classes/Store.js");
 
   // --- 4. SCRAPER ENGINE ---
   const scraper = App.scraper = App.scraper || new Scraper({
