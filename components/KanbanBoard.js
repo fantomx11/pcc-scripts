@@ -1,4 +1,6 @@
 const {html} = await import("../modules/lib.js");
+const { KanbanPhases } = await import("../modules/enums.js");
+const { JobCard } = await import("./JobCard.js");
 
 export const KanbanBoard = ({ estimates, activeEstimator }) => {
     const selectedDivisions = Array.from(document.getElementById('division-filter')?.selectedOptions || []).map(opt => opt.value);
@@ -11,13 +13,13 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
 
     return html`
       <div class="main-content" id="board">
-        ${Object.keys(Phases).map(phaseKey => {
-      let phase = Phases[phaseKey];
+        ${Object.keys(KanbanPhases).map(phaseKey => {
+      let phase = KanbanPhases[phaseKey];
 
-      if (PhaseData[phaseKey]?.showBoard) {
+      if (phase.kanbanDisplay) {
         return html`
-                  <div class="phase-col ${PhaseData[phaseKey]?.group}">
-                    <h3>${phase.toUpperCase()}</h3>
+                  <div class="phase-col ${phase.kanbanGroup}">
+                    <h3>${phase.column.toUpperCase()}</h3>
                     <div class="card-list">
                       ${filtered.filter(e => e.phase === phase && e.division !== "Warranty")
             .sort((a, b) => b.aging - a.aging)

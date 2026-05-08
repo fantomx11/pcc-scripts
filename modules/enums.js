@@ -1,3 +1,5 @@
+const {getDaysSince} = await import("./lib.js");
+
 export const KanbanPhases = {
   "Inspection": {
     column: "Inspection",

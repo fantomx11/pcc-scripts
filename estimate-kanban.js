@@ -10,13 +10,13 @@
 
   const Components = {};
 
-  ({ EstimatorTabs: Components.EstimatorTabs } = await import("${baseUrl}/components/EstimatorTabs.js"));
-  ({ FilterGroup: Components.FilterGroup } = await import("${baseUrl}/components/FilterGroup.js"));
-  ({ JobCard: Components.JobCard } = await import("${baseUrl}/components/JobCard.js"));
-  ({ KanbanBoard: Components.KanbanBoard } = await import("${baseUrl}/components/KanbanBoard.js"));
-  ({ Modal: Components.Modal } = await import("${baseUrl}/components/Modal.js"));
-  ({ Sidebar: Components.Sidebar } = await import("${baseUrl}/components/Sidebar.js"));
-  ({ SyncIndicator: Components.SyncIndicator } = await import("${baseUrl}/components/SyncIndicator.js"));
+  ({ EstimatorTabs: Components.EstimatorTabs } = await import(`${baseUrl}/components/EstimatorTabs.js`));
+  ({ FilterGroup: Components.FilterGroup } = await import(`${baseUrl}/components/FilterGroup.js`));
+  ({ JobCard: Components.JobCard } = await import(`${baseUrl}/components/JobCard.js`));
+  ({ KanbanBoard: Components.KanbanBoard } = await import(`${baseUrl}/components/KanbanBoard.js`));
+  ({ Modal: Components.Modal } = await import(`${baseUrl}/components/Modal.js`));
+  ({ Sidebar: Components.Sidebar } = await import(`${baseUrl}/components/Sidebar.js`));
+  ({ SyncIndicator: Components.SyncIndicator } = await import(`${baseUrl}/components/SyncIndicator.js`));
 
   // --- 1. CONFIGURATION ---
   const CONFIG = {
@@ -26,12 +26,12 @@
     }
   };
 
-  const { KanbanPhases } = await import("${baseUrl}/modules/enums.js");
-  const { formatDateForInput } = await import("${baseUrl}/modules/lib.js");
+  const { KanbanPhases } = await import(`${baseUrl}/modules/enums.js`);
+  const { html, formatDateForInput } = await import(`${baseUrl}/modules/lib.js`);
 
-  const { Estimate } = await import("${baseUrl}/classes/Estimate.js");
-  const { Scraper } = await import("${baseUrl}/classes/Scraper.js");
-  const { Store } = await import("${baseUrl}/classes/Store.js");
+  const { Estimate } = await import(`${baseUrl}/classes/Estimate.js`);
+  const { Scraper } = await import(`${baseUrl}/classes/Scraper.js`);
+  const { Store } = await import(`${baseUrl}/classes/Store.js`);
 
   // --- 4. SCRAPER ENGINE ---
   const scraper = App.scraper = App.scraper || new Scraper({
@@ -183,7 +183,7 @@
 
     const scrapedData = scraper.scrape(); // Use your existing Scraper object
     if (scrapedData) {
-      Store.rebuildLocal(scrapedData); // Use your existing Store object
+      Store.rebuildLocal(scrapedData, Estimate); // Use your existing Store object
       const root = document.body;
       root.innerHTML = ''; // Clear for fresh React mount
       render(html`<${Components.App} initialEstimates=${Array.from(Store.all.values())} />`, root);

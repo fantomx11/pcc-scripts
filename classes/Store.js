@@ -1,3 +1,10 @@
+const CONFIG = {
+  KEYS: {
+    MANUAL: "manual_estimates_v8",
+    OVERRIDE: "cms_overrides_v1",
+  }
+};
+
 export const Store = {
   all: new Map(),
   isSyncing: false,
@@ -7,7 +14,7 @@ export const Store = {
   get(key) { return JSON.parse(localStorage.getItem(key) || (key.includes('overrides') ? "{}" : "[]")); },
   save(key, data) { localStorage.setItem(key, JSON.stringify(data)); },
 
-  rebuildLocal(scrapedData) {
+  rebuildLocal(scrapedData, Estimate) {
     const manuals = this.get(CONFIG.KEYS.MANUAL);
     const overrides = this.get(CONFIG.KEYS.OVERRIDE);
     this.all.clear();
