@@ -91,6 +91,8 @@
         Store.save(CONFIG.KEYS.MANUAL, mans);
       }
 
+      Store.rebuildLocal(App.scraper.results, Estimate);
+      
       // 2. Update local state to trigger Preact re-render
       setEstimates(Array.from(Store.all.values()));
       setEditingId(null);
