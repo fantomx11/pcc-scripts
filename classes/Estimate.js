@@ -59,7 +59,7 @@ export class Estimate {
   get isActive() {
     if (this.deleted) return false;
     
-    this.phase.active;
+    return this.phase.active;
   }
 
   get phase() {
