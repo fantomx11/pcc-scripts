@@ -20,6 +20,9 @@ const ModalFields = [
 
 export const Modal = ({ estimate, onClose, onSave, onDelete }) => {
   // Local state for the form fields
+
+  console.log(estimate);
+  
   const [formData, setFormData] = useState({ ...estimate, jobNumber: estimate.jobNumber });
   const isCms = estimate.type === 'CMS';
   const isNew = !estimate.uniqueId || estimate.uniqueId.startsWith('new-');
