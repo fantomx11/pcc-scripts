@@ -3,8 +3,7 @@ const { html, formatDateForInput } = await import("../modules/lib.js");
 const { ModalField, ModalSelect } = await import("./ModalField.js");
 
 const ModalFields = [
-  { isCms: false, name: "url",          type: "text",   label: "Job Slideboard URL",              value: formData => formData.url },
-  { isCms: false, name: "jobNumber",    type: "text",   label: "Job #",                           value: formData => formData.jobNumber },
+  { isCms: false, name: "jobNumber",    type: "text",   label: "Job #",                           value: formData => formData._jobNumber },
 
   { isCms: false, name: "type",         type: "select", label: "Type",                            value: formData => formData.type, options: [{ label: 'Supplement', value: 'SUPP' }, { label: 'Change Order', value: 'CO' }] },
   { isCms: false, name: "description",  type: "text",   label: "Description",                     value: formData => formData.description },
