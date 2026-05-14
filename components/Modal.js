@@ -3,7 +3,7 @@ const { html, formatDateForInput } = await import("../modules/lib.js");
 const { ModalField, ModalSelect } = await import("./ModalField.js");
 
 const ModalFields = [
-  { isCms: false, name: "jobNumber",    type: "text",   label: "Job #",                           value: formData => formData._jobNumber },
+  { isCms: false, name: "jobNumber",    type: "text",   label: "Job #",                           value: formData => formData.jobNumber },
 
   { isCms: false, name: "type",         type: "select", label: "Type",                            value: formData => formData.type, options: [{ label: 'Supplement', value: 'SUPP' }, { label: 'Change Order', value: 'CO' }] },
   { isCms: false, name: "description",  type: "text",   label: "Description",                     value: formData => formData.description },
@@ -20,7 +20,7 @@ const ModalFields = [
 
 export const Modal = ({ estimate, onClose, onSave, onDelete }) => {
   // Local state for the form fields
-  const [formData, setFormData] = useState({ ...estimate });
+  const [formData, setFormData] = useState({ ...estimate, jobNumber: estimate.jobNumber });
   const isCms = estimate.type === 'CMS';
   const isNew = !estimate.uniqueId || estimate.uniqueId.startsWith('new-');
 
