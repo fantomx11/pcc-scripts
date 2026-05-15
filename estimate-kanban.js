@@ -71,6 +71,7 @@
     const [estimates, setEstimates] = useState(initialEstimates);
     const [activeTab, setActiveTab] = useState("All");
     const [syncStatus, setSyncStatus] = useState("saved");
+    const [complianceTasks, setComplianceTasks] = useState(null);
     const [editingId, setEditingId] = useState(null);
 
     const allDivisions = [...new Set(estimates.map(e => e.division))].filter(Boolean).sort();
@@ -82,11 +83,16 @@
 
       Store.initialFetch(App.scraper.results, Estimate);
 
+      import(`${baseUrl}/modules/compliance.js`).then(async (mod) => {
+        const tasks = await mod.fetchComplianceTasks();
+        setComplianceTasks(tasks); // Pushes fresh metrics directly to UI sub-trees reactively
+      });
+
       return () => { 
         Store.statusListener = null; 
         Store.onCacheRebuilt = null;
       };
-    }, []);    
+    }, []);  
 
     useEffect(() => {
       window.App.openModal = (id = null) => {
@@ -160,6 +166,18 @@
           <div class="tabs-bar">
             <${Components.EstimatorTabs} estimates=${estimates} activeTab=${activeTab} selectedDivs=${selectedDivs} onTabChange=${setActiveTab} />
             <div style="display: flex; align-items: center;">
+              ${complianceTasks === null ? html`
+                <div style="display: inline-flex; align-items: center; margin-right: 15px;">
+                  <div class="spinner"></div>
+                  <span style="font-size: 10px; color: #e67e22; font-weight: bold; margin-left: 5px; text-transform: uppercase;">
+                    Loading Compliance...
+                  </span>
+                </div>
+              ` : html`
+                <span style="font-size: 10px; color: #27ae60; margin-right: 15px; font-weight: bold;">
+                  ${complianceTasks.length} COMPLIANCE TASKS LOADED
+                </span>
+              `}
               <${Components.FilterGroup} divisions=${allDivisions} onFilterChange=${(selected) => setSelectedDivs(selected)} />          
               <${Components.SyncIndicator} status=${syncStatus} />
               <button class="add-btn" onClick=${() => window.App.openModal()}>+ ADD SUPP/CO</button>
@@ -167,7 +185,7 @@
           </div>
           <div class="main-content">
             <${Components.KanbanBoard} estimates=${estimates} activeEstimator=${activeTab} selectedDivs=${selectedDivs} />
-            <${Components.Sidebar} jobs=${estimates} activeEstimator=${activeTab} selectedDivs=${selectedDivs} />
+            <${Components.Sidebar} jobs=${estimates} activeEstimator=${activeTab} selectedDivs=${selectedDivs} complianceTasks=${complianceTasks} />
           </div>
         </div>
 

@@ -29,6 +29,10 @@ export class Scraper {
     this.selectors = config.SELECTORS || DEFAULT_SELECTORS;
     this.rowMapper = config.rowMapper || {};
     this.results = [];
+    
+    // 🌐 TARGET WINDOW HOOK: Fall back to the default global window scope
+    this.win = config.contextWindow || window;
+    this.doc = this.win.document;
   }
 
   /**
@@ -41,7 +45,7 @@ export class Scraper {
     // Access ASP.NET PageRequestManager if it exists
     let prm = null;
     try {
-      prm = window.Sys.WebForms.PageRequestManager.getInstance();
+      prm = this.win.Sys.WebForms.PageRequestManager.getInstance();
     } catch (e) {
       console.warn("PageRequestManager not found. Operating in single-page mode.");
     }
@@ -51,7 +55,7 @@ export class Scraper {
       const self = this;
 
       function scrapeCurrentPage() {
-        const headerRow = document.querySelector(self.selectors.HEADER);
+        const headerRow = self.doc.querySelector(self.selectors.HEADER);
         if (!headerRow) {
           console.error("Header not found");
           cleanupAndResolve();
@@ -59,11 +63,11 @@ export class Scraper {
         }
 
         const findIdx = getColMap(headerRow);
-        const rows = [...document.querySelectorAll(self.selectors.ROWS)];
+        const rows = [...self.doc.querySelectorAll(self.selectors.ROWS)];
         
         const pageData = rows.map(row => {
           const cells = [...row.querySelectorAll("td")];
-          if (!cells.length || !cells[0].textContent.trim()) return null;
+          if (!cells.length) return null;
 
           return cells.reduce((acc, cell, index) => {
             const columnName = findIdx(index);
@@ -76,7 +80,7 @@ export class Scraper {
         console.log(`Scraped page. Current total items: ${self.results.length}`);
 
         // Handle RadGrid AJAX Pagination
-        const currentPager = document.querySelector(self.selectors.PAGER);
+        const currentPager = self.doc.querySelector(self.selectors.PAGER);
         const nextBtn = currentPager?.nextElementSibling;
 
         if (nextBtn && nextBtn.tagName === "A") {
