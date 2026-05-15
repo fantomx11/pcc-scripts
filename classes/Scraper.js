@@ -25,30 +25,6 @@ function DEFAULT_ROW_MAPPER(cell, name) {
 }
 
 export class Scraper {
-  scrape() {
-    const headerRow = document.querySelector(this.selectors.HEADER);
-    if (!headerRow) { console.error("Header not found"); return []; }
-
-    const findIdx = getColMap(headerRow);
-    const rows = [...document.querySelectorAll(this.selectors.ROWS)];
-    
-    // Process and return ONLY this page's array block cleanly
-    return rows.map(row => {
-      const cells = [...row.querySelectorAll("td")];
-      if (!cells.length || !cells[0].textContent.trim()) return null;
-
-      const mappedCells = cells.reduce((acc, cell, index) => {
-        const columnName = findIdx(index);
-        const cellMapper = this.rowMapper[columnName] || DEFAULT_ROW_MAPPER;
-        return {...acc, ...cellMapper(cell, columnName)};
-      }, {});
-      
-      return mappedCells;
-    }).filter(Boolean);
-  }
-}
-
-export class Scraper {
   constructor(config) {
     this.selectors = config.SELECTORS || DEFAULT_SELECTORS;
     this.rowMapper = config.rowMapper || {};
