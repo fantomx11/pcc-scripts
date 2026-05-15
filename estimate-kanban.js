@@ -84,7 +84,10 @@
         const index = mans.findIndex(m => m.uniqueId === formData.uniqueId);
 
         if (index > -1) mans[index] = formData;
-        else mans.push(formData);
+        else {
+          formData.uniqueId = "cust=" + Date.now();
+          mans.push(formData);
+        }
 
         Store.save(CONFIG.KEYS.MANUAL, mans);
       }
@@ -105,6 +108,8 @@
         // Soft delete logic from your original script
         mans = mans.map(m => m.uniqueId === id ? { ...m, deleted: true } : m);
         Store.save(CONFIG.KEYS.MANUAL, mans);
+
+        Store.rebuildLocal(App.scraper.results, Estimate);
 
         setEstimates(Array.from(Store.all.values()));
         setEditingId(null);
@@ -172,52 +177,10 @@
   };
 
   App.init = async function init() {
-    console.log("🚀 Initializing automated multi-page Kanban Scraper...");
+    // Simply await the scraper promise. It will handle clicking, waiting, and collecting.
+    const scrapedData = await scraper.scrape(); 
     
-    // Access the global Microsoft ASP.NET AJAX script manager instance
-    let prm = null;
-    try {
-      prm = window.Sys.WebForms.PageRequestManager.getInstance();
-    } catch (e) {
-      console.warn("PageRequestManager not found. Falling back to non-AJAX mode.");
-    }
-
-    // Capture the target multi-page array wrapper
-    let accumulatedScrapedData = [];
-
-    function processCurrentPage() {
-      // Execute your structural row mapping scrape sequence
-      const pageData = scraper.scrape(); 
-      
-      if (pageData && Array.isArray(pageData)) {
-        accumulatedScrapedData.push(...pageData);
-        console.log(`Page parsed. Items captured: ${pageData.length}. Total collected: ${accumulatedScrapedData.length}`);
-      }
-
-      // Detect standard RadGrid pagination configurations
-      const currentPager = document.querySelector(".rgNumPart .rgCurrentPage");
-      const nextBtn = currentPager?.nextElementSibling;
-
-      if (nextBtn && nextBtn.tagName === "A") {
-        console.log("Loading next data matrix view page...");
-        nextBtn.click();
-      } else {
-        console.log("🏁 All background pages crawled successfully! Processing datasets...");
-        
-        // Clean up the network layer listener before compiling state
-        if (prm) prm.remove_endRequest(onAjaxComplete);
-        
-        finalizeDashboardAssembly(accumulatedScrapedData);
-      }
-    }
-
-    // Callback hook that catches the exact millisecond the async webforms postback returns
-    function onAjaxComplete(sender, args) {
-      setTimeout(processCurrentPage, 100); // Settle DOM lifecycle
-    }
-
-    // Mount structural pipeline assembly to render the Preact View interface
-    function finalizeDashboardAssembly(finalScrapedData) {
+    if (scrapedData) {
       window.addEventListener('beforeunload', (e) => {
         if (Store.isSyncing) {
           e.preventDefault();
@@ -226,25 +189,13 @@
       });
 
       App.store = Store;
-      
-      // Rebuild map indices using complete multipage transaction logs
-      Store.rebuildLocal(finalScrapedData, Estimate); 
-      
+
+      Store.rebuildLocal(scrapedData, Estimate); 
       const root = document.body;
-      root.innerHTML = ''; // Fresh DOM clean for Preact mount
+      root.innerHTML = ''; // Clear for fresh React mount
       
       render(html`<${Components.App} initialEstimates=${Array.from(Store.all.values())} />`, root);
-      console.log("🎉 Kanban workspace assembled using live multipage assets.");
     }
-
-    // Bind state engine lifecycle loops
-    if (prm) {
-      prm.remove_endRequest(onAjaxComplete); // Purge orphaned instances
-      prm.add_endRequest(onAjaxComplete);
-    }
-
-    // Fire initial execution sweep on page 1
-    processCurrentPage();
   };
   
   const ViewStyles = `
