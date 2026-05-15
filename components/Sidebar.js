@@ -60,7 +60,7 @@ export const Sidebar = ({ jobs, activeEstimator, complianceTasks = [] }) => {
             ${list.map(j => html`
               <div class="sidebar-item" style="border-left: 3px solid ${sec.c}" 
                     onClick=${() => window.App.openModal(j.uniqueId)}>
-                <b>${j.jobNumber}</b><br/>${j.customer} - ${j.description}
+                <b><a href="${j.url}" target="_blank" onClick=${(e) => e.stopPropagation()}>${j.jobNumber}</a></b><br/>${j.customer} - ${j.description}
               </div>
             `)}
           </div>
