@@ -30,7 +30,6 @@ export class Scraper {
     this.rowMapper = config.rowMapper || {};
     this.results = [];
     
-    // 🌐 TARGET WINDOW HOOK: Fall back to the default global window scope
     this.win = config.contextWindow || window;
     this.doc = this.win.document;
   }

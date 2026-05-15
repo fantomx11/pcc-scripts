@@ -75,12 +75,15 @@ export const Sidebar = ({ jobs, activeEstimator, complianceTasks = [] }) => {
               ${actionTitle.toUpperCase()} (${matchedGroupJobs.length})
             </h4>
             
-            ${matchedGroupJobs.map(j => html`
+            ${matchedGroupJobs.map(j => {
+              const est = jobs.find(job => job.jobNumber === j.jobNumber);
+                
+              return html`
               <div class="sidebar-item" style="border-left: 3px solid #e67e22;" 
                     onClick=${() => window.App.openModal(j.uniqueId)}>
-                <b>${j.jobNumber}</b><br/>${j.customer} - ${j.description}
+                <b><a href="${est?.url}" target="_blank" onClick=${(e) => e.stopPropagation()}>${j.jobNumber}</a></b><br/>${j.customer} - ${j.description}
               </div>
-            `)}
+            `})}
           </div>
         `;
       })}
