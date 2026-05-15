@@ -155,7 +155,7 @@
 
     return html`
       <div>
-        <link rel="stylesheet" href="${baseUrl}/styles/kanban.css" />
+        <link rel="stylesheet" href="${baseUrl}/styles/estimate-kanban.css" />
         <div class="dash-container">
           <div class="tabs-bar">
             <${Components.EstimatorTabs} estimates=${estimates} activeTab=${activeTab} selectedDivs=${selectedDivs} onTabChange=${setActiveTab} />
