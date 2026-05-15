@@ -18,7 +18,6 @@
   ({ Sidebar: Components.Sidebar } = await import(`${baseUrl}/components/Sidebar.js`));
   ({ SyncIndicator: Components.SyncIndicator } = await import(`${baseUrl}/components/SyncIndicator.js`));
 
-  // --- 1. CONFIGURATION ---
   const CONFIG = {
     KEYS: {
       MANUAL: "manual_estimates_v8",
@@ -33,7 +32,6 @@
   const { Scraper } = await import(`${baseUrl}/classes/Scraper.js`);
   const { Store } = await import(`${baseUrl}/classes/Store.js`);
 
-  // --- 4. SCRAPER ENGINE ---
   const scraper = App.scraper = App.scraper || new Scraper({
     rowMapper: {
       "Job Number": cell => ({ jobNumber: cell.textContent.trim(), url: cell.querySelector("a")?.href }),
@@ -173,26 +171,82 @@
     `;
   };
 
-  // --- 6. APP CONTROLLER ---
   App.init = async function init() {
-    const scrapedData = scraper.scrape(); // Use your existing Scraper object
-    if (scrapedData) {
+    console.log("🚀 Initializing automated multi-page Kanban Scraper...");
+    
+    // Access the global Microsoft ASP.NET AJAX script manager instance
+    let prm = null;
+    try {
+      prm = window.Sys.WebForms.PageRequestManager.getInstance();
+    } catch (e) {
+      console.warn("PageRequestManager not found. Falling back to non-AJAX mode.");
+    }
+
+    // Capture the target multi-page array wrapper
+    let accumulatedScrapedData = [];
+
+    function processCurrentPage() {
+      // Execute your structural row mapping scrape sequence
+      const pageData = scraper.scrape(); 
+      
+      if (pageData && Array.isArray(pageData)) {
+        accumulatedScrapedData.push(...pageData);
+        console.log(`Page parsed. Items captured: ${pageData.length}. Total collected: ${accumulatedScrapedData.length}`);
+      }
+
+      // Detect standard RadGrid pagination configurations
+      const currentPager = document.querySelector(".rgNumPart .rgCurrentPage");
+      const nextBtn = currentPager?.nextElementSibling;
+
+      if (nextBtn && nextBtn.tagName === "A") {
+        console.log("Loading next data matrix view page...");
+        nextBtn.click();
+      } else {
+        console.log("🏁 All background pages crawled successfully! Processing datasets...");
+        
+        // Clean up the network layer listener before compiling state
+        if (prm) prm.remove_endRequest(onAjaxComplete);
+        
+        finalizeDashboardAssembly(accumulatedScrapedData);
+      }
+    }
+
+    // Callback hook that catches the exact millisecond the async webforms postback returns
+    function onAjaxComplete(sender, args) {
+      setTimeout(processCurrentPage, 100); // Settle DOM lifecycle
+    }
+
+    // Mount structural pipeline assembly to render the Preact View interface
+    function finalizeDashboardAssembly(finalScrapedData) {
       window.addEventListener('beforeunload', (e) => {
-        if (this.isSyncing) {
+        if (Store.isSyncing) {
           e.preventDefault();
           e.returnValue = 'Data is still syncing...';
         }
       });
 
       App.store = Store;
-
-      Store.rebuildLocal(scrapedData, Estimate); // Use your existing Store object
+      
+      // Rebuild map indices using complete multipage transaction logs
+      Store.rebuildLocal(finalScrapedData, Estimate); 
+      
       const root = document.body;
-      root.innerHTML = ''; // Clear for fresh React mount
+      root.innerHTML = ''; // Fresh DOM clean for Preact mount
+      
       render(html`<${Components.App} initialEstimates=${Array.from(Store.all.values())} />`, root);
+      console.log("🎉 Kanban workspace assembled using live multipage assets.");
     }
-  };
 
+    // Bind state engine lifecycle loops
+    if (prm) {
+      prm.remove_endRequest(onAjaxComplete); // Purge orphaned instances
+      prm.add_endRequest(onAjaxComplete);
+    }
+
+    // Fire initial execution sweep on page 1
+    processCurrentPage();
+  };
+  
   const ViewStyles = `
     .dash-container { display: flex; flex-direction: column; height: 100vh; font-family: 'Segoe UI', sans-serif; }
     .tabs-bar { display: flex; background: #2c3e50; padding: 0 15px; justify-content: space-between; align-items: center; min-height: 45px; }
