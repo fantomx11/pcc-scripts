@@ -22,3 +22,31 @@ export function parseCurrency(val) {
   if (!val) return 0;
   return parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0;
 }
+
+export function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      console.log(`Copied Job Number: ${text}`);
+    }).catch(err => fallbackCopyTextToClipboard(text));
+  } else {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try { document.execCommand("copy"); } catch (err) { }
+    document.body.removeChild(textArea);
+  }
+}
+
+export function camelToCapitalCase(str) {
+  if (!str) return "";
+  
+  // 1. Insert a space before all caps
+  const spaced = str.replace(/([A-Z])/g, " $1");
+  
+  // 2. Capitalize the first letter and trim any accidental leading spaces
+  return (spaced.charAt(0).toUpperCase() + spaced.slice(1)).trim();
+}

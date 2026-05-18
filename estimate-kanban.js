@@ -1,6 +1,4 @@
-(async () => {
-  const devMode = false;
-
+(async (devMode = false) => {
   const baseUrl = devMode ? "https://cdn.statically.io/gh/fantomx11/pcc-scripts@dev" : "https://fantomx11.github.io/pcc-scripts";
 
   const { render } = await import('https://esm.sh/preact');
