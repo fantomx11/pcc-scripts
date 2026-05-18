@@ -2,39 +2,12 @@
   const baseUrl = devMode ? "https://cdn.statically.io/gh/fantomx11/pcc-scripts@dev" : "https://fantomx11.github.io/pcc-scripts";
 
   const { Scraper } = await import(`${baseUrl}/classes/Scraper.js`);
-  const { html } = await import(`${baseUrl}/modules/lib.js`);
+  const { html, parseCurrency, copyTextToClipboard } = await import(`${baseUrl}/modules/lib.js`);
   const { h, render } = await import('https://esm.sh/preact');
 
   const App = window.App = window.App || {};
 
-  const { Dashboard } = await import(`./components/jobList/Dashboard.js`);
-
-  /* --- UI HELPERS --- */
-  function copyTextToClipboard(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => {
-        console.log(`Copied Job Number: ${text}`);
-      }).catch(err => fallbackCopyTextToClipboard(text));
-    } else {
-      fallbackCopyTextToClipboard(text);
-    }
-  }
-
-  function fallbackCopyTextToClipboard(text) {
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed";
-    textArea.style.left = "-9999px";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try { document.execCommand("copy"); } catch (err) { }
-    document.body.removeChild(textArea);
-  }
-
-  function parseCurrency(text) {
-    return text ? parseFloat(text.replace(/[^0-9.-]+/g, "")) : 0;
-  }
+  const { Dashboard } = await import(`${basUrls}/components/jobList/Dashboard.js`);
 
   /* --- SCRAPER CONFIG --- */
   const CRITICAL_FLAG_CLASS = "flag-critical",

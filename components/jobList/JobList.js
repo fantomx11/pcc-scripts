@@ -13,9 +13,9 @@ export function JobList({ listClass, tableClass, jobs, selectedJob, setSelectedJ
             const rowClass = `row-style ${isSelected ? 'selected-row' : ''}`.trim();
             return html`
               <tr key=${`dash-${job.jobNumber}`} class=${rowClass} onClick=${() => setSelectedJob(job.jobNumber)} >
-                <${TableCell} cellData=${{ text: job.customerName, background: job.rowFlagClass || job.name?.background }} />
-                <${TableCell} cellData=${{ text: job.jobNumber, url: getUrl(job), background: job.rowFlagClass || job.dash?.background }} />
-                ${includeCopyCell && html`<${CopyCell} copyText=${job.copyJobNumber} copyTextToClipboard=${copyTextToClipboard} />`}
+                <${TableCell} cellData=${{ text: job.customerName, background: job.rowFlagClass }} />
+                <${TableCell} cellData=${{ text: job.jobNumber, url: getUrl(job), background: job.rowFlagClass }} />
+                ${includeCopyCell && html`<${CopyCell} copyText=${job.jobNumber} copyTextToClipboard=${copyTextToClipboard} />`}
               </tr>
             `;
           })}
