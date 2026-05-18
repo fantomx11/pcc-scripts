@@ -17,22 +17,36 @@ export function Dashboard({ initialJobs, baseUrl, copyTextToClipboard }) {
   const CRITICAL_FLAG_CLASS = "flag-critical";
   const WARNING_FLAG_CLASS = "flag-warning";
 
-  const groupedJobs = {};
-  jobs.forEach(j => {
-    const k = j[groupByKey] || "Unassigned";
-    groupedJobs[k] = groupedJobs[k] || [];
-    groupedJobs[k].push(j);
-  });
+  let groupedJobs = {};
+  let groups = [];
 
-  const groups = Object.keys(groupedJobs).sort().map(name => ({name, count: groupedJobs[name].length}));
+  function updateGroupData() {
+    groupedJobs = {};
+    jobs.forEach(j => {
+      const k = j[groupByKey] || "Unassigned";
+      groupedJobs[k] = groupedJobs[k] || [];
+      groupedJobs[k].push(j);
+    });
 
-  useEffect(() => {
+    groups = Object.keys(groupedJobs).sort().map(name => ({ name, count: groupedJobs[name].length }))
+
     if (groups.length > 0 && !groups.some(g => g.name === activeTab)) {
       setActiveTab(groups[0].name);
     }
-  }, [groupByKey]);
+  }
 
-  const activeGroupJobs = groupedJobs[activeTab] || [];
+  useEffect(() => updateGroupData(), [groupByKey]);
+  updateGroupData();
+
+  let activeGroupJobs = groupedJobs[activeTab] || [];
+
+  useEffect(() => {
+    if (activeTab && groupedJobs[activeTab]) {
+      activeGroupJobs = groupedJobs[activeTab] || [];
+      setSelectedJob(groupedJobs[activeTab][0]?.jobNumber || null);
+    }
+  }, [activeTab]);
+
 
   return html`
     <div class="main">
@@ -48,17 +62,17 @@ export function Dashboard({ initialJobs, baseUrl, copyTextToClipboard }) {
         <div class="lists-wrapper">
           ${activeTab && html`
             <div class="pane-style">
-              <${JobList} listClass="dash-list" tableClass="dash-table" jobs=${activeGroupJobs} selectedJob=${selectedJob} setSelectedJob=${setSelectedJob} copyTextToClipboard=${copyTextToClipboard} includeCopyCell=${true} getUrl=${job => job.url}/>
-              <${JobList} listClass="xact-list" tableClass="xact-table" jobs=${activeGroupJobs.filter(job => job.xactId !== undefined)} selectedJob=${selectedJob} setSelectedJob=${setSelectedJob} copyTextToClipboard=${copyTextToClipboard} includeCopyCell=${false} getUrl=${job => `https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${job.xactId}`}/>
+              <${JobList} listClass="dash-list" tableClass="dash-table" jobs=${activeGroupJobs} selectedJob=${selectedJob} setSelectedJob=${setSelectedJob} copyTextToClipboard=${copyTextToClipboard} includeCopyCell=${true} getUrl=${({jobNumber, url}) => ({text: jobNumber, url})}/>
+              <${JobList} listClass="xact-list" tableClass="xact-table" jobs=${activeGroupJobs.filter(job => job.xactId !== "")} selectedJob=${selectedJob} setSelectedJob=${setSelectedJob} copyTextToClipboard=${copyTextToClipboard} includeCopyCell=${false} getUrl=${job => ({text: "Xactanalysis", url: `https://www.xactanalysis.com/apps/cxa/detail.jsp?mfn=${job.xactId}`})} />
             </div>
           `}
         </div>
         
         <div class="details">
-          ${selectedJob 
-            ? html`<${JobDetails} job=${jobs.find(j => j.jobNumber === selectedJob)} groupByKey=${groupByKey} flagClasses=${{ CRITICAL_FLAG_CLASS, WARNING_FLAG_CLASS }} />`
-            : html`<p>Select a job to view details.</p>`
-          }
+          ${selectedJob
+      ? html`<${JobDetails} job=${jobs.find(j => j.jobNumber === selectedJob)} groupByKey=${groupByKey} flagClasses=${{ CRITICAL_FLAG_CLASS, WARNING_FLAG_CLASS }} />`
+      : html`<p>Select a job to view details.</p>`
+    }
         </div>
       </div>
     </div>

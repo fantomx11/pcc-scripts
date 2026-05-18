@@ -41,3 +41,12 @@ export function copyTextToClipboard(text) {
   }
 }
 
+export function camelToCapitalCase(str) {
+  if (!str) return "";
+  
+  // 1. Insert a space before all caps
+  const spaced = str.replace(/([A-Z])/g, " $1");
+  
+  // 2. Capitalize the first letter and trim any accidental leading spaces
+  return (spaced.charAt(0).toUpperCase() + spaced.slice(1)).trim();
+}

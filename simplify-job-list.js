@@ -7,7 +7,7 @@
 
   const App = window.App = window.App || {};
 
-  const { Dashboard } = await import(`${basUrls}/components/jobList/Dashboard.js`);
+  const { Dashboard } = await import(`${baseUrl}/components/jobList/Dashboard.js`);
 
   /* --- SCRAPER CONFIG --- */
   const CRITICAL_FLAG_CLASS = "flag-critical",

@@ -11,10 +11,13 @@ export function JobList({ listClass, tableClass, jobs, selectedJob, setSelectedJ
           ${jobs.map(job => {
             const isSelected = selectedJob && selectedJob === job.jobNumber;
             const rowClass = `row-style ${isSelected ? 'selected-row' : ''}`.trim();
+
+            const url = getUrl(job);
+
             return html`
               <tr key=${`dash-${job.jobNumber}`} class=${rowClass} onClick=${() => setSelectedJob(job.jobNumber)} >
-                <${TableCell} cellData=${{ text: job.customerName, background: job.rowFlagClass }} />
-                <${TableCell} cellData=${{ text: job.jobNumber, url: getUrl(job), background: job.rowFlagClass }} />
+                <${TableCell} cellData=${{ text: job.customer, background: job.rowFlagClass }} />
+                <${TableCell} cellData=${{ ...url, background: job.rowFlagClass }} />
                 ${includeCopyCell && html`<${CopyCell} copyText=${job.jobNumber} copyTextToClipboard=${copyTextToClipboard} />`}
               </tr>
             `;
