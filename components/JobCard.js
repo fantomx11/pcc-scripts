@@ -14,12 +14,8 @@ export const JobCard = ({ est, onOpen }) => {
 
       ${isProduction && html`
         <div class="job-progress-container" style="margin-top: 8px; margin-bottom: 4px;">
-          <div style="display: flex; justify-content: space-between; font-size: 10px; color: #555; margin-bottom: 2px;">
-            <span>Completion</span>
-            <strong>${est.jobCompleted}%</strong>
-          </div>
           <div style="background: #e0e0e0; border-radius: 4px; height: 6px; width: 100%; overflow: hidden;">
-            <div style="background: #27ae60; height: 100%; width: ${Math.min(100, Math.max(0, est.jobCompleted))}%"></div>
+            <div style="background: #27ae60; height: 100%; width: ${Math.min(100, Math.max(0, est.jobCompleted * 100))}%"></div>
           </div>
         </div>
       `}

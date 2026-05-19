@@ -3,8 +3,7 @@ const {html} = await import("../modules/lib.js");
 export const EstimatorTabs = ({ estimates, activeTab, selectedDivs, onTabChange }) => {
   const passesFilter = (job) => selectedDivs.length === 0 || selectedDivs.includes(job.division);
 
-  // Calculate estimators from the data
-  const estimators = [...new Set(estimates.map(e => e.estimator))].sort();
+  const estimators = [...new Set([...estimates.map(e => e.estimator), ...estimates.map(e => e.supervisor)])].sort();
 
   return html`
     <div class="tabs">
@@ -16,7 +15,7 @@ export const EstimatorTabs = ({ estimates, activeTab, selectedDivs, onTabChange 
       </button>
       
       ${estimators.map(est => {
-    const count = estimates.filter(e => e.estimator === est && e.isActive && passesFilter(e)).length;
+    const count = estimates.filter(e => (e.estimator === est || e.supervisor === est) && e.isActive && passesFilter(e)).length;
     return html`
           <button 
             class=${`tab-btn ${activeTab === est ? 'active' : ''}`} 
