@@ -7,8 +7,8 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
     // Local state tracking which column groups are collapsed
     const [collapsedGroups, setCollapsedGroups] = useState({
       "group-pre-con": false,
-      "group-pm": false,
-      "group-collections": false
+      "group-pm": true,
+      "group-collections": true
     });
 
     const selectedDivisions = Array.from(document.getElementById('division-filter')?.selectedOptions || []).map(opt => opt.value);
@@ -21,9 +21,9 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
 
     // Define structural columns groups in sequential display order
     const groups = {
-      "group-pre-con": { label: "Pre-Production", phases: [] },
-      "group-pm": { label: "Production", phases: [] },
-      "group-collections": { label: "Collections & AR", phases: [] }
+      "group-pre-con": { label: "Pre-Production", phases: [], count: 0 },
+      "group-pm": { label: "Production", phases: [], count: 0 },
+      "group-collections": { label: "Collections", phases: [], count: 0 }
     };
 
     // Sort phases into their respective display categories
@@ -31,8 +31,11 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
       const phase = KanbanPhases[phaseKey];
       if (phase.kanbanDisplay && groups[phase.kanbanGroup]) {
         groups[phase.kanbanGroup].phases.push(phase);
+        groups[phase.kanbanGroup].count += filtered.filter(e => e.phase === phase && e.division !== "Warranty").length;
       }
     });
+
+    
 
     const toggleGroup = (groupKey) => {
       setCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
@@ -67,9 +70,8 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
           // Render thin placeholder ribbon if group is collapsed
           if (isCollapsed) {
             return html`
-              <div class=${`kanban-group-collapsed ${groupKey}`} onClick=${() => toggleGroup(groupKey)} title="Click to Expand">
-                <div class="collapsed-title">${group.label.toUpperCase()}</div>
-                <div class="expand-icon">▶</div>
+              <div class=${`kanban-group-collapsed ${groupKey}`} onClick=${() => focusGroup(groupKey)} title="Click to Expand">
+                <div class="collapsed-title">${group.label.toUpperCase()} (${group.count})</div>
               </div>
             `;
           }
@@ -78,13 +80,15 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
           return html`
             <div class=${`kanban-group-wrapper ${groupKey}`}>
               <div class=${`group-header ${groupKey}`}>
-                <span>${group.label}</span>
+                <span>${group.label} (${group.count})</span>
+                <!--
                 <div>
                   ◀ Collapse
                   <span class="collapse-group-btn" role="button" onClick=${() => toggleGroup(groupKey)}>This</span>
                   <span class="collapse-group-btn" role="button" onClick=${() => focusGroup(groupKey)}>Others</span>
                   <span class="collapse-group-btn" role="button" onClick=${() => collapseGroups()}>All</span>
                 </div>
+                -->
               </div>
               <div class="group-columns-container">
                 ${group.phases.map(phase => html`
