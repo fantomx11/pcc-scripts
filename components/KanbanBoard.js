@@ -38,7 +38,7 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
       setCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
     };
 
-    const focusGroup(groupKey) => {
+    const focusGroup = (groupKey) => {
       setCollapsedGroups(prev => {
         const nextState = {};
         Object.keys(prev).forEach(key => {
