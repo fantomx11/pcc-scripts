@@ -490,6 +490,7 @@
   border-radius: 3px;
   background: #f0f2f5;
   user-select: none;
+  margin: 2px;
 }
 
 .collapse-group-btn:hover {
