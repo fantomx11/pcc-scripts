@@ -61,7 +61,8 @@
       "Deductible Amount": cell => ({ "deductible": cell.textContent.trim() }),
       "Original Estimate": cell => ({ "origEstimate": cell.textContent.trim() }),
       "Xact TransactionID": cell => ({ "xactId": cell.textContent.trim() }),
-      "Date Invoiced": cell => ({ "invoiced": cell.textContent.trim() })
+      "Date Invoiced": cell => ({ "invoiced": cell.textContent.trim() }),
+      "Job Completion(%)": cell => ({ jobCompletion: cell.textContent.trim() })
     }
   });
 
@@ -195,7 +196,6 @@
   };
 
   App.init = async function init() {
-    // Simply await the scraper promise. It will handle clicking, waiting, and collecting.
     const scrapedData = await scraper.scrape();
 
     if (scrapedData) {

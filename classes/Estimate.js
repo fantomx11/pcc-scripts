@@ -1,6 +1,6 @@
 const { Job } = await import("./Job.js");
 const { KanbanPhases } = await import("../modules/enums.js");
-const { isDate, getDaysSince, parseCurrency } = await import("../modules/lib.js");
+const { isDate, getDaysSince, parseCurrency, parsePercentage } = await import("../modules/lib.js");
 
 export class Estimate {
   constructor(data) {
@@ -30,6 +30,10 @@ export class Estimate {
     // Financials
     this.origEstimate = parseCurrency(data.origEstimate);
     this.deductible = parseCurrency(data.deductible);
+  
+    this.jobStatus = data.jobStatus || "";
+    // Clean string percentages (e.g., "45%") into an executable Float or Int number
+    this.jobCompleted = data.jobCompleted ? parsePercentage(data.jobCompleted) || 0 : 0;
   }
 
   // --- Job Reference Getters ---

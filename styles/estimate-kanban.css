@@ -102,12 +102,14 @@
     }
 
     .phase-col {
-      flex: 1;
+      flex: 0 0 290px;
+      /* Don't grow, don't shrink, maintain a rigid 290px width */
       display: flex;
       flex-direction: column;
       background: #ebedef;
       border-radius: 6px;
       padding: 10px;
+      box-sizing: border-box;
     }
 
     .phase-col h3 {
@@ -182,6 +184,7 @@
 
     .sidebar {
       width: 250px;
+      flex-shrink: 0;
       background: #fff;
       border-left: 1px solid #ddd;
       padding: 10px;
@@ -335,21 +338,41 @@
       border-top: 4px solid #2196f3;
     }
 
-    /* Light Blue */
-    .phase-col.group-pm {
-      background: #f1f8e9;
-      border-top: 4px solid #8bc34a;
-    }
-
     /* Light Green */
     .phase-col.group-pre-con h3 {
       color: #0d47a1;
       border-bottom-color: #bbdefb;
     }
 
+    /* Light Blue */
+    .phase-col.group-pm {
+      background: #f1f8e9;
+      border-top: 4px solid #8bc34a;
+    }
+
     .phase-col.group-pm h3 {
       color: #33691e;
       border-bottom-color: #dcedc8;
+    }
+
+    .phase-col.group-collections {
+      background: #fff3e0;
+      border-top: 4px solid #ff9800;
+    }
+
+    .phase-col.group-collections h3 {
+      color: #e65100;
+      border-bottom-color: #ffe0b2;
+    }
+
+    #board {
+      overflow-x: auto;
+      overflow-y: hidden;
+      display: flex;
+      flex: 1;
+      gap: 15px;
+      padding-bottom: 10px;
+      /* Prevents layout clipping when the scrollbar appears */
     }
 
     .filter-group {
