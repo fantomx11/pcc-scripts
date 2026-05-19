@@ -48,6 +48,16 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
       });
     }
 
+    const collapseGroups = () => {
+      setCollapsedGroups(prev => {
+        const nextState = {};
+        Object.keys(prev).forEach(key => {
+          nextState[key] = true;
+        });
+        return nextState;
+      });
+    }
+
     return html`
       <div class="main-content" id="board">
         ${Object.keys(groups).map(groupKey => {
@@ -69,8 +79,12 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
             <div class=${`kanban-group-wrapper ${groupKey}`}>
               <div class=${`group-header ${groupKey}`}>
                 <span>${group.label}</span>
-                <span class="collapse-group-btn" role="button" onClick=${() => toggleGroup(groupKey)}>◀ Collapse Group</span>
-                <span class="collapse-group-btn" role="button" onClick=${() => focusGroup(groupKey)}>◀ Collapse Others</span>
+                <div>
+                  ◀ Collapse
+                  <span class="collapse-group-btn" role="button" onClick=${() => toggleGroup(groupKey)}>This</span>
+                  <span class="collapse-group-btn" role="button" onClick=${() => focusGroup(groupKey)}>Others</span>
+                  <span class="collapse-group-btn" role="button" onClick=${() => collapseGroups()}>All</span>
+                </div>
               </div>
               <div class="group-columns-container">
                 ${group.phases.map(phase => html`
