@@ -3,7 +3,7 @@ const {html} = await import("../modules/lib.js");
 export const EstimatorTabs = ({ estimates, activeTab, selectedDivs, onTabChange }) => {
   const passesFilter = (job) => selectedDivs.length === 0 || selectedDivs.includes(job.division);
 
-  const estimators = [...new Set([...estimates.map(e => e.estimator), ...estimates.map(e => e.supervisor)])].sort();
+  const estimators = [...new Set([...estimates.map(e => e.estimator), ...estimates.map(e => e.supervisor)].filter(e => e.length > 0 && e !== "Unassigned"))].sort();
 
   return html`
     <div class="tabs">
