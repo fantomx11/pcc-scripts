@@ -48,6 +48,57 @@ export const KanbanPhases = {
     active: false,
     kanbanGroup: "group-pm"
   },
+
+  "PreProduction": {
+    column: "Pre-Production",
+    kanbanDisplay: true,
+    description: "Job is assigned to a PM and in pre-production setup.",
+    aging: est => getDaysSince(est.approved),
+    active: true,
+    kanbanGroup: "group-pm"    
+  },
+  "WorkInProgress": {
+    column: "Work in Progress",
+    kanbanDisplay: true,
+    description: "Job is actively being reconstructed or mitigated.",
+    aging: est => getDaysSince(est.approved),
+    active: true,
+    kanbanGroup: "group-pm"
+  },
+  "CompletedWithoutPaperwork": {
+    column: "Completed Without Paperwork",
+    kanbanDisplay: true,
+    description: "Reconstruction completed physically; awaiting closing paperwork.",
+    aging: est => getDaysSince(est.approved),
+    active: true,
+    kanbanGroup: "group-pm"
+  },  
+
+  "InvoicePending": {
+    column: "Invoice Pending",
+    kanbanDisplay: true,
+    description: "Job package is with accounting awaiting structural invoicing.",
+    aging: est => getDaysSince(est.approved),
+    active: true,
+    kanbanGroup: "group-collections"
+  },
+  "AccountsReceivable": {
+    column: "Accounts Receivable",
+    kanbanDisplay: true,
+    description: "Invoiced subtotal has been sent to payer; tracking open AR collection aging.",
+    aging: est => getDaysSince(est.invoiced || est.approved),
+    active: true,
+    kanbanGroup: "group-collections"
+  },
+  "WaitingForFinalClosure": {
+    column: "Waiting for Final Closure",
+    kanbanDisplay: true,
+    description: "Paid but lingering open in the core operating environment.",
+    aging: est => getDaysSince(est.invoiced || est.approved),
+    active: true,
+    kanbanGroup: "group-collections"
+  },
+
   "Completed": {
     column: "Completed",
     active: false,
@@ -55,6 +106,8 @@ export const KanbanPhases = {
   },
 
   determinePhase: function(estimate) {
+    const status = (estimate.jobStatus || "").toLowerCase();
+
     return [
       { phase: KanbanPhases.Inspection, isCurrent: true },
       { phase: KanbanPhases.Estimate, isCurrent: estimate.isInspected },
@@ -62,7 +115,12 @@ export const KanbanPhases = {
       { phase: KanbanPhases.Approval, isCurrent: !estimate.isReviewRequired && estimate.isSent || estimate.isReviewed },
       { phase: KanbanPhases.Process, isCurrent: estimate.isApproved },
       { phase: KanbanPhases.AssignPM, isCurrent: estimate.isProcessed && !estimate.hasSupervisor && estimate.division === "Structure" },
-      { phase: KanbanPhases.Completed, isCurrent: (estimate.isProcessed && estimate.hasSupervisor) || estimate.isInvoiced }
+      { phase: KanbanPhases.PreProduction, isCurrent:  estimate.isProcessed && status.includes("pre-production") },
+      { phase: KanbanPhases.WorkInProgress, isCurrent:  estimate.isProcessed && status.includes("work in progress") },
+      { phase: KanbanPhases.CompletedWithoutPaperwork, isCurrent:  estimate.isProcessed && status.includes("completed without paperwork") },
+      { phase: KanbanPhases.InvoicePending, isCurrent:  estimate.isProcessed && status.includes("invoice pending") },
+      { phase: KanbanPhases.AccountsReceivable, isCurrent:  estimate.isProcessed && status.includes("accounts receivable") },
+      { phase: KanbanPhases.WaitingForFinalClosure, isCurrent: estimate.isProcessed && status.includes("waiting for final closure") },    
     ].findLast(e => e.isCurrent).phase;
   }
 };

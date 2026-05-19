@@ -50,3 +50,18 @@ export function camelToCapitalCase(str) {
   // 2. Capitalize the first letter and trim any accidental leading spaces
   return (spaced.charAt(0).toUpperCase() + spaced.slice(1)).trim();
 }
+
+export function parsePercentage(input, toDecimal = true) {
+  if (typeof input !== 'string') return NaN;
+
+  // Remove whitespace and the percentage symbol
+  const cleaned = input.trim().replace('%', '');
+  
+  // Convert to a floating-point number
+  const value = parseFloat(cleaned);
+
+  // Return NaN if parseFloat failed to extract a valid number
+  if (isNaN(value)) return NaN;
+
+  return toDecimal ? value / 100 : value;
+}
