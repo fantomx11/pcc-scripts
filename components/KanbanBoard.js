@@ -21,8 +21,8 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
 
     // Define structural columns groups in sequential display order
     const groups = {
-      "group-pre-con": { label: "Pre-Construction", phases: [] },
-      "group-pm": { label: "Production Tracking", phases: [] },
+      "group-pre-con": { label: "Pre-Production", phases: [] },
+      "group-pm": { label: "Production", phases: [] },
       "group-collections": { label: "Collections & AR", phases: [] }
     };
 
@@ -37,6 +37,16 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
     const toggleGroup = (groupKey) => {
       setCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
     };
+
+    const focusGroup(groupKey) => {
+      setCollapsedGroups(prev => {
+        const nextState = {};
+        Object.keys(prev).forEach(key => {
+          nextState[key] = (key !== groupKey);
+        });
+        return nextState;
+      });
+    }
 
     return html`
       <div class="main-content" id="board">
@@ -60,6 +70,7 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
               <div class=${`group-header ${groupKey}`}>
                 <span>${group.label}</span>
                 <span class="collapse-group-btn" role="button" onClick=${() => toggleGroup(groupKey)}>◀ Collapse Group</span>
+                <span class="collapse-group-btn" role="button" onClick=${() => focusGroup(groupKey)}>◀ Collapse Others</span>
               </div>
               <div class="group-columns-container">
                 ${group.phases.map(phase => html`
