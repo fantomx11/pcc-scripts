@@ -115,11 +115,11 @@ export const KanbanPhases = {
       { phase: KanbanPhases.Approval, isCurrent: !estimate.isReviewRequired && estimate.isSent || estimate.isReviewed },
       { phase: KanbanPhases.Process, isCurrent: estimate.isApproved },
       { phase: KanbanPhases.AssignPM, isCurrent: estimate.isProcessed && !estimate.hasSupervisor && estimate.division === "Structure" },
-      { phase: KanbanPhases.PreProduction, isCurrent:  estimate.isProcessed && status.includes("pre-production") },
-      { phase: KanbanPhases.WorkInProgress, isCurrent:  estimate.isProcessed && status.includes("work in progress") },
-      { phase: KanbanPhases.CompletedWithoutPaperwork, isCurrent:  estimate.isProcessed && status.includes("completed without paperwork") },
-      { phase: KanbanPhases.InvoicePending, isCurrent:  estimate.isProcessed && status.includes("invoice pending") },
-      { phase: KanbanPhases.AccountsReceivable, isCurrent:  estimate.isProcessed && status.includes("accounts receivable") },
+      { phase: KanbanPhases.PreProduction, isCurrent: estimate.isProcessed && (estimate.hasSupervisor || estimate.division !== "Structure") && status.includes("pre-production") },
+      { phase: KanbanPhases.WorkInProgress, isCurrent: estimate.isProcessed && status.includes("work in progress") },
+      { phase: KanbanPhases.CompletedWithoutPaperwork, isCurrent: estimate.isProcessed && status.includes("completed without paperwork") },
+      { phase: KanbanPhases.InvoicePending, isCurrent: estimate.isProcessed && status.includes("invoice pending") },
+      { phase: KanbanPhases.AccountsReceivable, isCurrent: estimate.isProcessed && status.includes("accounts receivable") },
       { phase: KanbanPhases.WaitingForFinalClosure, isCurrent: estimate.isProcessed && status.includes("waiting for final closure") },    
     ].findLast(e => e.isCurrent).phase;
   }
