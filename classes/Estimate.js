@@ -76,6 +76,8 @@ export class Estimate {
   }
 
   get tasks() {
+    if(this.deleted) return {};
+    
     const effectiveContact = this.lastContact || this.inspected || this.received;
     return {
       needsContact: this.phase === KanbanPhases.Approval && getDaysSince(effectiveContact) > 7,
