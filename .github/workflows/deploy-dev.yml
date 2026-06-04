@@ -1,0 +1,38 @@
+name: Deploy Dev
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write      # Required to request token exchanges with the Pages hosting engine
+  id-token: write   # Required to sign deployment payloads securely
+
+# Ensure only one deployment runs at a time to prevent race conditions
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}dev/  # Appends the dev subdirectory preview path
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # This tells the action to compress and stage your entire root directory
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
