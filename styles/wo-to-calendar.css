@@ -1,0 +1,149 @@
+body {
+  font-family: "Segoe UI", sans-serif;
+  padding: 30px;
+  background: #f0f2f5;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.btn-ics {
+  background: #34a853;
+  color: white;
+}
+
+.btn-print {
+  background: #1a73e8;
+  color: white;
+}
+
+.month-box {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  margin-bottom: 50px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  page-break-after: always;
+}
+
+h2 {
+  text-align: center;
+  color: #1a73e8;
+  margin-top: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-top: 1px solid #dadce0;
+  border-left: 1px solid #dadce0;
+}
+
+.day-h {
+  background: #f8f9fa;
+  padding: 12px;
+  text-align: center;
+  font-weight: 600;
+  border-right: 1px solid #dadce0;
+  border-bottom: 3px solid #1a73e8;
+}
+
+.day-c {
+  min-height: 120px;
+  border-right: 1px solid #dadce0;
+  border-bottom: 1px solid #dadce0;
+  padding: 8px;
+  background: #fff;
+}
+
+.d-num {
+  font-weight: 700;
+  color: #dadce0;
+  font-size: 16px;
+}
+
+.ev-box {
+  font-size: 10px;
+  background: #e8f0fe;
+  border-left: 4px solid #1a73e8;
+  padding: 4px;
+  margin-top: 5px;
+  border-radius: 4px;
+  color: #1967d2;
+}
+
+@media print {
+  .toolbar {
+    display: none;
+  }
+
+  body {
+    background: white;
+    padding: 0;
+  }
+
+  body > :not(#calendar-modal-root) {
+    display: none !important;
+  }
+
+  /* Reset layout constraints to native blocks to allow standard pagination page-breaks */
+  .calendar-modal-overlay,
+  .calendar-modal-content,
+  .calendar-modal-body {
+    position: static !important;
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  /* Enforce browser color rendering rules for charts, timelines, and event bars */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+.calendar-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.calendar-modal-content {
+background: #f0f2f5;
+  width: 100%;
+  max-height: 90vh;
+  max-width: 1400px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.calendar-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 30px;
+}
