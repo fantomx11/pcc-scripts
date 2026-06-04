@@ -77,6 +77,7 @@
         <div class="calendar-modal-content" onClick=${(e) => e.stopPropagation()}>
           <div class="toolbar">
             <button class="btn btn-ics" onClick=${handleDownloadICS}>Download .ICS for Outlook/Google</button>
+            <button class="btn btn-ics" onClick=${() => sendDataToGoogleCalendar(data)}>Download .ICS for Outlook/Google</button>
             <button class="btn btn-close" onClick=${onClose} style="background: #333; color: white;">Close Calendar</button>
           </div>
 
@@ -120,6 +121,43 @@
       </div>
     `;
   };
+
+  function getActiveJobMetadata() {
+    // Query only the grey link tracking elements within the active panel
+    const primaryLink = document.querySelector("#ctl00_divLastView a.MS_grey_12");
+    
+    if (!primaryLink) {
+      return { jobNumber: "", customerName: "Unknown Customer" };
+    }
+
+    const rawText = primaryLink.textContent.trim(); // e.g., "26-0063-STR, Jarvis, Brandon"
+    const parts = rawText.split(",");
+
+    // The first segment before the comma is always the Job Number
+    const jobNumber = parts[0] ? parts[0].trim() : "";
+    
+    // Everything following the first comma is the Customer Name
+    const customerName = parts.length > 1 ? parts.slice(1).join(",").trim() : "Unknown Customer";
+
+    return {
+      jobNumber: jobNumber,
+      customerName: customerName
+    };
+  }
+
+  async function sendDataToGoogleCalendar(events) {
+    const jobData = getActiveJobMetadata();
+
+    const result = await fetch(GOOGLE_API_URL, {
+      method: "post",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({jobData, events})
+    }).then(r => r.json());
+
+
+  }
 
   const customRowMapper = {};
   Object.keys(COLUMN_MAPPINGS).forEach(headerText => {
