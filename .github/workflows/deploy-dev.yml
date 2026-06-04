@@ -2,39 +2,37 @@ name: Deploy Dev
 on:
   push:
     branches: [dev]
-    paths:
-      - 'client/**'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write      # Required to request token exchanges with the Pages hosting engine
+  id-token: write   # Required to sign deployment payloads securely
+
+# Ensure only one deployment runs at a time to prevent race conditions
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}dev/  # Appends the dev subdirectory preview path
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          node-version: 22
-          cache: 'npm'
+          # This tells the action to compress and stage your entire root directory
+          path: '.'
 
-      - name: Install and Build
-        env:
-          DEPLOY_ENV: dev
-          VITE_GAS_SCRIPT_ID: ${{ secrets.GAS_SCRIPT_ID }}
-        run: |
-          rm -f client/package-lock.json
-          npm install
-          npm run build --workspace=@dynamic-task-list/client
-
-      - name: Deploy Dev Preview
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          folder: client/dist
-          branch: gh-pages
-          target-folder: dev
-          clean: false
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
