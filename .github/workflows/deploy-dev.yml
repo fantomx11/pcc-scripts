@@ -6,39 +6,43 @@ on:
 
 permissions:
   contents: read
-  pages: write      # Required to request token exchanges with the Pages hosting engine
-  id-token: write   # Required to sign deployment payloads securely
+  pages: write      
+  id-token: write   
 
-# Ensure only one deployment runs at a time to prevent race conditions
 concurrency:
   group: 'pages'
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}dev/  # Appends the dev subdirectory preview path
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      # 1. Pull production assets first to establish the base root site
+      - name: Checkout Main (Production Base)
         uses: actions/checkout@v4
+        with:
+          ref: main
+          path: staging
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
+      # 2. Pull development branch modifications into an isolated workspace path
+      - name: Checkout Dev Branch
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: dev_code
 
-      - name: Stage files into dev subdirectory
+      # 3. Nest the development files inside the production root folder layout
+      - name: Nest Dev Preview Environment
         run: |
-          mkdir staging
-          mkdir staging/dev
-          
-          rsync -rr --exclude='staging' ./ staging/dev/
-          
+          mkdir -p staging/dev
+          # Overwrite the /dev directory block inside staging with fresh dev branch modules
+          cp -r dev_code/classes dev_code/modules dev_code/styles dev_code/components dev_code/*.js dev_code/*.html staging/dev/
+
+      # 4. Upload the combined target folder to the web server
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # This tells the action to compress and stage your entire root directory
-          path: '.'
+          path: './staging'
 
       - name: Deploy to GitHub Pages
         id: deployment
