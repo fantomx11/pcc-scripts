@@ -1,5 +1,5 @@
 (async (devMode = false) => {
-  const baseUrl = devMode ? "https://cdn.statically.io/gh/fantomx11/pcc-scripts@dev" : "https://fantomx11.github.io/pcc-scripts";
+  const baseUrl = devMode ? "https://fantomx11.github.io/pcc-scripts/dev" : "https://fantomx11.github.io/pcc-scripts";
 
   const { Scraper } = await import(`${baseUrl}/classes/Scraper.js`);
   const { html, parseCurrency, copyTextToClipboard } = await import(`${baseUrl}/modules/lib.js`);
