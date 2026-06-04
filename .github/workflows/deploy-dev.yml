@@ -1,0 +1,40 @@
+name: Deploy Dev
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'client/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install and Build
+        env:
+          DEPLOY_ENV: dev
+          VITE_GAS_SCRIPT_ID: ${{ secrets.GAS_SCRIPT_ID }}
+        run: |
+          rm -f client/package-lock.json
+          npm install
+          npm run build --workspace=@dynamic-task-list/client
+
+      - name: Deploy Dev Preview
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: client/dist
+          branch: gh-pages
+          target-folder: dev
+          clean: false
