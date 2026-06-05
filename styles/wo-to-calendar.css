@@ -24,6 +24,11 @@ body {
   color: white;
 }
 
+.btn-cloud {
+  background: #34a853;
+  color: white;
+}
+
 .btn-print {
   background: #1a73e8;
   color: white;
