@@ -47,6 +47,8 @@
 
   const CalendarModalApp = ({ initialData, onClose, baseUrl }) => {
     const [data] = useState(initialData);
+    const [syncReport, setSyncReport] = useState(null);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     const handleDownloadICS = () => {
       const icsContent = Exporter.generateICS(data);
@@ -135,6 +137,12 @@
             `;
           })}
         </div>
+        ${syncReport ? html`
+          <${SyncStatusModal} 
+            summaryReport=${syncReport} 
+            onClose=${() => setSyncReport(null)} 
+          />
+        ` : ''}
       </div>
     `;
   };
@@ -164,6 +172,8 @@
 
   async function sendDataToGoogleCalendar(events) {
     const jobData = getActiveJobMetadata();
+
+    console.log(events);
 
     return await fetch(GOOGLE_API_URL, {
       method: "post",
