@@ -189,7 +189,13 @@
         </div>
 
         ${editingId ? html`
-          <${Components.Modal} estimate=${currentEstimate} onClose=${() => setEditingId(null)} onSave=${handleSave} onDelete=${handleDelete} />
+          <${Components.Modal} 
+            estimate=${currentEstimate} 
+            estimates=${estimates} 
+            onClose=${() => setEditingId(null)} 
+            onSave=${handleSave} 
+            onDelete=${handleDelete} 
+          />
         ` : ''}
       </div>
     `;
