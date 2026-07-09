@@ -18,9 +18,12 @@ const ModalFields = [
   { isCms: false, name: "approved",     type: "date",   label: "Date Estimate Approved",          value: formData => formatDateForInput(formData.approved) }
 ];
 
-export const Modal = ({ estimate, onClose, onSave, onDelete }) => {
+export const Modal = ({ estimate, estimates = [], onClose, onSave, onDelete }) => {
   // Local state for the form fields
   const [formData, setFormData] = useState({ ...estimate, jobNumber: estimate.jobNumber });
+  const [searchTerm, setSearchTerm] = useState(estimate.jobNumber || '');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   const isCms = estimate.type === 'CMS';
   const isNew = !estimate.uniqueId || estimate.uniqueId.startsWith('new-');
 
@@ -29,6 +32,27 @@ export const Modal = ({ estimate, onClose, onSave, onDelete }) => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // Extract unique active jobs to clear duplicate estimates for a single job
+  const activeJobs = [];
+  const seenJobs = new Set();
+  estimates.forEach(e => {
+    if (e.isActive && e.jobNumber && !seenJobs.has(e.jobNumber)) {
+      seenJobs.add(e.jobNumber);
+      activeJobs.push({ 
+        jobNumber: e.jobNumber, 
+        customer: e.customer || "Unknown Customer" 
+      });
+    }
+  });
+
+  // Dynamically filter options matching against job number or customer name input values
+  const filteredJobs = searchTerm.trim() === "" 
+    ? activeJobs 
+    : activeJobs.filter(j => 
+        j.jobNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        j.customer.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+
   return html`
     <div class="modal-overlay" onClick=${(e) => e.target.className === 'modal-overlay' && onClose()}>
       <div class="modal-box" onClick=${(e) => e.stopPropagation()}>
@@ -36,8 +60,47 @@ export const Modal = ({ estimate, onClose, onSave, onDelete }) => {
           ${isCms ? 'Log CMS Contact' : (isNew ? 'Add Supplement/CO' : 'Edit Local Entry')}
         </h3>
 
-        ${ModalFields.filter(field => isCms ? field.isCms : true).map(field => html`
-          <${ModalField} 
+        ${ModalFields.filter(field => isCms ? field.isCms : true).map(field => {
+          // Override the template layout generator specifically for Job # fields on additions
+          if (field.name === "jobNumber" && isNew) {
+            return html`
+              <div class="modal-field autocomplete-container">
+                <label>${field.label}</label>
+                <input 
+                  type="text" 
+                  name="jobNumber" 
+                  value=${searchTerm} 
+                  placeholder="Type customer name or job number..."
+                  onInput=${(e) => {
+                    setSearchTerm(e.target.value);
+                    setFormData(prev => ({ ...prev, jobNumber: e.target.value }));
+                    setIsDropdownOpen(true);
+                  }}
+                  onFocus=${() => setIsDropdownOpen(true)}
+                  onBlur=${() => setTimeout(() => setIsDropdownOpen(false), 200)}
+                  autocomplete="off"
+                />
+                ${isDropdownOpen && filteredJobs.length > 0 && html`
+                  <div class="autocomplete-dropdown">
+                    ${filteredJobs.map(job => html`
+                      <div 
+                        class="autocomplete-item"
+                        onClick=${() => {
+                          setFormData(prev => ({ ...prev, jobNumber: job.jobNumber }));
+                          setSearchTerm(job.jobNumber);
+                          setIsDropdownOpen(false);
+                        }}
+                      >
+                        <strong>${job.customer}</strong> <span style="color: #7f8c8d; font-size: 11px;">(${job.jobNumber})</span>
+                      </div>
+                    `)}
+                  </div>
+                `}
+              </div>
+            `;
+          }
+
+          return html`<${ModalField} 
             key=${field.name}
             label=${field.label} 
             name=${field.name} 
@@ -45,8 +108,8 @@ export const Modal = ({ estimate, onClose, onSave, onDelete }) => {
             value=${field.value(formData)} 
             handleInput=${handleInput} 
             options=${field.options}
-          />
-        `)} 
+          />`
+        })} 
 
         <div class="modal-btns">
           ${(!isNew && !isCms) && html`
