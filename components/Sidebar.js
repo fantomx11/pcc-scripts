@@ -1,18 +1,25 @@
 // components/Sidebar.js
+const { useState } = await import('https://esm.sh/preact/hooks');
 const { html } = await import("../modules/lib.js");
 
 export const Sidebar = ({ jobs, activeEstimator, complianceTasks = [] }) => {
+  const [collapsed, setCollapsed] = useState({});
+
+  const toggleSection = (key) => {
+    setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const selectedDivisions = Array.from(document.getElementById('division-filter')?.selectedOptions || []).map(opt => opt.value);
 
   if(complianceTasks === null) complianceTasks = [];
   
   // 1. Core local task sections and their theme color definitions
   const sections = [
-    { t: "Contact Needed", f: j => j.tasks.needsContact, c: "#e74c3c" },
-    { t: "Warranty Jobs", f: j => j.division === "Warranty", c: "#3498db" },
-    { t: "Needs Work Auth", f: j => j.tasks.needsWorkAuth, c: "#8e44ad" },
-    { t: "Needs Signed CO", f: j => j.tasks.needsSignedCO, c: "#8e44ad" },
-    { t: "Enter Deductible", f: j => j.tasks.needsDeductible, c: "#d35400" }
+    { key: "contact-needed", t: "Contact Needed", f: j => j.tasks.needsContact, c: "#e74c3c" },
+    { key: "warranty-jobs", t: "Warranty Jobs", f: j => j.division === "Warranty", c: "#3498db" },
+    { key: "needs-work-auth", t: "Needs Work Auth", f: j => j.tasks.needsWorkAuth, c: "#8e44ad" },
+    { key: "needs-signed-co", t: "Needs Signed CO", f: j => j.tasks.needsSignedCO, c: "#8e44ad" },
+    { key: "enter-deductible", t: "Enter Deductible", f: j => j.tasks.needsDeductible, c: "#d35400" }
   ];
 
   // Filter core estimates based on active tab view filters
@@ -51,13 +58,18 @@ export const Sidebar = ({ jobs, activeEstimator, complianceTasks = [] }) => {
 
   return html`
     <div class="sidebar">
-      ${sections.map(sec => {
+${sections.map(sec => {
         const list = filteredJobs.filter(sec.f);
         if (!list.length) return null;
+        const isCollapsed = !collapsed[sec.key];
+
         return html`
           <div>
-            <h4>${sec.t} (${list.length})</h4>
-            ${list.map(j => html`
+            <h4 class="sidebar-header" onClick=${() => toggleSection(sec.key)}>
+              <span>${sec.t} (${list.length})</span>
+              <span class="collapse-icon">${isCollapsed ? '▶' : '▼'}</span>
+            </h4>
+            ${!isCollapsed && list.map(j => html`
               <div class="sidebar-item" style="border-left: 3px solid ${sec.c}" 
                     onClick=${() => window.App.openModal(j.uniqueId)}>
                 <b><a href="${j.url}" target="_blank" onClick=${(e) => e.stopPropagation()}>${j.jobNumber}</a></b><br/>${j.customer} - ${j.description}
@@ -69,13 +81,17 @@ export const Sidebar = ({ jobs, activeEstimator, complianceTasks = [] }) => {
 
       ${Object.keys(complianceGroups).map(actionTitle => {
         const matchedGroupJobs = complianceGroups[actionTitle];
+        const groupKey = `compliance-${actionTitle}`;
+        const isCollapsed = !collapsed[groupKey];
+
         return html`
           <div>
-            <h4 style="border-bottom: 2px solid #e67e22; color: #e67e22;">
-              ${actionTitle.toUpperCase()} (${matchedGroupJobs.length})
+            <h4 class="sidebar-header" style="border-bottom: 2px solid #e67e22; color: #e67e22;" onClick=${() => toggleSection(groupKey)}>
+              <span>${actionTitle.toUpperCase()} (${matchedGroupJobs.length})</span>
+              <span class="collapse-icon">${isCollapsed ? '▶' : '▼'}</span>
             </h4>
             
-            ${matchedGroupJobs.map(j => {
+            ${!isCollapsed && matchedGroupJobs.map(j => {
               const est = jobs.find(job => job.jobNumber === j.jobNumber);
                 
               return html`
