@@ -1,7 +1,5 @@
 const {html} = await import("../modules/lib.js");
 
-const { html } = await import("../modules/lib.js");
-
 export const EstimatorTabs = ({ estimates, activeTab, selectedDivs, onTabChange }) => {
   const passesFilter = (job) => selectedDivs.length === 0 || selectedDivs.includes(job.division);
 
