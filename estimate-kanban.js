@@ -101,7 +101,7 @@
     }, []);
 
     const handleSave = (formData) => {
-      const isCms = formData.uniqueId.startsWith('cms-');
+      const isCms = String(formData.uniqueId || '').startsWith('cms-');
 
       if (isCms) {
         const ov = Store.get(CONFIG.KEYS.OVERRIDE);
