@@ -101,7 +101,7 @@
     }, []);
 
     const handleSave = (formData) => {
-      const isCms = formData.uniqueId.startsWith('cms-');
+      const isCms = String(formData.uniqueId || '').startsWith('cms-');
 
       if (isCms) {
         const ov = Store.get(CONFIG.KEYS.OVERRIDE);
@@ -135,8 +135,10 @@
 
     const handleDelete = (id) => {
       if (confirm("Delete this local entry?")) {
+        const targetId = String(id);
+
         let mans = Store.get(CONFIG.KEYS.MANUAL);
-        mans = mans.map(m => m.uniqueId === id ? { ...m, deleted: true } : m);
+        mans = mans.map(m => String(m.uniqueId) === targetId ? { ...m, deleted: true } : m);
         Store.save(CONFIG.KEYS.MANUAL, mans);
 
         Store.rebuildLocal(App.scraper.results, Estimate);

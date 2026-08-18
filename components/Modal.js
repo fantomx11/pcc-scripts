@@ -25,7 +25,7 @@ export const Modal = ({ estimate, estimates = [], onClose, onSave, onDelete }) =
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const isCms = estimate.type === 'CMS';
-  const isNew = !estimate.uniqueId || estimate.uniqueId.startsWith('new-');
+  const isNew = !estimate.uniqueId || String(estimate.uniqueId).startsWith('new-');
 
   const handleInput = (e) => {
     const { name, value } = e.target;

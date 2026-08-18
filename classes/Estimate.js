@@ -5,7 +5,7 @@ const { isDate, getDaysSince, parseCurrency, parsePercentage } = await import(".
 export class Estimate {
   constructor(data) {
     // Identification
-    this.uniqueId = data.uniqueId || `cms-${data.jobNumber}`;
+    this.uniqueId = data.uniqueId ? String(data.uniqueId) : `cms-${data.jobNumber}`;
     this._jobNumber = data.jobNumber; // Private reference for lookup
     this.type = data.type || 'CMS';
     this.isManual = !!data.isManual;
