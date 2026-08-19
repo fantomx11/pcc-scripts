@@ -1,0 +1,2347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xactimate Multi-Floor Sketch Generator</title>
+  <!-- JSZip for client-side .SKX archive packaging -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel-border: #334155;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --amber: #f59e0b;
+      --amber-hover: #d97706;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--panel-border);
+      padding: 8px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    h1 { font-size: 1.1rem; color: var(--accent); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+
+    /* Level Selector in Header */
+    .level-tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #090d16;
+      padding: 3px 6px;
+      border-radius: 6px;
+      border: 1px solid var(--panel-border);
+    }
+    .level-tab {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .level-tab:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+    .level-tab.active { background: var(--accent); color: #0f172a; }
+    .level-tab-add {
+      background: #334155;
+      color: #fff;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .level-tab-add:hover { background: #475569; }
+
+    .main-layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #canvas-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: #090d16;
+      overflow: hidden;
+    }
+    canvas { display: block; width: 100%; height: 100%; }
+
+    .drop-overlay {
+      position: absolute;
+      inset: 12px;
+      border: 2px dashed var(--accent);
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(4px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 50;
+      pointer-events: none;
+      box-shadow: 0 0 24px rgba(56, 189, 248, 0.2);
+    }
+    .drop-overlay span { font-size: 1.1rem; font-weight: 600; color: var(--accent); }
+    .drop-overlay small { font-size: 0.8rem; color: var(--text-muted); }
+    #canvas-container.drag-over .drop-overlay { display: flex; }
+
+    .canvas-toolbar {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      background: rgba(30, 41, 59, 0.92);
+      backdrop-filter: blur(4px);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      z-index: 10;
+    }
+
+    .toolbar-divider { width: 1px; height: 20px; background: var(--panel-border); margin: 0 2px; }
+
+    .instructions-pill {
+      position: absolute;
+      bottom: 14px;
+      left: 14px;
+      background: rgba(15, 23, 42, 0.88);
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .zoom-indicator {
+      font-size: 0.75rem;
+      font-family: monospace;
+      color: var(--accent);
+      padding: 0 6px;
+      min-width: 45px;
+      text-align: center;
+    }
+
+    .sidebar {
+      background: var(--panel);
+      border-left: 1px solid var(--panel-border);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow-y: auto;
+    }
+
+    .sidebar-section {
+      padding: 14px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+    .sidebar-section h3 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #0f172a;
+      font-weight: 600;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-amber { background: var(--amber); color: #0f172a; }
+    .btn-amber:hover { background: var(--amber-hover); }
+    .btn-active-tool { background: #f59e0b !important; color: #0f172a !important; box-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+    .btn-secondary { background: #334155; color: #fff; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-sm { padding: 4px 8px; font-size: 0.75rem; }
+
+    .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold; }
+    input[type="text"], select {
+      background: #0f172a;
+      border: 1px solid var(--panel-border);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    input[type="text"]:focus, select:focus { border-color: var(--accent); }
+    input.dimcode { font-family: monospace; text-transform: uppercase; }
+
+    .calibration-box {
+      background: #090d16;
+      border: 1px solid #d97706;
+      border-radius: 6px;
+      padding: 10px;
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .calibration-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #fbbf24;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      text-transform: uppercase;
+    }
+
+    .badge {
+      font-size: 0.65rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #0f172a;
+    }
+    .badge-room { color: #38bdf8; }
+    .badge-line { color: #f472b6; }
+    .badge-area { color: #4ade80; }
+    .badge-block { color: #facc15; }
+
+    .item-card {
+      background: #273549;
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: border 0.15s;
+    }
+    .item-card:hover { border-color: var(--accent); }
+    .item-card.active { border-color: var(--accent); background: #2c3e55; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+    .modal-content {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      width: 860px;
+      max-width: 92vw;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 20px;
+    }
+    textarea {
+      width: 100%;
+      height: 260px;
+      background: #020617;
+      color: #38bdf8;
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 0.75rem;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1><span>📐</span> Xactimate Multi-Floor Sketch Generator</h1>
+  
+  <div class="level-tabs" id="level-tabs-container"></div>
+
+  <div style="display: flex; gap: 8px;">
+    <button class="btn btn-secondary" onclick="openImportModal()">📥 Import SVG</button>
+    <button class="btn" onclick="openExportModal()">Export Template (.SKX)</button>
+  </div>
+</header>
+
+<div class="main-layout">
+  <div id="canvas-container">
+    <div class="drop-overlay">
+      <span>📥 Drop SVG Floor Plan Here</span>
+      <small>Prunes shadow rooms &amp; imports to current floor</small>
+    </div>
+
+    <div class="canvas-toolbar">
+      <button class="btn btn-secondary btn-sm" onclick="addShape('room')">+ Room</button>
+      <button class="btn btn-secondary btn-sm" onclick="addShape('line')">+ Ref Line</button>
+      <button class="btn btn-secondary btn-sm" onclick="addShape('area')">+ Area</button>
+      <button class="btn btn-secondary btn-sm" onclick="addShape('block')">+ Ref Block</button>
+      <div class="toolbar-divider"></div>
+      <button class="btn btn-secondary btn-sm" id="split-room-btn" onclick="toggleSplitRoomMode()">✂️ Split Room</button>
+      <div class="toolbar-divider"></div>
+      <button class="btn btn-secondary btn-sm" title="Rotate active floor 180°" onclick="rotateCurrentLevel180()">🔄 Rotate 180°</button>
+      <label style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--text-muted); cursor: pointer; margin: 0 4px;">
+        <input type="checkbox" id="show-underlay" checked onchange="draw()"> 👁 Underlay
+      </label>
+      <div class="toolbar-divider"></div>
+      <button class="btn btn-secondary btn-sm" onclick="adjustZoom(1.2)">+</button>
+      <span id="zoom-text" class="zoom-indicator">100%</span>
+      <button class="btn btn-secondary btn-sm" onclick="adjustZoom(0.8)">-</button>
+      <button class="btn btn-secondary btn-sm" onclick="resetView()">Center</button>
+    </div>
+
+    <div class="instructions-pill" id="instructions-pill">
+      • <b>Scroll / Swipe</b> to pan • <b>Ctrl+Scroll</b> to zoom • <b>Space / Right-click drag</b> to pan • <b>Click wall</b> to scale
+    </div>
+
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div class="sidebar">
+    <div class="sidebar-section" style="background: #192231;">
+      <h3>
+        <span>Floor Settings</span>
+        <button class="btn btn-danger btn-sm" style="padding: 2px 6px; font-size: 0.65rem;" onclick="deleteCurrentLevel()" title="Delete this floor">Delete Floor</button>
+      </h3>
+      <div class="field" style="margin-bottom: 6px;">
+        <label>Floor Name</label>
+        <input type="text" id="level-name-input" oninput="onLevelNameChange(this.value)">
+      </div>
+    </div>
+
+    <div class="sidebar-section" id="inspector-panel">
+      <h3>Element Properties</h3>
+      <div id="no-selection" style="color: var(--text-muted); font-size: 0.8rem;">Select a shape or wall to edit details.</div>
+      <div id="selection-form" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+          <span id="prop-badge" class="badge"></span>
+          <span id="prop-type-name" style="font-size: 0.8rem; font-weight: 600;"></span>
+        </div>
+        <div class="field">
+          <label>Name / Label</label>
+          <input type="text" id="prop-name" oninput="onSelectedNameChange(this.value)">
+        </div>
+        <div class="field">
+          <label>dimCode</label>
+          <input type="text" class="dimcode" id="prop-dimcode" oninput="onSelectedDimCodeChange(this.value)">
+        </div>
+
+        <div class="calibration-box" id="calibration-panel" style="display: none;">
+          <div class="calibration-title">
+            <span>📏</span> Scale Sketch by Wall
+          </div>
+          <div style="font-size: 0.72rem; color: var(--text-muted);">
+            Current Wall Length: <b id="calib-curr-len" style="color: #fbbf24; font-family: monospace;">--</b>
+          </div>
+          <div class="field" style="margin-bottom: 4px;">
+            <label style="color: #fbbf24;">Target Length (e.g. 14' 6" or 14.5)</label>
+            <input type="text" id="calib-target-len" placeholder="e.g. 14' 6&quot;, 14.5, 174&quot;" onkeydown="if(event.key==='Enter') scaleSketchBySelectedWall()">
+          </div>
+          <button class="btn btn-amber btn-sm" onclick="scaleSketchBySelectedWall()">Apply Scale to Entire Sketch</button>
+        </div>
+
+        <button class="btn btn-danger btn-sm" style="width: 100%; margin-top: 10px;" onclick="deleteSelectedShape()">Delete Shape</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="flex: 1;">
+      <h3>Floor Elements (<span id="elements-count">0</span>)</h3>
+      <div id="elements-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for Room Split Confirmation -->
+<div id="split-confirm-modal" class="modal-backdrop">
+  <div class="modal-content" style="width: 460px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="color: #fbbf24;">✂️ Confirm Room Split</h3>
+      <button class="btn btn-secondary btn-sm" onclick="cancelPendingSplit()">&times;</button>
+    </div>
+    <p style="font-size: 0.82rem; color: var(--text-muted);" id="split-modal-desc">
+      Split this room into two separate rooms along the selected wall?
+    </p>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+      <div class="field">
+        <label>Room 1 Name</label>
+        <input type="text" id="split-name-1">
+      </div>
+      <div class="field">
+        <label>Room 2 Name</label>
+        <input type="text" id="split-name-2">
+      </div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
+      <button class="btn btn-secondary" onclick="cancelPendingSplit()">Cancel</button>
+      <button class="btn btn-amber" onclick="executeRoomSplit()">Confirm Split</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for SVG Import -->
+<div id="import-modal" class="modal-backdrop">
+  <div class="modal-content">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="color: var(--accent);">Import SVG Floor Plan</h3>
+      <button class="btn btn-secondary btn-sm" onclick="closeImportModal()">&times; Close</button>
+    </div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">
+      Upload or paste SVG markup. Shadow groups and inaccessible silhouette zones are automatically filtered out[cite: 2].
+    </p>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: #090d16; padding: 10px; border-radius: 6px; border: 1px solid var(--panel-border);">
+      <div class="field" style="margin-bottom: 0;">
+        <label>Import Destination</label>
+        <select id="svg-import-target">
+          <option value="new_level">➕ Create as New Floor (e.g. Level 2)</option>
+          <option value="current_level" selected>📍 Overwrite Current Floor</option>
+          <option value="append_current">📎 Append to Current Floor</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom: 0;">
+        <label>New Floor Name (if creating new)</label>
+        <input type="text" id="svg-new-level-name" value="Level 2" placeholder="e.g. Level 2 / Second Floor">
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+      <input type="file" id="svg-file-input" accept=".svg,image/svg+xml" style="font-size: 0.8rem; color: var(--text-muted);" onchange="handleSvgFileUpload(event)">
+      <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text); cursor: pointer;">
+        <input type="checkbox" id="svg-unit-scale" checked> Convert Meters to Feet (×3.28084)
+      </label>
+      <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text); cursor: pointer;">
+        <input type="checkbox" id="svg-split-t" checked> Auto-Split T-Junction Walls
+      </label>
+    </div>
+    <textarea id="svg-import-input" placeholder="<svg ...> ... </svg>"></textarea>
+    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+      <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+      <button class="btn" onclick="executeSvgImport()">Import Floor</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for Export -->
+<div id="export-modal" class="modal-backdrop">
+  <div class="modal-content">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="color: var(--accent);">Export Multi-Floor Xactimate Document (.SKX)</h3>
+      <button class="btn btn-secondary btn-sm" onclick="closeExportModal()">&times; Close</button>
+    </div>
+    
+    <div style="display: flex; gap: 12px; align-items: flex-end;">
+      <div class="field" style="flex: 1; margin-bottom: 0;">
+        <label>Template File Name</label>
+        <input type="text" id="template-filename" value="MultiFloorTemplate" placeholder="Template Name">
+      </div>
+      <button class="btn" style="padding: 8px 18px; font-size: 0.85rem;" onclick="downloadSKX()">📦 Download .SKX Template</button>
+    </div>
+
+    <textarea id="xml-output" readonly></textarea>
+    
+    <div style="display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+      <button class="btn btn-secondary btn-sm" onclick="copyXML()">Copy XML</button>
+      <button class="btn btn-secondary btn-sm" onclick="downloadRawXml('Sketch.xml')">Download Sketch.xml</button>
+      <button class="btn btn-secondary btn-sm" onclick="downloadRawXml('XACTDOC.XML')">Download XACTDOC.XML</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const BASE_FT_TO_PX = 20;
+  const UNITS_PER_FT = 1524;
+  const ELEV_FLOOR = 152400; 
+  const CEIL_HEIGHT = 12192; 
+  const SNAP_DISTANCE_PX = 14;
+
+  let levels = [
+    { id: 1, name: "Main Level", levelNumber: 1 }
+  ];
+  let currentLevelId = 1;
+  let levelIdSeed = 2;
+
+  let shapes = [];
+  let selectedShapeId = null;
+  let selectedEdge = null; 
+  let hoveredVertex = null;
+  let draggedVertex = null;
+  let draggedShape = null;
+  let activeSnapTarget = null;
+
+  // Split Room Feature State
+  let isSplitMode = false;
+  let splitFirstCorner = null; 
+  let pendingSplitData = null; 
+
+  // Panning & Spacebar Navigation State
+  let zoom = 1.0;
+  let panX = 150;
+  let panY = 150;
+  let isPanning = false;
+  let isSpacePressed = false;
+  let lastMouse = { x: 0, y: 0 };
+  let idSeed = 3000;
+  const getNextId = () => idSeed++;
+
+  function generateExUuid() {
+    return 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  function sanitizeDimCode(val) {
+    if (!val) return '';
+    return val.toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_').substring(0, 10);
+  }
+
+  function snapToInch(valFt) {
+    return Math.round(valFt * 12) / 12;
+  }
+
+  function formatFtIn(feet) {
+    const totalInches = Math.round(feet * 12);
+    const ft = Math.floor(totalInches / 12);
+    const inch = totalInches % 12;
+    return `${ft}' ${inch}"`;
+  }
+
+  function parseFeetInches(str) {
+    if (!str) return null;
+    str = str.trim();
+
+    const pureInchMatch = str.match(/^([\d.]+)\s*(?:"|in|inch|inches)$/i);
+    if (pureInchMatch) {
+      const val = parseFloat(pureInchMatch[1]);
+      return isNaN(val) || val <= 0 ? null : val / 12;
+    }
+
+    if (/^[\d.]+\s*(?:ft|')?$/i.test(str)) {
+      const val = parseFloat(str);
+      return isNaN(val) || val <= 0 ? null : val;
+    }
+
+    let fracVal = 0;
+    const fracMatch = str.match(/(\d+)\s*\/\s*(\d+)/);
+    let cleanStr = str;
+    if (fracMatch) {
+      fracVal = parseFloat(fracMatch[1]) / parseFloat(fracMatch[2]);
+      cleanStr = str.replace(fracMatch[0], '');
+    }
+
+    const ftMatch = cleanStr.match(/(\d+(?:\.\d+)?)\s*(?:'|ft|feet)/i);
+    let ft = 0, inch = 0;
+    if (ftMatch) {
+      ft = parseFloat(ftMatch[1]);
+      const rem = cleanStr.substring(cleanStr.indexOf(ftMatch[0]) + ftMatch[0].length);
+      const inchNums = rem.match(/\d+(?:\.\d+)?/);
+      inch = (inchNums ? parseFloat(inchNums[0]) : 0) + fracVal;
+    } else {
+      const nums = cleanStr.match(/\d+(?:\.\d+)?/g);
+      if (nums) {
+        if (nums.length >= 2) {
+          ft = parseFloat(nums[0]);
+          inch = parseFloat(nums[1]) + fracVal;
+        } else if (nums.length === 1) {
+          ft = parseFloat(nums[0]);
+          inch = fracVal;
+        }
+      } else if (fracVal > 0) {
+        inch = fracVal;
+      }
+    }
+
+    const total = ft + (inch / 12);
+    return total > 0 ? total : null;
+  }
+
+  // --- LEVEL MANAGEMENT ---
+  function renderLevelTabs() {
+    const container = document.getElementById('level-tabs-container');
+    container.innerHTML = '';
+
+    levels.forEach(lvl => {
+      const btn = document.createElement('button');
+      btn.className = `level-tab ${lvl.id === currentLevelId ? 'active' : ''}`;
+      btn.innerText = lvl.name;
+      btn.onclick = () => switchLevel(lvl.id);
+      container.appendChild(btn);
+    });
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'level-tab-add';
+    addBtn.title = 'Add New Floor';
+    addBtn.innerText = '+ Floor';
+    addBtn.onclick = () => addNewLevel();
+    container.appendChild(addBtn);
+
+    const currLvl = levels.find(l => l.id === currentLevelId) || levels[0];
+    if (currLvl) {
+      document.getElementById('level-name-input').value = currLvl.name;
+    }
+  }
+
+  function addNewLevel(customName = null) {
+    const num = levels.length + 1;
+    const name = customName || `Level ${num}`;
+    const newLvl = {
+      id: levelIdSeed++,
+      name: name,
+      levelNumber: num
+    };
+    levels.push(newLvl);
+    switchLevel(newLvl.id);
+  }
+
+  function switchLevel(id) {
+    exitSplitMode();
+    currentLevelId = id;
+    selectedShapeId = null;
+    selectedEdge = null;
+    renderLevelTabs();
+    updateInspector();
+    updateSidebar();
+    draw();
+  }
+
+  function onLevelNameChange(val) {
+    const lvl = levels.find(l => l.id === currentLevelId);
+    if (!lvl) return;
+    lvl.name = val || `Level ${lvl.levelNumber}`;
+    renderLevelTabs();
+  }
+
+  function deleteCurrentLevel() {
+    if (levels.length <= 1) {
+      alert("At least one floor level is required.");
+      return;
+    }
+    if (!confirm(`Delete ${levels.find(l => l.id === currentLevelId)?.name} and all its shapes?`)) return;
+
+    shapes = shapes.filter(s => s.levelId !== currentLevelId);
+    levels = levels.filter(l => l.id !== currentLevelId);
+    levels.forEach((l, idx) => l.levelNumber = idx + 1);
+
+    switchLevel(levels[0].id);
+  }
+
+  function getActiveShapes() {
+    return shapes.filter(s => s.levelId === currentLevelId);
+  }
+
+  function getOtherLevelShapes() {
+    return shapes.filter(s => s.levelId !== currentLevelId);
+  }
+
+  // --- SPLIT ROOM TOOL ---
+  function toggleSplitRoomMode() {
+    if (isSplitMode) {
+      exitSplitMode();
+    } else {
+      enterSplitMode();
+    }
+  }
+
+  function enterSplitMode() {
+    isSplitMode = true;
+    splitFirstCorner = null;
+    document.getElementById('split-room-btn').classList.add('btn-active-tool');
+    document.getElementById('instructions-pill').innerHTML = `✂️ <b>Split Mode:</b> Click the <b>first corner</b> of the room you want to split.`;
+    draw();
+  }
+
+  function exitSplitMode() {
+    isSplitMode = false;
+    splitFirstCorner = null;
+    document.getElementById('split-room-btn').classList.remove('btn-active-tool');
+    document.getElementById('instructions-pill').innerHTML = `• <b>Scroll / Swipe</b> to pan • <b>Ctrl+Scroll</b> to zoom • <b>Space / Right-click drag</b> to pan • <b>Click wall</b> to scale`;
+    draw();
+  }
+
+  function findRoomsWithCornerNear(worldPt, tolFt = 0.25) {
+    const activeRooms = getActiveShapes().filter(s => s.type === 'room');
+    const matches = [];
+    activeRooms.forEach(room => {
+      room.points.forEach((p, idx) => {
+        if (Math.hypot(p.x - worldPt.x, p.y - worldPt.y) <= tolFt) {
+          matches.push({ shape: room, index: idx, pt: p });
+        }
+      });
+    });
+    return matches;
+  }
+
+  function handleSplitVertexClick(clickedWorldPt) {
+    const candidateRooms = findRoomsWithCornerNear(clickedWorldPt);
+
+    if (candidateRooms.length === 0) {
+      alert("Please click directly on a room corner.");
+      return;
+    }
+
+    const snappedPt = candidateRooms[0].pt;
+
+    if (!splitFirstCorner) {
+      splitFirstCorner = {
+        pt: snappedPt,
+        candidates: candidateRooms
+      };
+      selectShape(candidateRooms[0].shape.id);
+      document.getElementById('instructions-pill').innerHTML = `✂️ <b>Split Mode:</b> First corner set. Now click a <b>second corner</b> on the same room.`;
+      draw();
+    } else {
+      if (Math.hypot(snappedPt.x - splitFirstCorner.pt.x, snappedPt.y - splitFirstCorner.pt.y) < 0.15) {
+        alert("Please pick a different corner across the room.");
+        return;
+      }
+
+      const secondCandidates = candidateRooms;
+      const commonRoomSplits = [];
+      for (const c1 of splitFirstCorner.candidates) {
+        for (const c2 of secondCandidates) {
+          if (c1.shape.id === c2.shape.id) {
+            const shape = c1.shape;
+            const n = shape.points.length;
+            const i1 = Math.min(c1.index, c2.index);
+            const i2 = Math.max(c1.index, c2.index);
+
+            const isAdjacent = (i2 - i1 === 1) || (i1 === 0 && i2 === n - 1);
+            if (!isAdjacent) {
+              commonRoomSplits.push({ shape, i1, i2 });
+            }
+          }
+        }
+      }
+
+      if (commonRoomSplits.length === 0) {
+        alert("The two selected corners do not belong to the same room or are already connected by an existing wall.");
+        return;
+      }
+
+      let targetSplit = commonRoomSplits[0];
+      if (commonRoomSplits.length > 1) {
+        const midPt = {
+          x: (splitFirstCorner.pt.x + snappedPt.x) / 2,
+          y: (splitFirstCorner.pt.y + snappedPt.y) / 2
+        };
+        const insideMatch = commonRoomSplits.find(cs => isPointInsidePoly(midPt, cs.shape.points));
+        if (insideMatch) targetSplit = insideMatch;
+      }
+
+      const { shape, i1, i2 } = targetSplit;
+      const n = shape.points.length;
+
+      const poly1 = [];
+      for (let k = i1; k <= i2; k++) {
+        poly1.push({ ...shape.points[k] });
+      }
+
+      const poly2 = [];
+      for (let k = i2; k < n; k++) {
+        poly2.push({ ...shape.points[k] });
+      }
+      for (let k = 0; k <= i1; k++) {
+        poly2.push({ ...shape.points[k] });
+      }
+
+      if (poly1.length < 3 || poly2.length < 3) {
+        alert("Split resulted in an invalid sub-polygon.");
+        return;
+      }
+
+      pendingSplitData = {
+        originalRoom: shape,
+        poly1: poly1,
+        poly2: poly2
+      };
+
+      document.getElementById('split-name-1').value = `${shape.name} A`;
+      document.getElementById('split-name-2').value = `${shape.name} B`;
+      document.getElementById('split-modal-desc').innerText = `Split "${shape.name}" into two rooms along the dividing wall between the selected corners?`;
+      document.getElementById('split-confirm-modal').style.display = 'flex';
+    }
+  }
+
+  function executeRoomSplit() {
+    if (!pendingSplitData) return;
+    const { originalRoom, poly1, poly2 } = pendingSplitData;
+
+    const name1 = document.getElementById('split-name-1').value.trim() || `${originalRoom.name} A`;
+    const name2 = document.getElementById('split-name-2').value.trim() || `${originalRoom.name} B`;
+
+    const room1 = {
+      id: originalRoom.id,
+      levelId: originalRoom.levelId,
+      type: 'room',
+      name: name1,
+      dimCode: sanitizeDimCode(name1),
+      isDimCodeManual: false,
+      points: poly1
+    };
+
+    const room2 = {
+      id: getNextId(),
+      levelId: originalRoom.levelId,
+      type: 'room',
+      name: name2,
+      dimCode: sanitizeDimCode(name2),
+      isDimCodeManual: false,
+      points: poly2
+    };
+
+    const idx = shapes.findIndex(s => s.id === originalRoom.id);
+    if (idx !== -1) {
+      shapes.splice(idx, 1, room1, room2);
+    }
+
+    const roomShapes = shapes.filter(s => s.type === 'room' && s.levelId === currentLevelId);
+    resolveTIntersections(roomShapes, 0.35);
+
+    cancelPendingSplit();
+    exitSplitMode();
+    selectShape(room1.id);
+    updateSidebar();
+    draw();
+  }
+
+  function cancelPendingSplit() {
+    pendingSplitData = null;
+    document.getElementById('split-confirm-modal').style.display = 'none';
+    splitFirstCorner = null;
+    if (isSplitMode) {
+      document.getElementById('instructions-pill').innerHTML = `✂️ <b>Split Mode:</b> Click the <b>first corner</b> of the room you want to split.`;
+    }
+    draw();
+  }
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const canvasContainer = document.getElementById('canvas-container');
+
+  function resizeCanvas() {
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+    draw();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function adjustZoom(factor, centerScreenX = canvas.width / 2, centerScreenY = canvas.height / 2) {
+    const prevWorld = screenToWorld(centerScreenX, centerScreenY);
+    zoom = Math.max(0.05, Math.min(8.0, zoom * factor));
+    panX = centerScreenX - prevWorld.x * BASE_FT_TO_PX * zoom;
+    panY = centerScreenY - prevWorld.y * BASE_FT_TO_PX * zoom;
+    document.getElementById('zoom-text').innerText = `${Math.round(zoom * 100)}%`;
+    draw();
+  }
+
+  function resetView() {
+    zoom = 1.0;
+    document.getElementById('zoom-text').innerText = '100%';
+    const active = getActiveShapes();
+    const all = shapes.length > 0 ? shapes : [];
+    const pool = active.length > 0 ? active : all;
+
+    if (pool.length === 0) {
+      panX = 150; panY = 150;
+    } else {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      pool.forEach(s => s.points.forEach(p => {
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      }));
+      const midX = (minX + maxX) / 2;
+      const midY = (minY + maxY) / 2;
+      panX = (canvas.width / 2) - midX * BASE_FT_TO_PX * zoom;
+      panY = (canvas.height / 2) - midY * BASE_FT_TO_PX * zoom;
+    }
+    draw();
+  }
+
+  function rotateCurrentLevel180() {
+    const active = getActiveShapes();
+    if (active.length === 0) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    active.forEach(s => s.points.forEach(p => {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }));
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    active.forEach(shape => {
+      shape.points = shape.points.map(p => ({
+        x: snapToInch(2 * cx - p.x),
+        y: snapToInch(2 * cy - p.y)
+      }));
+    });
+
+    draw();
+    updateInspector();
+    updateSidebar();
+  }
+
+  function scaleSketchBySelectedWall() {
+    if (!selectedEdge) {
+      alert("Please select a wall first by clicking on it.");
+      return;
+    }
+    const shape = shapes.find(s => s.id === selectedEdge.shapeId);
+    if (!shape) return;
+
+    const count = shape.type === 'line' ? shape.points.length - 1 : shape.points.length;
+    if (selectedEdge.edgeIndex >= count) return;
+
+    const p1 = shape.points[selectedEdge.edgeIndex];
+    const p2 = shape.points[(selectedEdge.edgeIndex + 1) % shape.points.length];
+    const currentLenFt = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+
+    if (currentLenFt <= 0) return;
+
+    const inputVal = document.getElementById('calib-target-len').value;
+    const parsedFt = parseFeetInches(inputVal);
+
+    if (!parsedFt || parsedFt <= 0) {
+      alert("Please enter a valid length (e.g. 14' 6\", 14.5, or 174\").");
+      return;
+    }
+
+    const targetLenFt = snapToInch(parsedFt);
+    const scaleFactor = targetLenFt / currentLenFt;
+    if (Math.abs(scaleFactor - 1.0) < 1e-4) return;
+
+    const anchorX = p1.x;
+    const anchorY = p1.y;
+
+    shapes.forEach(s => {
+      s.points = s.points.map(p => ({
+        x: snapToInch(anchorX + (p.x - anchorX) * scaleFactor),
+        y: snapToInch(anchorY + (p.y - anchorY) * scaleFactor)
+      }));
+    });
+
+    levels.forEach(lvl => {
+      const roomShapes = shapes.filter(s => s.type === 'room' && s.levelId === lvl.id);
+      if (roomShapes.length > 0) {
+        resolveTIntersections(roomShapes, 0.35);
+      }
+    });
+
+    draw();
+    updateInspector();
+    updateSidebar();
+    resetView();
+  }
+
+  function addShape(type) {
+    exitSplitMode();
+    const active = getActiveShapes();
+    const counts = active.filter(s => s.type === type).length + 1;
+    const typeNames = { room: 'Room', line: 'RefLine', area: 'Area', block: 'Block' };
+    const name = `${typeNames[type]} ${counts}`;
+    const id = getNextId();
+
+    const centerWorld = screenToWorld(canvas.width / 2, canvas.height / 2);
+    const cx = snapToInch(centerWorld.x);
+    const cy = snapToInch(centerWorld.y);
+
+    let points = [];
+    if (type === 'room') {
+      points = [{x: cx - 6, y: cy - 6}, {x: cx + 6, y: cy - 6}, {x: cx + 6, y: cy + 6}, {x: cx - 6, y: cy + 6}];
+    } else if (type === 'line') {
+      points = [{x: cx - 1, y: cy}, {x: cx + 1, y: cy}];
+    } else {
+      points = [{x: cx - 1, y: cy - 1}, {x: cx + 1, y: cy - 1}, {x: cx + 1, y: cy + 1}, {x: cx - 1, y: cy + 1}];
+    }
+
+    shapes.push({
+      id: id,
+      levelId: currentLevelId,
+      type: type,
+      name: name,
+      dimCode: sanitizeDimCode(name),
+      isDimCodeManual: false,
+      points: points
+    });
+
+    selectedEdge = null;
+    selectShape(id);
+    updateSidebar();
+    draw();
+  }
+
+  function selectShape(id) {
+    selectedShapeId = id;
+    if (!id) selectedEdge = null;
+    updateInspector();
+    updateSidebar();
+    draw();
+  }
+
+  function deleteSelectedShape() {
+    if (!selectedShapeId) return;
+    shapes = shapes.filter(s => s.id !== selectedShapeId);
+    selectedShapeId = null;
+    selectedEdge = null;
+    updateInspector();
+    updateSidebar();
+    draw();
+  }
+
+  function updateInspector() {
+    const noSel = document.getElementById('no-selection');
+    const form = document.getElementById('selection-form');
+    const calibPanel = document.getElementById('calibration-panel');
+
+    if (!selectedShapeId) {
+      noSel.style.display = 'block';
+      form.style.display = 'none';
+      return;
+    }
+    const shape = shapes.find(s => s.id === selectedShapeId);
+    if (!shape) return;
+
+    noSel.style.display = 'none';
+    form.style.display = 'block';
+
+    const badge = document.getElementById('prop-badge');
+    badge.className = `badge badge-${shape.type}`;
+    badge.innerText = shape.type;
+    document.getElementById('prop-type-name').innerText = shape.type.toUpperCase();
+
+    document.getElementById('prop-name').value = shape.name;
+    document.getElementById('prop-dimcode').value = shape.dimCode;
+
+    if (selectedEdge && selectedEdge.shapeId === shape.id) {
+      const p1 = shape.points[selectedEdge.edgeIndex];
+      const p2 = shape.points[(selectedEdge.edgeIndex + 1) % shape.points.length];
+      const distFt = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+
+      calibPanel.style.display = 'flex';
+      document.getElementById('calib-curr-len').innerText = formatFtIn(distFt);
+      document.getElementById('calib-target-len').value = formatFtIn(distFt);
+    } else {
+      calibPanel.style.display = 'none';
+    }
+  }
+
+  function updateSidebar() {
+    const list = document.getElementById('elements-list');
+    list.innerHTML = '';
+    const active = getActiveShapes();
+    document.getElementById('elements-count').innerText = active.length;
+
+    active.forEach(shape => {
+      const card = document.createElement('div');
+      card.className = `item-card ${shape.id === selectedShapeId ? 'active' : ''}`;
+      card.onclick = () => {
+        selectedEdge = null;
+        selectShape(shape.id);
+      };
+      card.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="badge badge-${shape.type}">${shape.type}</span>
+          <span style="font-size: 0.85rem; font-weight: 500;">${shape.name}</span>
+        </div>
+        <span style="font-size: 0.75rem; font-family: monospace; color: var(--accent);">${shape.dimCode}</span>
+      `;
+      list.appendChild(card);
+    });
+  }
+
+  function onSelectedNameChange(val) {
+    const shape = shapes.find(s => s.id === selectedShapeId);
+    if (!shape) return;
+    shape.name = val;
+    if (!shape.isDimCodeManual) {
+      shape.dimCode = sanitizeDimCode(val);
+      document.getElementById('prop-dimcode').value = shape.dimCode;
+    }
+    updateSidebar();
+    draw();
+  }
+
+  function onSelectedDimCodeChange(val) {
+    const shape = shapes.find(s => s.id === selectedShapeId);
+    if (!shape) return;
+    shape.isDimCodeManual = true;
+    shape.dimCode = sanitizeDimCode(val);
+    updateSidebar();
+    draw();
+  }
+
+  function worldToScreen(pt) {
+    return { x: pt.x * BASE_FT_TO_PX * zoom + panX, y: pt.y * BASE_FT_TO_PX * zoom + panY };
+  }
+  function screenToWorld(sx, sy) {
+    return { x: (sx - panX) / (BASE_FT_TO_PX * zoom), y: (sy - panY) / (BASE_FT_TO_PX * zoom) };
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawGrid();
+
+    const showUnderlay = document.getElementById('show-underlay').checked;
+
+    // 1. Ghost Underlay of other floors
+    if (showUnderlay) {
+      const otherShapes = getOtherLevelShapes();
+      otherShapes.forEach(shape => {
+        const pts = shape.points.map(worldToScreen);
+        ctx.beginPath();
+        if (pts.length > 0) {
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+          if (shape.type !== 'line') ctx.closePath();
+        }
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+    }
+
+    // 2. Active Level Shapes
+    const active = getActiveShapes();
+    active.forEach(shape => {
+      const isSelected = shape.id === selectedShapeId;
+      const pts = shape.points.map(worldToScreen);
+
+      ctx.beginPath();
+      if (pts.length > 0) {
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        if (shape.type !== 'line') ctx.closePath();
+      }
+
+      let strokeColor = '#38bdf8';
+      let fillColor = 'rgba(56, 189, 248, 0.15)';
+      if (shape.type === 'line') strokeColor = '#f472b6';
+      if (shape.type === 'area') { strokeColor = '#4ade80'; fillColor = 'rgba(74, 222, 128, 0.15)'; }
+      if (shape.type === 'block') { strokeColor = '#facc15'; fillColor = 'rgba(250, 204, 21, 0.2)'; }
+
+      if (shape.type !== 'line') {
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+      }
+      ctx.lineWidth = isSelected ? 3 : 1.5;
+      ctx.strokeStyle = strokeColor;
+      ctx.stroke();
+
+      const loopCount = shape.type === 'line' ? pts.length - 1 : pts.length;
+      for (let i = 0; i < loopCount; i++) {
+        const p1 = shape.points[i];
+        const p2 = shape.points[(i + 1) % shape.points.length];
+        const sp1 = pts[i];
+        const sp2 = pts[(i + 1) % pts.length];
+        
+        const isThisEdgeSelected = selectedEdge && selectedEdge.shapeId === shape.id && selectedEdge.edgeIndex === i;
+
+        if (isThisEdgeSelected) {
+          ctx.beginPath();
+          ctx.moveTo(sp1.x, sp1.y);
+          ctx.lineTo(sp2.x, sp2.y);
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = '#fbbf24';
+          ctx.stroke();
+        }
+
+        const distFt = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const midX = (sp1.x + sp2.x) / 2;
+        const midY = (sp1.y + sp2.y) / 2;
+
+        const labelText = formatFtIn(distFt);
+        const boxWidth = Math.max(38, labelText.length * 7 + 8);
+
+        ctx.fillStyle = isThisEdgeSelected ? '#b45309' : 'rgba(15, 23, 42, 0.85)';
+        ctx.fillRect(midX - boxWidth/2, midY - 8, boxWidth, 16);
+        if (isThisEdgeSelected) {
+          ctx.strokeStyle = '#fde68a';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(midX - boxWidth/2, midY - 8, boxWidth, 16);
+        }
+        ctx.fillStyle = isThisEdgeSelected ? '#fef08a' : '#cbd5e1';
+        ctx.font = isThisEdgeSelected ? 'bold 10px monospace' : '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(labelText, midX, midY);
+      }
+
+      const center = getCentroid(pts);
+      ctx.fillStyle = strokeColor;
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(shape.name, center.x, center.y - 8);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`[${shape.dimCode}]`, center.x, center.y + 8);
+
+      pts.forEach((pt, idx) => {
+        const isHovered = hoveredVertex && hoveredVertex.shapeId === shape.id && hoveredVertex.index === idx;
+        const isSplitStart = splitFirstCorner && Math.hypot(shape.points[idx].x - splitFirstCorner.pt.x, shape.points[idx].y - splitFirstCorner.pt.y) < 0.05;
+
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, isSplitStart ? 7 : (isHovered ? 6 : 4.5), 0, Math.PI * 2);
+        ctx.fillStyle = isSplitStart ? '#f59e0b' : (isHovered ? '#f43f5e' : '#ffffff');
+        ctx.fill();
+        ctx.lineWidth = isSplitStart ? 3 : 2;
+        ctx.strokeStyle = isSplitStart ? '#ffffff' : strokeColor;
+        ctx.stroke();
+      });
+    });
+
+    // 3. Split Room Preview Line
+    if (isSplitMode && splitFirstCorner) {
+      const sp1 = worldToScreen(splitFirstCorner.pt);
+      ctx.beginPath();
+      ctx.moveTo(sp1.x, sp1.y);
+      ctx.lineTo(lastMouse.x, lastMouse.y);
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    if (activeSnapTarget) {
+      const sp = worldToScreen(activeSnapTarget);
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, 10, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ec4899';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  function drawGrid() {
+    const gridSpacing1Ft = BASE_FT_TO_PX * zoom;
+    const startX = panX % gridSpacing1Ft;
+    const startY = panY % gridSpacing1Ft;
+
+    ctx.strokeStyle = 'rgba(51, 65, 85, 0.25)';
+    ctx.lineWidth = 1;
+
+    for (let x = startX; x < canvas.width; x += gridSpacing1Ft) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (let y = startY; y < canvas.height; y += gridSpacing1Ft) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+  }
+
+  function getCentroid(pts) {
+    let x = 0, y = 0;
+    pts.forEach(p => { x += p.x; y += p.y; });
+    return { x: x / (pts.length || 1), y: y / (pts.length || 1) };
+  }
+
+  function distSq(p1, p2) {
+    return (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+  }
+
+  function distToSegment(p, v, w) {
+    const l2 = distSq(v, w);
+    if (l2 === 0) return Math.sqrt(distSq(p, v));
+    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.sqrt(distSq(p, { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) }));
+  }
+
+  function projectOnSegment(p, v, w) {
+    const l2 = distSq(v, w);
+    if (l2 === 0) return { x: v.x, y: v.y };
+    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) };
+  }
+
+  function findVertexUnderMouse(mx, my) {
+    const active = getActiveShapes();
+    for (const shape of active) {
+      for (let i = 0; i < shape.points.length; i++) {
+        const sp = worldToScreen(shape.points[i]);
+        if (Math.hypot(sp.x - mx, sp.y - my) <= 9) {
+          return { shapeId: shape.id, index: i };
+        }
+      }
+    }
+    return null;
+  }
+
+  function findShapeBodyUnderMouse(mx, my) {
+    const worldPt = screenToWorld(mx, my);
+    const active = getActiveShapes();
+    for (let i = active.length - 1; i >= 0; i--) {
+      const shape = active[i];
+      if (shape.type === 'line') {
+        const pts = shape.points.map(worldToScreen);
+        for (let j = 0; j < pts.length - 1; j++) {
+          if (distToSegment({ x: mx, y: my }, pts[j], pts[j+1]) <= 8) return shape;
+        }
+      } else {
+        if (isPointInsidePoly(worldPt, shape.points)) return shape;
+      }
+    }
+    return null;
+  }
+
+  function findEdgeUnderMouse(mx, my) {
+    const active = getActiveShapes();
+    for (const shape of active) {
+      const pts = shape.points.map(worldToScreen);
+      const count = shape.type === 'line' ? pts.length - 1 : pts.length;
+      for (let i = 0; i < count; i++) {
+        const p1 = pts[i];
+        const p2 = pts[(i + 1) % pts.length];
+        if (distToSegment({ x: mx, y: my }, p1, p2) <= 10) {
+          return { shapeId: shape.id, edgeIndex: i };
+        }
+      }
+    }
+    return null;
+  }
+
+  function getSnapCoordinate(candidatePt, ignoreShapeId, ignoreIndex) {
+    let closestDist = SNAP_DISTANCE_PX;
+    let snapPt = null;
+    const candScreen = worldToScreen(candidatePt);
+
+    const active = getActiveShapes();
+    active.forEach(shape => {
+      shape.points.forEach((pt, idx) => {
+        if (shape.id === ignoreShapeId && idx === ignoreIndex) return;
+        const sp = worldToScreen(pt);
+        const d = Math.hypot(sp.x - candScreen.x, sp.y - candScreen.y);
+        if (d < closestDist) {
+          closestDist = d;
+          snapPt = { x: pt.x, y: pt.y };
+        }
+      });
+    });
+
+    if (snapPt) return { point: snapPt, isCornerSnap: true };
+    return { point: { x: snapToInch(candidatePt.x), y: snapToInch(candidatePt.y) }, isCornerSnap: false };
+  }
+
+  // --- SCROLLING & PANNING EVENT HANDLERS ---
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+      if (!isSpacePressed) {
+        isSpacePressed = true;
+        canvas.style.cursor = 'grab';
+      }
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+      isSpacePressed = false;
+      if (!isPanning) {
+        canvas.style.cursor = 'default';
+      }
+    }
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    if (e.ctrlKey || e.metaKey) {
+      const factor = e.deltaY < 0 ? 1.08 : 0.92;
+      adjustZoom(factor, mx, my);
+    } else if (e.shiftKey) {
+      panX -= (e.deltaY || e.deltaX);
+      draw();
+    } else {
+      panX -= e.deltaX;
+      panY -= e.deltaY;
+      draw();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    if (e.button === 1 || e.button === 2 || (e.button === 0 && (e.altKey || isSpacePressed))) {
+      isPanning = true;
+      lastMouse = { x: mx, y: my };
+      canvas.style.cursor = 'grabbing';
+      return;
+    }
+
+    if (isSplitMode && e.button === 0) {
+      const clickedWorldPt = screenToWorld(mx, my);
+      handleSplitVertexClick(clickedWorldPt);
+      return;
+    }
+
+    const vHit = findVertexUnderMouse(mx, my);
+    if (vHit) {
+      draggedVertex = vHit;
+      selectedEdge = null;
+      selectShape(vHit.shapeId);
+      return;
+    }
+
+    const eHit = findEdgeUnderMouse(mx, my);
+    if (eHit) {
+      selectedEdge = { shapeId: eHit.shapeId, edgeIndex: eHit.edgeIndex };
+      selectShape(eHit.shapeId);
+      return;
+    }
+
+    const bodyHit = findShapeBodyUnderMouse(mx, my);
+    if (bodyHit) {
+      selectedEdge = null;
+      selectShape(bodyHit.id);
+      draggedShape = {
+        shapeId: bodyHit.id,
+        startWorld: screenToWorld(mx, my),
+        initialPoints: bodyHit.points.map(p => ({ ...p }))
+      };
+      return;
+    }
+
+    if (e.button === 0) {
+      isPanning = true;
+      lastMouse = { x: mx, y: my };
+      canvas.style.cursor = 'grabbing';
+      selectedEdge = null;
+      selectShape(null);
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    if (isPanning) {
+      panX += mx - lastMouse.x;
+      panY += my - lastMouse.y;
+      lastMouse = { x: mx, y: my };
+      draw();
+      return;
+    }
+
+    lastMouse = { x: mx, y: my };
+
+    if (isSplitMode && splitFirstCorner) {
+      draw();
+      return;
+    }
+
+    if (draggedVertex) {
+      const rawWorld = screenToWorld(mx, my);
+      const snapResult = getSnapCoordinate(rawWorld, draggedVertex.shapeId, draggedVertex.index);
+
+      activeSnapTarget = snapResult.isCornerSnap ? snapResult.point : null;
+      const shape = shapes.find(s => s.id === draggedVertex.shapeId);
+      if (shape) {
+        shape.points[draggedVertex.index] = snapResult.point;
+      }
+      draw();
+      return;
+    }
+
+    if (draggedShape) {
+      const currentWorld = screenToWorld(mx, my);
+      let dx = snapToInch(currentWorld.x - draggedShape.startWorld.x);
+      let dy = snapToInch(currentWorld.y - draggedShape.startWorld.y);
+
+      const shape = shapes.find(s => s.id === draggedShape.shapeId);
+      if (shape) {
+        activeSnapTarget = null;
+        for (let i = 0; i < draggedShape.initialPoints.length; i++) {
+          const candPt = { x: draggedShape.initialPoints[i].x + dx, y: draggedShape.initialPoints[i].y + dy };
+          const snap = getSnapCoordinate(candPt, shape.id, -1);
+          if (snap.isCornerSnap) {
+            dx = snap.point.x - draggedShape.initialPoints[i].x;
+            dy = snap.point.y - draggedShape.initialPoints[i].y;
+            activeSnapTarget = snap.point;
+            break;
+          }
+        }
+
+        shape.points = draggedShape.initialPoints.map(p => ({
+          x: snapToInch(p.x + dx),
+          y: snapToInch(p.y + dy)
+        }));
+      }
+      draw();
+      return;
+    }
+
+    if (isSpacePressed) {
+      canvas.style.cursor = 'grab';
+    } else {
+      const prevHover = hoveredVertex;
+      hoveredVertex = findVertexUnderMouse(mx, my);
+      if (hoveredVertex) {
+        canvas.style.cursor = 'pointer';
+      } else if (findEdgeUnderMouse(mx, my)) {
+        canvas.style.cursor = 'pointer';
+      } else if (findShapeBodyUnderMouse(mx, my)) {
+        canvas.style.cursor = 'move';
+      } else {
+        canvas.style.cursor = 'default';
+      }
+
+      if (hoveredVertex !== prevHover) draw();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    draggedVertex = null;
+    draggedShape = null;
+    isPanning = false;
+    activeSnapTarget = null;
+    canvas.style.cursor = isSpacePressed ? 'grab' : 'default';
+    draw();
+  });
+
+  canvas.addEventListener('dblclick', (e) => {
+    if (isSplitMode) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const vHit = findVertexUnderMouse(mx, my);
+    if (vHit) {
+      const shape = shapes.find(s => s.id === vHit.shapeId);
+      if (shape) {
+        const minPts = shape.type === 'line' ? 2 : 3;
+        if (shape.points.length > minPts) {
+          shape.points.splice(vHit.index, 1);
+          hoveredVertex = null;
+          selectedEdge = null;
+          draw();
+          updateInspector();
+        }
+      }
+      return;
+    }
+
+    const eHit = findEdgeUnderMouse(mx, my);
+    if (eHit) {
+      const shape = shapes.find(s => s.id === eHit.shapeId);
+      if (shape) {
+        const sp1 = worldToScreen(shape.points[eHit.edgeIndex]);
+        const sp2 = worldToScreen(shape.points[(eHit.edgeIndex + 1) % shape.points.length]);
+        const projScreen = projectOnSegment({ x: mx, y: my }, sp1, sp2);
+        const projWorld = screenToWorld(projScreen.x, projScreen.y);
+
+        shape.points.splice(eHit.edgeIndex + 1, 0, {
+          x: snapToInch(projWorld.x),
+          y: snapToInch(projWorld.y)
+        });
+        selectedEdge = null;
+        selectShape(shape.id);
+        draw();
+      }
+    }
+  });
+
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer.types.includes('Files')) {
+      canvasContainer.classList.add('drag-over');
+    }
+  });
+
+  window.addEventListener('dragleave', (e) => {
+    if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+      canvasContainer.classList.remove('drag-over');
+    }
+  });
+
+  canvasContainer.addEventListener('drop', (e) => {
+    e.preventDefault();
+    canvasContainer.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && (file.type.includes('svg') || file.name.toLowerCase().endsWith('.svg'))) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        importSvgString(evt.target.result, {
+          scaleUnits: true,
+          splitT: true,
+          targetMode: 'current_level'
+        });
+      };
+      reader.readAsText(file);
+    }
+  });
+
+  function isPointInsidePoly(pt, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i].x, yi = poly[i].y;
+      const xj = poly[j].x, yj = poly[j].y;
+      const intersect = ((yi > pt.y) !== (yj > pt.y)) && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  // --- SVG IMPORTER LOGIC ---
+  const SVG_CLASS_MAP = {
+    'living-room': 'Living Room',
+    'kitchen': 'Kitchen',
+    'bedroom': 'Bedroom',
+    'bathroom': 'Bathroom',
+    'office': 'Office',
+    'closet': 'Closet',
+    'laundry': 'Laundry',
+    'hallway': 'Hallway',
+    'staircase': 'Staircase',
+    'dining-room': 'Dining Room',
+    'garage': 'Garage',
+    'other': 'Room'
+  };
+
+  function parseSvgPathCoordinates(dStr, scale) {
+    const clean = dStr.replace(/[MmLlZz]/g, ' ').trim();
+    const nums = clean.split(/[\s,]+/).map(parseFloat).filter(n => !isNaN(n));
+    let pts = [];
+    for (let i = 0; i < nums.length; i += 2) {
+      if (i + 1 < nums.length) {
+        pts.push({
+          x: snapToInch(nums[i] * scale),
+          y: snapToInch(nums[i+1] * scale)
+        });
+      }
+    }
+    
+    pts = removeDuplicateLoops(pts, 0.20);
+    pts = simplifyPolygon(pts, 0.15);
+    pts = removeDuplicateLoops(pts, 0.20);
+
+    return pts;
+  }
+
+  function removeDuplicateLoops(pts, tolFt = 0.20) {
+    if (pts.length < 3) return pts;
+    let changed = true;
+    let iterations = 0;
+
+    while (changed && iterations < 30) {
+      changed = false;
+      iterations++;
+
+      if (pts.length > 1) {
+        const first = pts[0];
+        const last = pts[pts.length - 1];
+        if (Math.hypot(first.x - last.x, first.y - last.y) < tolFt) {
+          pts.pop();
+          changed = true;
+          continue;
+        }
+      }
+
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const dist = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+          if (dist < tolFt) {
+            const countToRemove = j - i;
+            if (pts.length - countToRemove >= 3) {
+              pts.splice(i + 1, countToRemove);
+              changed = true;
+              break;
+            } else if (pts.length - countToRemove < 3 && j === pts.length - 1) {
+              pts.pop();
+              changed = true;
+              break;
+            }
+          }
+        }
+        if (changed) break;
+      }
+    }
+    return pts;
+  }
+
+  function simplifyPolygon(pts, distTolFt = 0.15) {
+    if (pts.length <= 3) return pts;
+    let res = [];
+    for (let i = 0; i < pts.length; i++) {
+      const next = pts[(i + 1) % pts.length];
+      if (Math.hypot(pts[i].x - next.x, pts[i].y - next.y) > distTolFt) {
+        res.push(pts[i]);
+      }
+    }
+    if (res.length <= 3) return res;
+
+    let simplified = [];
+    for (let i = 0; i < res.length; i++) {
+      const prev = res[(i - 1 + res.length) % res.length];
+      const curr = res[i];
+      const next = res[(i + 1) % res.length];
+
+      const v1 = { x: curr.x - prev.x, y: curr.y - prev.y };
+      const v2 = { x: next.x - curr.x, y: next.y - curr.y };
+      const cross = Math.abs(v1.x * v2.y - v1.y * v2.x);
+      const l1 = Math.hypot(v1.x, v1.y);
+      const l2 = Math.hypot(v2.x, v2.y);
+
+      if (l1 > 0 && l2 > 0 && (cross / (l1 * l2)) < 0.04) {
+        continue;
+      }
+      simplified.push(curr);
+    }
+    return simplified.length >= 3 ? simplified : res;
+  }
+
+  function resolveTIntersections(roomShapes, toleranceFt = 0.35) {
+    for (let iter = 0; iter < 8; iter++) {
+      const allPts = [];
+      roomShapes.forEach(r => r.points.forEach(p => allPts.push(p)));
+
+      for (let i = 0; i < allPts.length; i++) {
+        for (let j = i + 1; j < allPts.length; j++) {
+          const d = Math.hypot(allPts[i].x - allPts[j].x, allPts[i].y - allPts[j].y);
+          if (d > 0 && d <= toleranceFt) {
+            allPts[j].x = allPts[i].x;
+            allPts[j].y = allPts[i].y;
+          }
+        }
+      }
+
+      const uniqueVertices = [];
+      allPts.forEach(p => {
+        if (!uniqueVertices.some(uv => Math.hypot(uv.x - p.x, uv.y - p.y) < 1e-4)) {
+          uniqueVertices.push({ x: p.x, y: p.y });
+        }
+      });
+
+      let anySplit = false;
+      roomShapes.forEach(r => {
+        const newPts = [];
+        const pts = r.points;
+        const n = pts.length;
+
+        for (let i = 0; i < n; i++) {
+          const p1 = pts[i];
+          const p2 = pts[(i + 1) % n];
+          newPts.push(p1);
+
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const l2 = dx * dx + dy * dy;
+          if (l2 < 0.04) continue;
+
+          const splits = [];
+          uniqueVertices.forEach(v => {
+            const d1 = Math.hypot(v.x - p1.x, v.y - p1.y);
+            const d2 = Math.hypot(v.x - p2.x, v.y - p2.y);
+            if (d1 < 0.08 || d2 < 0.08) return;
+
+            const t = ((v.x - p1.x) * dx + (v.y - p1.y) * dy) / l2;
+            if (t > 0.02 && t < 0.98) {
+              const projX = p1.x + t * dx;
+              const projY = p1.y + t * dy;
+              const dist = Math.hypot(v.x - projX, v.y - projY);
+
+              if (dist <= toleranceFt) {
+                v.x = snapToInch(projX);
+                v.y = snapToInch(projY);
+                splits.push({ t: t, pt: { x: v.x, y: v.y } });
+              }
+            }
+          });
+
+          if (splits.length > 0) {
+            splits.sort((a, b) => a.t - b.t);
+            splits.forEach(s => {
+              if (!newPts.some(np => Math.hypot(np.x - s.pt.x, np.y - s.pt.y) < 1e-4)) {
+                newPts.push(s.pt);
+                anySplit = true;
+              }
+            });
+          }
+        }
+
+        const cleaned = [];
+        for (let k = 0; k < newPts.length; k++) {
+          const curr = newPts[k];
+          const nxt = newPts[(k + 1) % newPts.length];
+          if (Math.hypot(curr.x - nxt.x, curr.y - nxt.y) > 0.02) {
+            cleaned.push(curr);
+          }
+        }
+        r.points = cleaned.length >= 3 ? cleaned : newPts;
+      });
+
+      if (!anySplit) break;
+    }
+
+    roomShapes.forEach(shape => {
+      shape.points = shape.points.map(p => ({
+        x: snapToInch(p.x),
+        y: snapToInch(p.y)
+      }));
+    });
+  }
+
+  function handleSvgFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      document.getElementById('svg-import-input').value = e.target.result;
+    };
+    reader.readAsText(file);
+  }
+
+  function importSvgString(svgText, opts = {}) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgText, 'image/svg+xml');
+    const parserError = doc.querySelector('parsererror');
+    if (parserError) {
+      alert('Invalid SVG document format.');
+      return;
+    }
+
+    const scale = opts.scaleUnits ? 3.28084 : 1.0;
+
+    const labelElements = doc.querySelectorAll('g.room-label');
+    const extractedLabels = [];
+    labelElements.forEach(g => {
+      const transformAttr = g.getAttribute('style') || g.getAttribute('transform') || '';
+      const match = transformAttr.match(/translate\(\s*([\d\.-]+)(?:px)?\s*,\s*([\d\.-]+)(?:px)?\s*\)/i);
+      const textElem = g.querySelector('text');
+      const labelText = textElem ? textElem.textContent.trim() : '';
+
+      if (match && labelText) {
+        extractedLabels.push({
+          x: parseFloat(match[1]) * scale,
+          y: parseFloat(match[2]) * scale,
+          text: labelText
+        });
+      }
+    });
+
+    let roomPaths = Array.from(doc.querySelectorAll('g.rooms path, g.active-rooms path'));
+
+    if (roomPaths.length === 0) {
+      roomPaths = Array.from(doc.querySelectorAll('path[data-roomid]'));
+    }
+
+    if (roomPaths.length === 0) {
+      roomPaths = Array.from(doc.querySelectorAll('path')).filter(p => {
+        const cls = (p.getAttribute('class') || '').toLowerCase();
+        return !cls.includes('wall') && !cls.includes('divider') && !cls.includes('opening') && !cls.includes('caret') && !cls.includes('label');
+      });
+    }
+
+    roomPaths = roomPaths.filter(p => {
+      const shadowAncestor = p.closest('g.lower-rooms, g.upper-rooms, g.shadow, g.shadows, g.shadow-rooms, g.silhouette, g.silhouettes, g.lower-floor, g.upper-floor, g.background-rooms, [data-shadow], .shadow');
+      if (shadowAncestor) return false;
+
+      const cls = (p.getAttribute('class') || '').toLowerCase();
+      const fill = (p.getAttribute('fill') || '').toLowerCase();
+      if (cls.includes('inaccessible-area') || cls.includes('shadow') || cls.includes('silhouette') || cls.includes('lower-floor') || cls.includes('upper-floor')) return false;
+      if (fill.includes('silhouette') || fill.includes('shadow')) return false;
+
+      return true;
+    });
+
+    if (roomPaths.length === 0) {
+      alert('No active room geometries found in this SVG.');
+      return;
+    }
+
+    let targetLevelId = currentLevelId;
+    if (opts.targetMode === 'new_level') {
+      const newLvlName = opts.newLevelName || `Level ${levels.length + 1}`;
+      addNewLevel(newLvlName);
+      targetLevelId = currentLevelId;
+    } else if (opts.targetMode === 'current_level') {
+      shapes = shapes.filter(s => s.levelId !== currentLevelId);
+    }
+
+    const newShapes = [];
+    const usedNames = {};
+
+    roomPaths.forEach(path => {
+      const d = path.getAttribute('d');
+      if (!d) return;
+
+      const pts = parseSvgPathCoordinates(d, scale);
+      if (pts.length < 3) return;
+
+      const pathClass = (path.getAttribute('class') || '').trim();
+      let matchedName = '';
+
+      for (const lbl of extractedLabels) {
+        if (isPointInsidePoly(lbl, pts)) {
+          matchedName = lbl.text;
+          break;
+        }
+      }
+
+      if (!matchedName) {
+        matchedName = SVG_CLASS_MAP[pathClass] || 'Room';
+      }
+
+      usedNames[matchedName] = (usedNames[matchedName] || 0) + 1;
+      const finalName = usedNames[matchedName] > 1 ? `${matchedName} ${usedNames[matchedName]}` : matchedName;
+
+      const id = getNextId();
+      newShapes.push({
+        id: id,
+        levelId: targetLevelId,
+        type: 'room',
+        name: finalName,
+        dimCode: sanitizeDimCode(finalName),
+        isDimCodeManual: false,
+        points: pts
+      });
+    });
+
+    if (newShapes.length > 0) {
+      if (opts.splitT) {
+        resolveTIntersections(newShapes);
+      }
+      shapes = shapes.concat(newShapes);
+
+      selectedShapeId = newShapes[0].id;
+      selectedEdge = null;
+      renderLevelTabs();
+      updateInspector();
+      updateSidebar();
+      closeImportModal();
+      resetView();
+    } else {
+      alert('Could not parse valid room boundaries from the active layer.');
+    }
+  }
+
+  function executeSvgImport() {
+    const svgText = document.getElementById('svg-import-input').value.trim();
+    if (!svgText) {
+      alert('Please paste SVG markup or choose an SVG file.');
+      return;
+    }
+    const targetMode = document.getElementById('svg-import-target').value;
+    const newLvlName = document.getElementById('svg-new-level-name').value.trim();
+
+    importSvgString(svgText, {
+      scaleUnits: document.getElementById('svg-unit-scale').checked,
+      splitT: document.getElementById('svg-split-t').checked,
+      targetMode: targetMode,
+      newLevelName: newLvlName
+    });
+  }
+
+  function openImportModal() {
+    document.getElementById('svg-new-level-name').value = `Level ${levels.length + 1}`;
+    document.getElementById('import-modal').style.display = 'flex';
+  }
+  function closeImportModal() {
+    document.getElementById('import-modal').style.display = 'none';
+  }
+
+  // --- MULTI-LEVEL XML TEMPLATE GENERATOR ---
+  function generateXML() {
+    const docUuid = generateExUuid();
+    const structUuid = generateExUuid();
+
+    if (shapes.length === 0) {
+      alert("No elements in diagram to export.");
+      return "";
+    }
+
+    levels.forEach(lvl => {
+      const roomShapes = shapes.filter(s => s.type === 'room' && s.levelId === lvl.id);
+      if (roomShapes.length > 0) {
+        resolveTIntersections(roomShapes, 0.25);
+      }
+    });
+    draw();
+
+    // Compute global bounding box centroid across ALL shapes so all floors flip consistently
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    shapes.forEach(s => s.points.forEach(p => {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }));
+    const cy = (minY + maxY) / 2;
+
+    const coordinates = ["0 0 0", "-97129.6 25527 0", "-102679.5 33210.5 0", "-84645.5 33337.5 0"];
+    const BASE_ANCHOR_X = -105918;
+    const BASE_ANCHOR_Y = 20701;
+
+    let levelsXML = '';
+    let globalRoomCount = 0;
+
+    levels.forEach((lvl, lIdx) => {
+      const levelUuid = generateExUuid();
+      const lvlShapes = shapes.filter(s => s.levelId === lvl.id);
+      const lvlFloorElevation = ELEV_FLOOR + (lIdx * CEIL_HEIGHT);
+      const lvlCeilElevation = lvlFloorElevation + CEIL_HEIGHT;
+      const levelKey = `GRP${21 + lIdx}`;
+
+      if (lvlShapes.length === 0) return;
+
+      const lvlRooms = lvlShapes.filter(s => s.type === 'room').map(room => ({
+        ...room,
+        points: room.points.map(p => ({
+          x: p.x,
+          y: snapToInch(2 * cy - p.y)
+        })).reverse()
+      }));
+
+      const lvlLines = lvlShapes.filter(s => s.type === 'line').map(line => ({
+        ...line,
+        points: line.points.map(p => ({
+          x: p.x,
+          y: snapToInch(2 * cy - p.y)
+        }))
+      }));
+
+      const lvlSectors = lvlShapes.filter(s => s.type === 'area' || s.type === 'block').map(sec => ({
+        ...sec,
+        points: sec.points.map(p => ({
+          x: p.x,
+          y: snapToInch(2 * cy - p.y)
+        })).reverse()
+      }));
+
+      const canonicalPoints = [];
+      function getCanonicalPoint(p, tol = 0.15) {
+        for (let i = 0; i < canonicalPoints.length; i++) {
+          const cp = canonicalPoints[i];
+          if (Math.hypot(cp.x - p.x, cp.y - p.y) < tol) {
+            return cp;
+          }
+        }
+        const xu = BASE_ANCHOR_X + Math.round(p.x * UNITS_PER_FT);
+        const yu = BASE_ANCHOR_Y + Math.round(p.y * UNITS_PER_FT);
+
+        const botIdx = coordinates.length;
+        coordinates.push(`${xu} ${yu} ${lvlFloorElevation}`);
+        const topIdx = coordinates.length;
+        coordinates.push(`${xu} ${yu} ${lvlCeilElevation}`);
+
+        const cp = {
+          id: canonicalPoints.length,
+          x: p.x,
+          y: p.y,
+          botIndex: botIdx,
+          topIndex: topIdx,
+          vertexId: getNextId(),
+          connectedWallIds: []
+        };
+        canonicalPoints.push(cp);
+        return cp;
+      }
+
+      const edgesMap = new Map();
+      const roomEdgeLists = new Map();
+
+      lvlRooms.forEach(room => {
+        const wallIdsForRoom = [];
+        const n = room.points.length;
+
+        for (let i = 0; i < n; i++) {
+          const p1 = room.points[i];
+          const p2 = room.points[(i + 1) % n];
+          const cpA = getCanonicalPoint(p1);
+          const cpB = getCanonicalPoint(p2);
+
+          if (cpA.id === cpB.id) continue;
+
+          const edgeKey = Math.min(cpA.id, cpB.id) + "_" + Math.max(cpA.id, cpB.id);
+
+          if (!edgesMap.has(edgeKey)) {
+            const wId = getNextId();
+            edgesMap.set(edgeKey, {
+              id: wId,
+              roomIDs: [room.id],
+              cpA: cpA,
+              cpB: cpB,
+              dimCode: `W${edgesMap.size || ''}`
+            });
+            wallIdsForRoom.push(wId);
+          } else {
+            const edgeData = edgesMap.get(edgeKey);
+            if (!edgeData.roomIDs.includes(room.id)) {
+              edgeData.roomIDs.push(room.id);
+            }
+            wallIdsForRoom.push(edgeData.id);
+          }
+        }
+        roomEdgeLists.set(room.id, wallIdsForRoom);
+      });
+
+      edgesMap.forEach(edge => {
+        if (!edge.cpA.connectedWallIds.includes(edge.id)) edge.cpA.connectedWallIds.push(edge.id);
+        if (!edge.cpB.connectedWallIds.includes(edge.id)) edge.cpB.connectedWallIds.push(edge.id);
+      });
+
+      let roomsXML = '';
+      lvlRooms.forEach((room, rIdx) => {
+        globalRoomCount++;
+        const roomWallIds = roomEdgeLists.get(room.id) || [];
+        const roomDimCode = room.dimCode || `ROOM${rIdx + 1}`;
+
+        let linesXML = '';
+        lvlLines.forEach(line => {
+          const center = getCentroid(line.points);
+          if (isPointInsidePoly(center, room.points) || lvlRooms.length === 1) {
+            const ptIndices = [];
+            line.points.forEach(lp => {
+              const lxu = BASE_ANCHOR_X + Math.round(lp.x * UNITS_PER_FT);
+              const lyu = BASE_ANCHOR_Y + Math.round(lp.y * UNITS_PER_FT);
+              ptIndices.push(coordinates.length);
+              coordinates.push(`${lxu} ${lyu} ${lvlFloorElevation}`);
+            });
+
+            linesXML += `<SKETCHREFLINE id="SKT${line.id}" exUuid="${generateExUuid()}" prevReadOrder="0" dimCode="${line.dimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" mainItemID="0" baseHeight="0.0000000" height="0.0000000" color="-16777217" textureID="0" width="0.0000000" wall0="0" wall1="0" wall0Dist="0.0000000" wall1Dist="0.0000000" wall0Side="0" wall1Side="0" isBeam="0" beamPos="1" flags="0" underStairs="0" attachedObjID="0" attachedFace="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="2" posInit="1" justify="0" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${line.name}]]></SKETCHCDATACHILD></SKETCHLABEL><SKETCHREFLINEGEOM id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" controlPoints="${ptIndices.join(' ')}" pointFlags="${ptIndices.map(() => '0').join(' ')}" flags="0"/></SKETCHREFLINE>`;
+          }
+        });
+
+        roomsXML += `<SKETCHROOM id="SKT${room.id}" exUuid="${generateExUuid()}" prevReadOrder="40" dimCode="${roomDimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP${globalRoomCount + 55}" grpType="1" parentKey="${levelKey}" grpDesc="${room.name}" mainRoomID="0" lastDims="" wallIDs="${roomWallIds.join(' ')}" floorHeight="0.0000000" ceilingType="0" ceilingColor="-16777217" floorColor="-16777217" ceilingTexture="0" textureID="0" ceilingHeight="8.0000000" flags="0" above="1" floorFrameOrient="0" floorConst="0" ffrmCenters="1" ffrmJoists="FRMIJ9" ffrmRimBoard="FRMIJ9" ffrmSheathing="FRMSHW3/4T" ffrmBeams="FRMBMM2X8" ffrmDoBeams="0" slabThickness="508.0000000" slabIsReinforced="0" slabRebarSize="CNCRB4" slabVertSpacing="1524.0000000" slabHorzSpacing="1524.0000000" useRollCarpetFromHere="0" flooringMinFillCut="3048.0000000" flooringMinFillCutWidth="3048.0000000" flooringSeamOverCut="381.0000000" flooringRoomOverCut="381.0000000" useScrap="1" useGroupFloorLayDir="0" maxFillPieces="4" autoELEDone="0" autoPLMDone="0" attachedRoof="0" castBeamBeamBlock="NONE_OPTION" castBeamInsulation="NONE_OPTION" castBeamSlab="NONE_OPTION" castBeamReinforce="NONE_OPTION" castBeamReinforceMesh="NONE_OPTION" castBeamFloorScreed="NONE_OPTION" latitude="0.0000000" longitude="0.0000000" carpetStartingWallID="0" waterMitZoneId="0" arCaptureMethod="0" arCaptureDuration="0.0000000" arCapturedInAR="0" isNonGeometricRoom="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="41" color="-16777216" fontFace="Tahoma" fontSize="10" fontStyle="5" angle="0.0000000" namePosition="1" posInit="1" justify="1" flags="3" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${room.name}]]></SKETCHCDATACHILD></SKETCHLABEL>${linesXML}</SKETCHROOM>`;
+      });
+
+      let wallsXML = '';
+      edgesMap.forEach((edge, key) => {
+        const isShared = edge.roomIDs.length > 1;
+        const roomIDsStr = isShared ? `${edge.roomIDs[0]} ${edge.roomIDs[1]}` : `${edge.roomIDs[0]} 0`;
+        const wallFlags = isShared ? "788529152" : "385875968";
+        const coordIdx = `${edge.cpA.botIndex} ${edge.cpB.botIndex} ${edge.cpB.topIndex} ${edge.cpA.topIndex}`;
+        const vertIds = `${edge.cpA.vertexId} ${edge.cpB.vertexId}`;
+
+        wallsXML += `<SKETCHWALL id="SKT${edge.id}" exUuid="${generateExUuid()}" prevReadOrder="28" dimCode="${edge.dimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" roomIDs="${roomIDsStr}" coordIndex="${coordIdx}" vertexIDs="${vertIds}" flags="${wallFlags}" wallConstruction="0" thickness="508.0000000" bearingWall="0" extendExtWallSurfDown="1" extendExtWallSurfDownLength="1524.0000000" wfrmCenters="1" wfrmStudSize="2x4" wfrmStudSizeAuto="0" wfrmTrimmerStyle="1" wfrmHeaderSize="2x10" deckAddHandRail="0" castBeamBeamBlock="NONE_OPTION" castBeamInsulation="NONE_OPTION" brickFacing="NONE_OPTION" metalStudSize="NONE_OPTION" metalStudCenter="0" headTrack="NONE_OPTION" floorTrack="NONE_OPTION" masonryFinish="NONE_OPTION" wallArcControlPt="0" sharedSnapRecordIds="" activityAreaEdge="0" doFooting="0" footingHeight="1270.0000000" footingWidth="2540.0000000" rebarSize="CNCRB4" rebarNumber="2" jBarType="CNCRBJ42" spacing="1524.0000000" wfrmNumTopPlates="2" fndWallRebarSize="CNCRB4" fndWallSpacerDistVert="1524.0000000" fndWallSpacerDistHorz="1524.0000000" fndWallBlockSize="MASBL4" foundationSill="FRMDBP6" foundationSillState="0" wallHeight="12192.0000000" deckEndBoardType="2" noRoofFace="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="29" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="8" posInit="1" justify="1" flags="0" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${edge.dimCode}]]></SKETCHCDATACHILD></SKETCHLABEL><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="30" dimCode="WS1" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="0" color="-16777217" textureID="0" sheathing="FRMSHW1/2" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="31" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="8" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[WS1]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="33" dimCode="WS2" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="1" color="-16777217" textureID="0" sheathing="FRMSHW1/2" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="34" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="8" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[WS2]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE></SKETCHWALL>`;
+      });
+
+      let verticesXML = '';
+      canonicalPoints.forEach(cp => {
+        if (cp.connectedWallIds.length > 0) {
+          verticesXML += `<SKETCHLEVELVERTEX id="SKT${cp.vertexId}" exUuid="${generateExUuid()}" prevReadOrder="36" vertex="${cp.botIndex}" wallIDs="${cp.connectedWallIds.join(' ')}"/>`;
+        }
+      });
+
+      let sectorWallsXML = '';
+      let sectorsXML = '';
+
+      lvlSectors.forEach((sec, sIdx) => {
+        const isBlock = sec.type === 'block';
+        const n = sec.points.length;
+        const ptIndices = [];
+        const swIds = [];
+        const svIds = [];
+
+        for (let i = 0; i < n; i++) {
+          const pt = sec.points[i];
+          const xu = BASE_ANCHOR_X + Math.round(pt.x * UNITS_PER_FT);
+          const yu = BASE_ANCHOR_Y + Math.round(pt.y * UNITS_PER_FT);
+          ptIndices.push(coordinates.length);
+          coordinates.push(`${xu} ${yu} ${lvlFloorElevation}`);
+          swIds.push(getNextId());
+          svIds.push(getNextId());
+        }
+
+        const center = getCentroid(sec.points);
+        let containRoomId = lvlRooms.length > 0 ? lvlRooms[0].id : 0;
+        lvlRooms.forEach(r => {
+          if (isPointInsidePoly(center, r.points)) containRoomId = r.id;
+        });
+
+        for (let i = 0; i < n; i++) {
+          const next = (i + 1) % n;
+          const swId = swIds[i];
+          const svCurr = svIds[i];
+          const svNext = svIds[next];
+          const prevSw = swIds[(i - 1 + n) % n];
+
+          verticesXML += `<SKETCHLEVELVERTEX id="SKT${svCurr}" exUuid="${generateExUuid()}" prevReadOrder="16" vertex="${ptIndices[i]}" wallIDs="${prevSw} ${swId}"/>`;
+
+          sectorWallsXML += `<SKETCHSECTORWALL id="SKT${swId}" exUuid="${generateExUuid()}" prevReadOrder="4" dimCode="SW${i || ''}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" roomIDs="0 ${sec.id}" coordIndex="${ptIndices[i]} ${ptIndices[next]} ${ptIndices[next]} ${ptIndices[i]}" vertexIDs="${svCurr} ${svNext}" flags="721422464" wallConstruction="0" thickness="0.0000000" bearingWall="0" extendExtWallSurfDown="1" extendExtWallSurfDownLength="1524.0000000" wfrmCenters="1" wfrmStudSize="2x4" wfrmStudSizeAuto="0" wfrmTrimmerStyle="1" wfrmHeaderSize="2x10" deckAddHandRail="0" castBeamBeamBlock="NONE_OPTION" castBeamInsulation="NONE_OPTION" brickFacing="NONE_OPTION" metalStudSize="NONE_OPTION" metalStudCenter="1" headTrack="NONE_OPTION" floorTrack="NONE_OPTION" masonryFinish="NONE_OPTION" wallArcControlPt="0" sharedSnapRecordIds="" activityAreaEdge="0" doFooting="0" footingHeight="1270.0000000" footingWidth="2540.0000000" rebarSize="" rebarNumber="2" jBarType="" spacing="1524.0000000" wfrmNumTopPlates="1" fndWallRebarSize="" fndWallSpacerDistVert="1524.0000000" fndWallSpacerDistHorz="1524.0000000" fndWallBlockSize="NONE_OPTION" foundationSill="" foundationSillState="0" wallHeight="0.0000000" deckEndBoardType="2" noRoofFace="0" sectorFixedLenWall="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="5" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="46" posInit="1" justify="0" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="0"><SKETCHCDATACHILD><![CDATA[SW${i || ''}]]></SKETCHCDATACHILD></SKETCHLABEL><SKETCHBALUSTERPROPS id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="6" railHasRail="0" railHandrailHeight="4572.0000000" railConstruction="0" railHandrail="-1" falseCapTreads="" railBalusters="&amp;lt;BALUSTERS&amp;gt;&amp;lt;/BALUSTERS&amp;gt;" railNewels="-1" railFittings="&amp;lt;FITTINGS&amp;gt;&amp;lt;/FITTINGS&amp;gt;" railingShoe="-1" wallCap="-1" railingVolute="-1" railNumNewels="0" railNewelHeight="0.0000000"/><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="48" dimCode="WS" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="1" color="-16777217" textureID="0" sheathing="" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="49" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="47" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="0"><SKETCHCDATACHILD><![CDATA[WS]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="50" dimCode="WS" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="0" color="-16777217" textureID="0" sheathing="" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="51" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="47" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="0"><SKETCHCDATACHILD><![CDATA[WS]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE></SKETCHSECTORWALL>`;
+        }
+
+        sectorsXML += `<SKETCHSECTOR id="SKT${sec.id}" exUuid="${generateExUuid()}" prevReadOrder="20" dimCode="${sec.dimCode}" abbrevNum="${sIdx + 1}" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP0" grpType="1" parentKey="GRP1" grpDesc="" mainRoomID="0" lastDims="" wallIDs="${swIds.join(' ')}" floorHeight="0.0000000" ceilingType="0" ceilingColor="-16777217" floorColor="-16777217" ceilingTexture="0" textureID="0" ceilingHeight="8.0000000" flags="0" above="1" floorFrameOrient="0" floorConst="0" ffrmCenters="0" ffrmJoists="" ffrmRimBoard="" ffrmSheathing="" ffrmBeams="" ffrmDoBeams="0" slabThickness="508.0000000" slabIsReinforced="1" slabRebarSize="" slabVertSpacing="762.0000000" slabHorzSpacing="762.0000000" useRollCarpetFromHere="0" flooringMinFillCut="3048.0000000" flooringMinFillCutWidth="0.0000000" flooringSeamOverCut="381.0000000" flooringRoomOverCut="381.0000000" useScrap="1" useGroupFloorLayDir="0" maxFillPieces="4" autoELEDone="0" autoPLMDone="0" attachedRoof="0" castBeamBeamBlock="" castBeamInsulation="" castBeamSlab="" castBeamReinforce="" castBeamReinforceMesh="" castBeamFloorScreed="" latitude="0.0000000" longitude="0.0000000" carpetStartingWallID="0" waterMitZoneId="0" arCaptureMethod="0" arCaptureDuration="0.0000000" arCapturedInAR="0" sortOrder="SKT0" hideMeasure="0" containRoomID="${containRoomId}" containWallID="0" preCustGrpContId="0" containWallSurface="0" containRoofFace="0" containWireFace="0" containExteriorSurface="0" isRefObj="${isBlock ? '1' : '0'}" autoStretch="1" hole="0" flooringHole="${isBlock ? '1' : '0'}" excludeAreaBehind="${isBlock ? '1' : '0'}" excludeLinearBehind="${isBlock ? '1' : '0'}" excludeFloorBehind="${isBlock ? '1' : '0'}" excludeLinearBehindCeiling="${isBlock ? '1' : '0'}" excludeCeilingAbove="${isBlock ? '1' : '0'}" orientation="44" sectorColor="-16777217" sectorTextureID="0" baseHeight="0.0000000" height="4572.0000000" newSymbolID="-1" symbolID="0" underStairs="0" slopeEq="0.0000000" imageType="0" piType="" eqMake="" eqModel="" eqAssetId="" imageInspectionImageId="" roofWireHoleID="0" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" equipmentDays="0.0000000" readingsClimateType="1" saturationMaterial="" saturationLocation="0" saturationHeight="0.0000000" saturationDryingStandard="0.0000000" readingsDoneCheckbox="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="21" color="-16777216" fontFace="Tahoma" fontSize="10" fontStyle="5" angle="0.0000000" namePosition="45" posInit="1" justify="1" flags="3" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${sec.name}]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHSECTOR>`;
+      });
+
+      const lvlDimCode = sanitizeDimCode(lvl.name) || `LEVEL_${lIdx + 1}`;
+      levelsXML += `<SKETCHLEVEL id="SKT${103 + lIdx}" exUuid="${levelUuid}" prevReadOrder="3" name="${lvl.name}" dimCode="${lvlDimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="${levelKey}" grpType="11" parentKey="GRP1" grpDesc="${lvl.name}" mainRoomID="0" lastDims="" levelNumber="${lvl.levelNumber}" floorElevation="${lvlFloorElevation}.0000000" copyExisting="1" aerialRoofsCreated="0" piImported="0" riImported="0" importID="0" importSource="" isExteriorLevel="0" hideLevelMeasurements="0" wireFaceGroupMode="0" levelLocked="0">${roomsXML}${wallsXML}${verticesXML}${sectorWallsXML}${sectorsXML}</SKETCHLEVEL>`;
+    });
+
+    const docPrefs = "StartWithProposed:0;WallThickness:508;CeilingHeight:12192;ExtendSurfaceDown:1;ExtendSurfaceDownLength:1524;Grid:0;ShowGrid3D:0;ShowTerrain3D:0;GridSize:1524;SnapGrid:1;SnapGridSize:127;MergeSnap:1;MergeSnapDist:127;DisplayValidation:0;HideDimensionLines:0;ManualUpdateAlgorithm:0;RoofIntersectLevels:1;AddExtLevel:0;LevelElevation:152400;RemoveLFBehindBlcok:1;RemoveLFBehindBlockCeiling:1;RemoveSFBehindBlock:1;RemoveSFUnderBlock:1;RemoveSFAboveBlock:1;AutoCalcRoofWaste:0;AutoCalcRoofWasteNote:0;AutoCalcRoofWasteRidgeHipCap:0;AutoCalcRoofWasteStarter:0;AutoCalcRoofWasteRakeStarter:0;AutoCalcRoofWasteValleys:0;Window:0;WindowType:1;WindowShape:0;DoorType:0;DoorStyle:0;WindowHeight:6096;WindowWidth:7620;WindowDistanceFromFloor:4572;WindowDisplayGrid:1;WindowIgnoreOpening:0;WindowDeductOpening:0;WindowUseFineTuneFeature:1;DoorHeight:10160;DoorWidth:3810;DoorDistanceFromFloor:0;DoorDouble:0;DoorIgnoreOpening:0;DoorDeductOpening:0;DoorAngle:20;DoorLeftHandSwing:0;DoorUseFineTuneFeature:1;MissingWallDeductOpening:0;MissingWallIgnoreOpening:0;StairWidth:4572;StairDesiredRiserHeight:953;StairDesiredTreadWidth:1397;StairDefaultWallType:0;StairDefaultCeilingType:0;StairShowLabel:0;MaxFillPieces:4;MinFillCut:3048;MinFillCutWidth:3048;RollLengthOverCut:381;SeamAllowanceOvercut:381;UseScrap:1;StairOvercut:127";
+
+    return `<?xml version='1.0' encoding='UTF-8' ?><SKETCHDOCUMENT id="SKT${getNextId()}" exUuid="${docUuid}" prevReadOrder="0" dimCode="" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP0" grpType="1" parentKey="GRP1" grpDesc="" mainRoomID="0" lastDims="" isSelectedDoc="0" majorVersion="1" minorVersion="27" buildNum="3400" compassRotation="0.0000000" geoLocation="0" geoLocationZone="0" fromPrevLoss="0" useTransition="0" roofsExcludeUngroupedValleys="0" createdVersion="127" documentPrefs="${docPrefs}" isManualFlooring="0" isCustomGroupsDisabled="0" allowImgInspElevMode="0"><SKETCHSTRUCTURE structureType="0" id="SKT${getNextId()}" exUuid="${structUuid}" prevReadOrder="0" dimCode="" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP0" grpType="1" parentKey="GRP0" grpDesc="" mainRoomID="0" lastDims="">${levelsXML}</SKETCHSTRUCTURE><COORDINATE3>${coordinates.join(' ')}</COORDINATE3></SKETCHDOCUMENT>`;
+  }
+
+  function openExportModal() {
+    const xml = generateXML();
+    if (!xml) return;
+    document.getElementById('xml-output').value = xml;
+    document.getElementById('export-modal').style.display = 'flex';
+  }
+  function closeExportModal() {
+    document.getElementById('export-modal').style.display = 'none';
+  }
+  function copyXML() {
+    navigator.clipboard.writeText(document.getElementById('xml-output').value);
+    alert('Document XML copied to clipboard.');
+  }
+
+  async function downloadSKX() {
+    const xmlContent = document.getElementById('xml-output').value || generateXML();
+    if (!xmlContent) return;
+    let baseName = document.getElementById('template-filename').value.trim() || 'Template';
+    baseName = baseName.replace(/[^A-Za-z0-9_\-\s]/g, '');
+    const filename = `${baseName}.skx`;
+
+    if (typeof JSZip !== 'undefined') {
+      const zip = new JSZip();
+      zip.file("XACTDOC.XML", xmlContent);
+      const blob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 }
+      });
+      triggerDownload(blob, filename);
+    } else {
+      const blob = createPureZipBlob("XACTDOC.XML", xmlContent);
+      triggerDownload(blob, filename);
+    }
+  }
+
+  function downloadRawXml(filename) {
+    const content = document.getElementById('xml-output').value || generateXML();
+    if (!content) return;
+    const blob = new Blob([content], { type: 'text/xml;charset=utf-8' });
+    triggerDownload(blob, filename);
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function createPureZipBlob(filename, textContent) {
+    const encoder = new TextEncoder();
+    const fileData = encoder.encode(textContent);
+    const fileNameBytes = encoder.encode(filename);
+
+    const crcTable = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+      crcTable[i] = c;
+    }
+    let crc = 0 ^ (-1);
+    for (let i = 0; i < fileData.length; i++) {
+      crc = (crc >>> 8) ^ crcTable[(crc ^ fileData[i]) & 0xFF];
+    }
+    crc = (crc ^ (-1)) >>> 0;
+
+    const size = fileData.length;
+    const nameLen = fileNameBytes.length;
+
+    const localHeader = new Uint8Array(30 + nameLen);
+    const lhView = new DataView(localHeader.buffer);
+    lhView.setUint32(0, 0x04034b50, true);
+    lhView.setUint16(4, 20, true);
+    lhView.setUint16(8, 0, true);
+    lhView.setUint32(14, crc, true);
+    lhView.setUint32(18, size, true);
+    lhView.setUint32(22, size, true);
+    lhView.setUint16(26, nameLen, true);
+    localHeader.set(fileNameBytes, 30);
+
+    const cdHeader = new Uint8Array(46 + nameLen);
+    const cdView = new DataView(cdHeader.buffer);
+    cdView.setUint32(0, 0x02014b50, true);
+    cdView.setUint16(4, 20, true);
+    cdView.setUint16(6, 20, true);
+    cdView.setUint16(10, 0, true);
+    cdView.setUint32(16, crc, true);
+    cdView.setUint32(20, size, true);
+    cdView.setUint32(24, size, true);
+    cdView.setUint16(28, nameLen, true);
+    cdView.setUint32(42, 0, true);
+    cdHeader.set(fileNameBytes, 46);
+
+    const eocd = new Uint8Array(22);
+    const eocdView = new DataView(eocd.buffer);
+    eocdView.setUint32(0, 0x06054b50, true);
+    eocdView.setUint16(8, 1, true);
+    eocdView.setUint16(10, 1, true);
+    eocdView.setUint32(12, cdHeader.length, true);
+    eocdView.setUint32(16, localHeader.length + size, true);
+
+    return new Blob([localHeader, fileData, cdHeader, eocd], { type: 'application/octet-stream' });
+  }
+
+  // Initialize
+  renderLevelTabs();
+  resizeCanvas();
+  updateSidebar();
+  updateInspector();
+</script>
+</body>
+</html>
