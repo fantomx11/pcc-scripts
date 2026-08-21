@@ -33,7 +33,6 @@
     }
     h1 { font-size: 1.1rem; color: var(--accent); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 
-    /* Level Selector in Header */
     .level-tabs {
       display: flex;
       align-items: center;
@@ -200,7 +199,7 @@
 
     .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
     label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold; }
-    input[type="text"], select {
+    input[type="text"], input[type="number"], select {
       background: #0f172a;
       border: 1px solid var(--panel-border);
       color: #fff;
@@ -209,7 +208,7 @@
       font-size: 0.85rem;
       outline: none;
     }
-    input[type="text"]:focus, select:focus { border-color: var(--accent); }
+    input[type="text"]:focus, input[type="number"]:focus, select:focus { border-color: var(--accent); }
     input.dimcode { font-family: monospace; text-transform: uppercase; }
 
     .calibration-box {
@@ -260,6 +259,20 @@
     .item-card:hover { border-color: var(--accent); }
     .item-card.active { border-color: var(--accent); background: #2c3e55; }
 
+    .legend-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.7rem;
+      padding: 6px 10px;
+      background: #090d16;
+      border-radius: 6px;
+      border: 1px solid var(--panel-border);
+      margin-bottom: 10px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-color { width: 10px; height: 10px; border-radius: 2px; }
+
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -283,7 +296,7 @@
     }
     textarea {
       width: 100%;
-      height: 260px;
+      height: 240px;
       background: #020617;
       color: #38bdf8;
       border: 1px solid var(--panel-border);
@@ -299,11 +312,9 @@
 
 <header>
   <h1><span>📐</span> Xactimate Multi-Floor Sketch Generator</h1>
-  
   <div class="level-tabs" id="level-tabs-container"></div>
-
   <div style="display: flex; gap: 8px;">
-    <button class="btn btn-secondary" onclick="openImportModal()">📥 Import SVG</button>
+    <button class="btn btn-secondary" onclick="openImportModal()">📥 Import (JSON / SVG)</button>
     <button class="btn" onclick="openExportModal()">Export Template (.SKX)</button>
   </div>
 </header>
@@ -311,8 +322,8 @@
 <div class="main-layout">
   <div id="canvas-container">
     <div class="drop-overlay">
-      <span>📥 Drop SVG Floor Plan Here</span>
-      <small>Prunes shadow rooms &amp; imports to current floor</small>
+      <span>📥 Drop JSON or SVG File Here</span>
+      <small>Imports rooms, stub walls, wall offsets, ceiling heights, doors, windows &amp; wall openings</small>
     </div>
 
     <div class="canvas-toolbar">
@@ -355,6 +366,14 @@
 
     <div class="sidebar-section" id="inspector-panel">
       <h3>Element Properties</h3>
+      
+      <div class="legend-box">
+        <div class="legend-item"><div class="legend-color" style="background: #f97316;"></div> Door</div>
+        <div class="legend-item"><div class="legend-color" style="background: #38bdf8;"></div> Window</div>
+        <div class="legend-item"><div class="legend-color" style="background: #a855f7;"></div> Wall Opening</div>
+        <div class="legend-item"><div class="legend-color" style="background: #94a3b8; border: 1px dashed #fff;"></div> Missing Wall</div>
+      </div>
+
       <div id="no-selection" style="color: var(--text-muted); font-size: 0.8rem;">Select a shape or wall to edit details.</div>
       <div id="selection-form" style="display: none;">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
@@ -368,6 +387,10 @@
         <div class="field">
           <label>dimCode</label>
           <input type="text" class="dimcode" id="prop-dimcode" oninput="onSelectedDimCodeChange(this.value)">
+        </div>
+        <div class="field" id="prop-ceil-field">
+          <label>Ceiling Height (ft)</label>
+          <input type="number" step="0.25" id="prop-ceiling-height" oninput="onSelectedCeilingChange(this.value)">
         </div>
 
         <div class="calibration-box" id="calibration-panel" style="display: none;">
@@ -403,7 +426,7 @@
       <button class="btn btn-secondary btn-sm" onclick="cancelPendingSplit()">&times;</button>
     </div>
     <p style="font-size: 0.82rem; color: var(--text-muted);" id="split-modal-desc">
-      Split this room into two separate rooms along the selected wall?
+      Split this room into two separate rooms along the dividing line?
     </p>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
       <div class="field">
@@ -422,45 +445,45 @@
   </div>
 </div>
 
-<!-- Modal for SVG Import -->
+<!-- Modal for Import (JSON or SVG) -->
 <div id="import-modal" class="modal-backdrop">
   <div class="modal-content">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <h3 style="color: var(--accent);">Import SVG Floor Plan</h3>
+      <h3 style="color: var(--accent);">Import Plan (JSON or SVG)</h3>
       <button class="btn btn-secondary btn-sm" onclick="closeImportModal()">&times; Close</button>
     </div>
     <p style="font-size: 0.8rem; color: var(--text-muted);">
-      Upload or paste SVG markup. Shadow groups and inaccessible silhouette zones are automatically filtered out[cite: 2].
+      Paste or upload JSON / SVG floorplans. Graph walls, partition dividers, ceiling heights, doors, windows, and wall openings are imported directly[cite: 3, 4].
     </p>
     
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: #090d16; padding: 10px; border-radius: 6px; border: 1px solid var(--panel-border);">
       <div class="field" style="margin-bottom: 0;">
-        <label>Import Destination</label>
-        <select id="svg-import-target">
+        <label>Import Mode (for single-floor files)</label>
+        <select id="import-target">
           <option value="new_level">➕ Create as New Floor (e.g. Level 2)</option>
           <option value="current_level" selected>📍 Overwrite Current Floor</option>
           <option value="append_current">📎 Append to Current Floor</option>
         </select>
       </div>
       <div class="field" style="margin-bottom: 0;">
-        <label>New Floor Name (if creating new)</label>
-        <input type="text" id="svg-new-level-name" value="Level 2" placeholder="e.g. Level 2 / Second Floor">
+        <label>New Floor Name (if creating single new)</label>
+        <input type="text" id="new-level-name" value="Level 2" placeholder="e.g. Level 2 / Second Floor">
       </div>
     </div>
 
     <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-      <input type="file" id="svg-file-input" accept=".svg,image/svg+xml" style="font-size: 0.8rem; color: var(--text-muted);" onchange="handleSvgFileUpload(event)">
+      <input type="file" id="file-input" accept=".json,.svg,application/json,image/svg+xml" style="font-size: 0.8rem; color: var(--text-muted);" onchange="handleFileUpload(event)">
       <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text); cursor: pointer;">
-        <input type="checkbox" id="svg-unit-scale" checked> Convert Meters to Feet (×3.28084)
+        <input type="checkbox" id="unit-scale-meters" checked> Convert Meters to Feet (×3.28084)
       </label>
       <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text); cursor: pointer;">
-        <input type="checkbox" id="svg-split-t" checked> Auto-Split T-Junction Walls
+        <input type="checkbox" id="filter-voids" checked> Exclude Inaccessible / Void Areas
       </label>
     </div>
-    <textarea id="svg-import-input" placeholder="<svg ...> ... </svg>"></textarea>
+    <textarea id="import-input" placeholder="Paste JSON floorplan object or SVG markup here..."></textarea>
     <div style="display: flex; justify-content: flex-end; gap: 8px;">
       <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
-      <button class="btn" onclick="executeSvgImport()">Import Floor</button>
+      <button class="btn" onclick="executeImport()">Import Floor Data</button>
     </div>
   </div>
 </div>
@@ -495,7 +518,7 @@
   const BASE_FT_TO_PX = 20;
   const UNITS_PER_FT = 1524;
   const ELEV_FLOOR = 152400; 
-  const CEIL_HEIGHT = 12192; 
+  const DEFAULT_CEIL_HEIGHT = 12192; // 8ft
   const SNAP_DISTANCE_PX = 14;
 
   let levels = [
@@ -505,6 +528,8 @@
   let levelIdSeed = 2;
 
   let shapes = [];
+  let wallMetadataList = [];
+
   let selectedShapeId = null;
   let selectedEdge = null; 
   let hoveredVertex = null;
@@ -517,7 +542,7 @@
   let splitFirstCorner = null; 
   let pendingSplitData = null; 
 
-  // Panning & Spacebar Navigation State
+  // Panning & Navigation State
   let zoom = 1.0;
   let panX = 150;
   let panY = 150;
@@ -600,7 +625,28 @@
     return total > 0 ? total : null;
   }
 
-  // --- LEVEL MANAGEMENT ---
+  function getPolygonSignedArea(pts) {
+    const n = pts.length;
+    let a = 0.0;
+    for (let i = 0; i < n; i++) {
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % n];
+      a += (p1.x * p2.y - p2.x * p1.y);
+    }
+    return a / 2.0;
+  }
+
+  function ensureWindingOrder(pts, targetClockwise = true) {
+    const area = getPolygonSignedArea(pts);
+    const isClockwise = area < 0;
+    if (targetClockwise && !isClockwise) {
+      return pts.slice().reverse();
+    } else if (!targetClockwise && isClockwise) {
+      return pts.slice().reverse();
+    }
+    return pts.slice();
+  }
+
   function renderLevelTabs() {
     const container = document.getElementById('level-tabs-container');
     container.innerHTML = '';
@@ -678,13 +724,9 @@
     return shapes.filter(s => s.levelId !== currentLevelId);
   }
 
-  // --- SPLIT ROOM TOOL ---
   function toggleSplitRoomMode() {
-    if (isSplitMode) {
-      exitSplitMode();
-    } else {
-      enterSplitMode();
-    }
+    if (isSplitMode) exitSplitMode();
+    else enterSplitMode();
   }
 
   function enterSplitMode() {
@@ -718,7 +760,6 @@
 
   function handleSplitVertexClick(clickedWorldPt) {
     const candidateRooms = findRoomsWithCornerNear(clickedWorldPt);
-
     if (candidateRooms.length === 0) {
       alert("Please click directly on a room corner.");
       return;
@@ -727,10 +768,7 @@
     const snappedPt = candidateRooms[0].pt;
 
     if (!splitFirstCorner) {
-      splitFirstCorner = {
-        pt: snappedPt,
-        candidates: candidateRooms
-      };
+      splitFirstCorner = { pt: snappedPt, candidates: candidateRooms };
       selectShape(candidateRooms[0].shape.id);
       document.getElementById('instructions-pill').innerHTML = `✂️ <b>Split Mode:</b> First corner set. Now click a <b>second corner</b> on the same room.`;
       draw();
@@ -749,11 +787,8 @@
             const n = shape.points.length;
             const i1 = Math.min(c1.index, c2.index);
             const i2 = Math.max(c1.index, c2.index);
-
             const isAdjacent = (i2 - i1 === 1) || (i1 === 0 && i2 === n - 1);
-            if (!isAdjacent) {
-              commonRoomSplits.push({ shape, i1, i2 });
-            }
+            if (!isAdjacent) commonRoomSplits.push({ shape, i1, i2 });
           }
         }
       }
@@ -764,45 +799,24 @@
       }
 
       let targetSplit = commonRoomSplits[0];
-      if (commonRoomSplits.length > 1) {
-        const midPt = {
-          x: (splitFirstCorner.pt.x + snappedPt.x) / 2,
-          y: (splitFirstCorner.pt.y + snappedPt.y) / 2
-        };
-        const insideMatch = commonRoomSplits.find(cs => isPointInsidePoly(midPt, cs.shape.points));
-        if (insideMatch) targetSplit = insideMatch;
-      }
-
       const { shape, i1, i2 } = targetSplit;
       const n = shape.points.length;
 
       const poly1 = [];
-      for (let k = i1; k <= i2; k++) {
-        poly1.push({ ...shape.points[k] });
-      }
-
+      for (let k = i1; k <= i2; k++) poly1.push({ ...shape.points[k] });
       const poly2 = [];
-      for (let k = i2; k < n; k++) {
-        poly2.push({ ...shape.points[k] });
-      }
-      for (let k = 0; k <= i1; k++) {
-        poly2.push({ ...shape.points[k] });
-      }
+      for (let k = i2; k < n; k++) poly2.push({ ...shape.points[k] });
+      for (let k = 0; k <= i1; k++) poly2.push({ ...shape.points[k] });
 
       if (poly1.length < 3 || poly2.length < 3) {
         alert("Split resulted in an invalid sub-polygon.");
         return;
       }
 
-      pendingSplitData = {
-        originalRoom: shape,
-        poly1: poly1,
-        poly2: poly2
-      };
-
+      pendingSplitData = { originalRoom: shape, poly1, poly2 };
       document.getElementById('split-name-1').value = `${shape.name} A`;
       document.getElementById('split-name-2').value = `${shape.name} B`;
-      document.getElementById('split-modal-desc').innerText = `Split "${shape.name}" into two rooms along the dividing wall between the selected corners?`;
+      document.getElementById('split-modal-desc').innerText = `Split "${shape.name}" into two rooms?`;
       document.getElementById('split-confirm-modal').style.display = 'flex';
     }
   }
@@ -821,7 +835,9 @@
       name: name1,
       dimCode: sanitizeDimCode(name1),
       isDimCodeManual: false,
-      points: poly1
+      ceilingHeightFt: originalRoom.ceilingHeightFt || 8.0,
+      points: poly1,
+      stubWalls: originalRoom.stubWalls || []
     };
 
     const room2 = {
@@ -831,16 +847,13 @@
       name: name2,
       dimCode: sanitizeDimCode(name2),
       isDimCodeManual: false,
-      points: poly2
+      ceilingHeightFt: originalRoom.ceilingHeightFt || 8.0,
+      points: poly2,
+      stubWalls: []
     };
 
     const idx = shapes.findIndex(s => s.id === originalRoom.id);
-    if (idx !== -1) {
-      shapes.splice(idx, 1, room1, room2);
-    }
-
-    const roomShapes = shapes.filter(s => s.type === 'room' && s.levelId === currentLevelId);
-    resolveTIntersections(roomShapes, 0.35);
+    if (idx !== -1) shapes.splice(idx, 1, room1, room2);
 
     cancelPendingSplit();
     exitSplitMode();
@@ -882,18 +895,22 @@
   function resetView() {
     zoom = 1.0;
     document.getElementById('zoom-text').innerText = '100%';
-    const active = getActiveShapes();
-    const all = shapes.length > 0 ? shapes : [];
-    const pool = active.length > 0 ? active : all;
+    const pool = getActiveShapes().length > 0 ? getActiveShapes() : shapes;
 
     if (pool.length === 0) {
       panX = 150; panY = 150;
     } else {
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      pool.forEach(s => s.points.forEach(p => {
-        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
-      }));
+      pool.forEach(s => {
+        s.points.forEach(p => {
+          minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+          minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+        });
+        (s.stubWalls || []).forEach(sw => {
+          minX = Math.min(minX, sw.p0.x, sw.p1.x); maxX = Math.max(maxX, sw.p0.x, sw.p1.x);
+          minY = Math.min(minY, sw.p0.y, sw.p1.y); maxY = Math.max(maxY, sw.p0.y, sw.p1.y);
+        });
+      });
       const midX = (minX + maxX) / 2;
       const midY = (minY + maxY) / 2;
       panX = (canvas.width / 2) - midX * BASE_FT_TO_PX * zoom;
@@ -906,10 +923,16 @@
     const active = getActiveShapes();
     if (active.length === 0) return;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    active.forEach(s => s.points.forEach(p => {
-      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
-    }));
+    active.forEach(s => {
+      s.points.forEach(p => {
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      });
+      (s.stubWalls || []).forEach(sw => {
+        minX = Math.min(minX, sw.p0.x, sw.p1.x); maxX = Math.max(maxX, sw.p0.x, sw.p1.x);
+        minY = Math.min(minY, sw.p0.y, sw.p1.y); maxY = Math.max(maxY, sw.p0.y, sw.p1.y);
+      });
+    });
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
 
@@ -918,6 +941,12 @@
         x: snapToInch(2 * cx - p.x),
         y: snapToInch(2 * cy - p.y)
       }));
+      if (shape.stubWalls) {
+        shape.stubWalls.forEach(sw => {
+          sw.p0 = { x: snapToInch(2 * cx - sw.p0.x), y: snapToInch(2 * cy - sw.p0.y) };
+          sw.p1 = { x: snapToInch(2 * cx - sw.p1.x), y: snapToInch(2 * cy - sw.p1.y) };
+        });
+      }
     });
 
     draw();
@@ -962,13 +991,23 @@
         x: snapToInch(anchorX + (p.x - anchorX) * scaleFactor),
         y: snapToInch(anchorY + (p.y - anchorY) * scaleFactor)
       }));
+      if (s.stubWalls) {
+        s.stubWalls.forEach(sw => {
+          sw.p0 = { x: snapToInch(anchorX + (sw.p0.x - anchorX) * scaleFactor), y: snapToInch(anchorY + (sw.p0.y - anchorY) * scaleFactor) };
+          sw.p1 = { x: snapToInch(anchorX + (sw.p1.x - anchorX) * scaleFactor), y: snapToInch(anchorY + (sw.p1.y - anchorY) * scaleFactor) };
+        });
+      }
     });
 
-    levels.forEach(lvl => {
-      const roomShapes = shapes.filter(s => s.type === 'room' && s.levelId === lvl.id);
-      if (roomShapes.length > 0) {
-        resolveTIntersections(roomShapes, 0.35);
-      }
+    wallMetadataList.forEach(meta => {
+      meta.p0 = {
+        x: snapToInch(anchorX + (meta.p0.x - anchorX) * scaleFactor),
+        y: snapToInch(anchorY + (meta.p0.y - anchorY) * scaleFactor)
+      };
+      meta.p1 = {
+        x: snapToInch(anchorX + (meta.p1.x - anchorX) * scaleFactor),
+        y: snapToInch(anchorY + (meta.p1.y - anchorY) * scaleFactor)
+      };
     });
 
     draw();
@@ -1005,7 +1044,9 @@
       name: name,
       dimCode: sanitizeDimCode(name),
       isDimCodeManual: false,
-      points: points
+      ceilingHeightFt: 8.0,
+      points: points,
+      stubWalls: []
     });
 
     selectedEdge = null;
@@ -1036,6 +1077,7 @@
     const noSel = document.getElementById('no-selection');
     const form = document.getElementById('selection-form');
     const calibPanel = document.getElementById('calibration-panel');
+    const ceilField = document.getElementById('prop-ceil-field');
 
     if (!selectedShapeId) {
       noSel.style.display = 'block';
@@ -1055,6 +1097,13 @@
 
     document.getElementById('prop-name').value = shape.name;
     document.getElementById('prop-dimcode').value = shape.dimCode;
+
+    if (shape.type === 'room') {
+      ceilField.style.display = 'flex';
+      document.getElementById('prop-ceiling-height').value = shape.ceilingHeightFt || 8.0;
+    } else {
+      ceilField.style.display = 'none';
+    }
 
     if (selectedEdge && selectedEdge.shapeId === shape.id) {
       const p1 = shape.points[selectedEdge.edgeIndex];
@@ -1114,11 +1163,140 @@
     draw();
   }
 
+  function onSelectedCeilingChange(val) {
+    const shape = shapes.find(s => s.id === selectedShapeId);
+    if (!shape) return;
+    const parsed = parseFloat(val);
+    if (!isNaN(parsed) && parsed > 0) {
+      shape.ceilingHeightFt = parsed;
+    }
+  }
+
   function worldToScreen(pt) {
     return { x: pt.x * BASE_FT_TO_PX * zoom + panX, y: pt.y * BASE_FT_TO_PX * zoom + panY };
   }
   function screenToWorld(sx, sy) {
     return { x: (sx - panX) / (BASE_FT_TO_PX * zoom), y: (sy - panY) / (BASE_FT_TO_PX * zoom) };
+  }
+
+  function isPointOnSegment(p, a, b, tol = 0.25) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const l2 = dx * dx + dy * dy;
+    if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y) < tol;
+    const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2;
+    if (t >= -0.05 && t <= 1.05) {
+      const projX = a.x + t * dx;
+      const projY = a.y + t * dy;
+      return Math.hypot(p.x - projX, p.y - projY) < tol;
+    }
+    return false;
+  }
+
+  function isSubSegment(p1, p2, a, b, tol = 0.25) {
+    return isPointOnSegment(p1, a, b, tol) && isPointOnSegment(p2, a, b, tol);
+  }
+
+  function findWallMeta(pA, pB, tol = 0.35) {
+    for (const meta of wallMetadataList) {
+      const d1 = Math.hypot(meta.p0.x - pA.x, meta.p0.y - pA.y) + Math.hypot(meta.p1.x - pB.x, meta.p1.y - pB.y);
+      const d2 = Math.hypot(meta.p0.x - pB.x, meta.p0.y - pB.y) + Math.hypot(meta.p1.x - pA.x, meta.p1.y - pA.y);
+      if (Math.min(d1, d2) < tol) return meta;
+    }
+    for (const meta of wallMetadataList) {
+      if (isSubSegment(pA, pB, meta.p0, meta.p1, tol)) {
+        return meta;
+      }
+    }
+    return null;
+  }
+
+  function drawEdgeWithMeta(p1, p2, isSelected, shapeColor = '#38bdf8') {
+    const sp1 = worldToScreen(p1);
+    const sp2 = worldToScreen(p2);
+    const meta = findWallMeta(p1, p2);
+
+    if (meta && meta.isInvisible) {
+      ctx.beginPath();
+      ctx.moveTo(sp1.x, sp1.y);
+      ctx.lineTo(sp2.x, sp2.y);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#94a3b8';
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    if (meta && meta.openings && meta.openings.length > 0) {
+      meta.openings.forEach(op => {
+        const rc = op.relativeCenter !== undefined ? op.relativeCenter : 0.5;
+        const wFt = op.widthFt || 3.0;
+        const edgeLenFt = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+
+        const origDx = meta.p1.x - meta.p0.x;
+        const origDy = meta.p1.y - meta.p0.y;
+        const cWorldX = meta.p0.x + rc * origDx;
+        const cWorldY = meta.p0.y + rc * origDy;
+
+        const segDx = p2.x - p1.x;
+        const segDy = p2.y - p1.y;
+        const segL2 = segDx * segDx + segDy * segDy;
+        let tCenter = 0.5;
+        if (segL2 > 1e-6) {
+          tCenter = ((cWorldX - p1.x) * segDx + (cWorldY - p1.y) * segDy) / segL2;
+        }
+
+        const dt = (wFt / 2) / (edgeLenFt || 1);
+        const t1 = Math.max(0, tCenter - dt);
+        const t2 = Math.min(1, tCenter + dt);
+
+        const opScreen1 = { x: sp1.x + t1 * (sp2.x - sp1.x), y: sp1.y + t1 * (sp2.y - sp1.y) };
+        const opScreen2 = { x: sp1.x + t2 * (sp2.x - sp1.x), y: sp1.y + t2 * (sp2.y - sp1.y) };
+
+        ctx.beginPath();
+        ctx.moveTo(opScreen1.x, opScreen1.y);
+        ctx.lineTo(opScreen2.x, opScreen2.y);
+        ctx.lineWidth = 4.5;
+        
+        if (op.isWindow) {
+          ctx.strokeStyle = '#38bdf8';
+        } else if (op.isDoor) {
+          ctx.strokeStyle = '#f97316';
+        } else {
+          ctx.strokeStyle = '#a855f7';
+        }
+        ctx.stroke();
+      });
+    }
+
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.moveTo(sp1.x, sp1.y);
+      ctx.lineTo(sp2.x, sp2.y);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = '#fbbf24';
+      ctx.stroke();
+    }
+
+    const distFt = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const midX = (sp1.x + sp2.x) / 2;
+    const midY = (sp1.y + sp2.y) / 2;
+
+    const labelText = formatFtIn(distFt);
+    const boxWidth = Math.max(38, labelText.length * 7 + 8);
+
+    ctx.fillStyle = isSelected ? '#b45309' : 'rgba(15, 23, 42, 0.85)';
+    ctx.fillRect(midX - boxWidth/2, midY - 8, boxWidth, 16);
+    if (isSelected) {
+      ctx.strokeStyle = '#fde68a';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(midX - boxWidth/2, midY - 8, boxWidth, 16);
+    }
+    ctx.fillStyle = isSelected ? '#fef08a' : '#cbd5e1';
+    ctx.font = isSelected ? 'bold 10px monospace' : '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(labelText, midX, midY);
   }
 
   function draw() {
@@ -1127,7 +1305,6 @@
 
     const showUnderlay = document.getElementById('show-underlay').checked;
 
-    // 1. Ghost Underlay of other floors
     if (showUnderlay) {
       const otherShapes = getOtherLevelShapes();
       otherShapes.forEach(shape => {
@@ -1146,7 +1323,6 @@
       });
     }
 
-    // 2. Active Level Shapes
     const active = getActiveShapes();
     active.forEach(shape => {
       const isSelected = shape.id === selectedShapeId;
@@ -1177,39 +1353,29 @@
       for (let i = 0; i < loopCount; i++) {
         const p1 = shape.points[i];
         const p2 = shape.points[(i + 1) % shape.points.length];
-        const sp1 = pts[i];
-        const sp2 = pts[(i + 1) % pts.length];
-        
         const isThisEdgeSelected = selectedEdge && selectedEdge.shapeId === shape.id && selectedEdge.edgeIndex === i;
+        drawEdgeWithMeta(p1, p2, isThisEdgeSelected, strokeColor);
+      }
 
-        if (isThisEdgeSelected) {
+      // Draw attached native stub walls
+      if (shape.stubWalls && shape.stubWalls.length > 0) {
+        shape.stubWalls.forEach((sw) => {
           ctx.beginPath();
-          ctx.moveTo(sp1.x, sp1.y);
-          ctx.lineTo(sp2.x, sp2.y);
-          ctx.lineWidth = 5;
-          ctx.strokeStyle = '#fbbf24';
+          const sp0 = worldToScreen(sw.p0);
+          const sp1 = worldToScreen(sw.p1);
+          ctx.moveTo(sp0.x, sp0.y);
+          ctx.lineTo(sp1.x, sp1.y);
+          ctx.lineWidth = isSelected ? 3.5 : 2.5;
+          ctx.strokeStyle = strokeColor;
           ctx.stroke();
-        }
+          drawEdgeWithMeta(sw.p0, sw.p1, false, strokeColor);
 
-        const distFt = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        const midX = (sp1.x + sp2.x) / 2;
-        const midY = (sp1.y + sp2.y) / 2;
-
-        const labelText = formatFtIn(distFt);
-        const boxWidth = Math.max(38, labelText.length * 7 + 8);
-
-        ctx.fillStyle = isThisEdgeSelected ? '#b45309' : 'rgba(15, 23, 42, 0.85)';
-        ctx.fillRect(midX - boxWidth/2, midY - 8, boxWidth, 16);
-        if (isThisEdgeSelected) {
-          ctx.strokeStyle = '#fde68a';
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(midX - boxWidth/2, midY - 8, boxWidth, 16);
-        }
-        ctx.fillStyle = isThisEdgeSelected ? '#fef08a' : '#cbd5e1';
-        ctx.font = isThisEdgeSelected ? 'bold 10px monospace' : '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(labelText, midX, midY);
+          // Draw stub tip endpoint
+          ctx.beginPath();
+          ctx.arc(sp1.x, sp1.y, 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#f59e0b';
+          ctx.fill();
+        });
       }
 
       const center = getCentroid(pts);
@@ -1220,7 +1386,7 @@
       ctx.fillText(shape.name, center.x, center.y - 8);
       ctx.font = '10px monospace';
       ctx.fillStyle = '#94a3b8';
-      ctx.fillText(`[${shape.dimCode}]`, center.x, center.y + 8);
+      ctx.fillText(`[${shape.dimCode}]${shape.ceilingHeightFt ? ` ${shape.ceilingHeightFt}'` : ''}`, center.x, center.y + 8);
 
       pts.forEach((pt, idx) => {
         const isHovered = hoveredVertex && hoveredVertex.shapeId === shape.id && hoveredVertex.index === idx;
@@ -1236,7 +1402,6 @@
       });
     });
 
-    // 3. Split Room Preview Line
     if (isSplitMode && splitFirstCorner) {
       const sp1 = worldToScreen(splitFirstCorner.pt);
       ctx.beginPath();
@@ -1308,9 +1473,7 @@
     for (const shape of active) {
       for (let i = 0; i < shape.points.length; i++) {
         const sp = worldToScreen(shape.points[i]);
-        if (Math.hypot(sp.x - mx, sp.y - my) <= 9) {
-          return { shapeId: shape.id, index: i };
-        }
+        if (Math.hypot(sp.x - mx, sp.y - my) <= 9) return { shapeId: shape.id, index: i };
       }
     }
     return null;
@@ -1371,8 +1534,6 @@
     return { point: { x: snapToInch(candidatePt.x), y: snapToInch(candidatePt.y) }, isCornerSnap: false };
   }
 
-  // --- SCROLLING & PANNING EVENT HANDLERS ---
-
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
       if (!isSpacePressed) {
@@ -1385,9 +1546,7 @@
   window.addEventListener('keyup', (e) => {
     if (e.code === 'Space') {
       isSpacePressed = false;
-      if (!isPanning) {
-        canvas.style.cursor = 'default';
-      }
+      if (!isPanning) canvas.style.cursor = 'default';
     }
   });
 
@@ -1398,8 +1557,7 @@
     const my = e.clientY - rect.top;
 
     if (e.ctrlKey || e.metaKey) {
-      const factor = e.deltaY < 0 ? 1.08 : 0.92;
-      adjustZoom(factor, mx, my);
+      adjustZoom(e.deltaY < 0 ? 1.08 : 0.92, mx, my);
     } else if (e.shiftKey) {
       panX -= (e.deltaY || e.deltaX);
       draw();
@@ -1425,8 +1583,7 @@
     }
 
     if (isSplitMode && e.button === 0) {
-      const clickedWorldPt = screenToWorld(mx, my);
-      handleSplitVertexClick(clickedWorldPt);
+      handleSplitVertexClick(screenToWorld(mx, my));
       return;
     }
 
@@ -1452,7 +1609,8 @@
       draggedShape = {
         shapeId: bodyHit.id,
         startWorld: screenToWorld(mx, my),
-        initialPoints: bodyHit.points.map(p => ({ ...p }))
+        initialPoints: bodyHit.points.map(p => ({ ...p })),
+        initialStubs: (bodyHit.stubWalls || []).map(sw => ({ p0: { ...sw.p0 }, p1: { ...sw.p1 }, meta: sw.meta }))
       };
       return;
     }
@@ -1489,12 +1647,9 @@
     if (draggedVertex) {
       const rawWorld = screenToWorld(mx, my);
       const snapResult = getSnapCoordinate(rawWorld, draggedVertex.shapeId, draggedVertex.index);
-
       activeSnapTarget = snapResult.isCornerSnap ? snapResult.point : null;
       const shape = shapes.find(s => s.id === draggedVertex.shapeId);
-      if (shape) {
-        shape.points[draggedVertex.index] = snapResult.point;
-      }
+      if (shape) shape.points[draggedVertex.index] = snapResult.point;
       draw();
       return;
     }
@@ -1517,30 +1672,28 @@
             break;
           }
         }
-
         shape.points = draggedShape.initialPoints.map(p => ({
           x: snapToInch(p.x + dx),
           y: snapToInch(p.y + dy)
         }));
+        if (shape.stubWalls && draggedShape.initialStubs) {
+          shape.stubWalls = draggedShape.initialStubs.map(sw => ({
+            ...sw,
+            p0: { x: snapToInch(sw.p0.x + dx), y: snapToInch(sw.p0.y + dy) },
+            p1: { x: snapToInch(sw.p1.x + dx), y: snapToInch(sw.p1.y + dy) }
+          }));
+        }
       }
       draw();
       return;
     }
 
-    if (isSpacePressed) {
-      canvas.style.cursor = 'grab';
-    } else {
+    if (!isSpacePressed) {
       const prevHover = hoveredVertex;
       hoveredVertex = findVertexUnderMouse(mx, my);
-      if (hoveredVertex) {
-        canvas.style.cursor = 'pointer';
-      } else if (findEdgeUnderMouse(mx, my)) {
-        canvas.style.cursor = 'pointer';
-      } else if (findShapeBodyUnderMouse(mx, my)) {
-        canvas.style.cursor = 'move';
-      } else {
-        canvas.style.cursor = 'default';
-      }
+      if (hoveredVertex || findEdgeUnderMouse(mx, my)) canvas.style.cursor = 'pointer';
+      else if (findShapeBodyUnderMouse(mx, my)) canvas.style.cursor = 'move';
+      else canvas.style.cursor = 'default';
 
       if (hoveredVertex !== prevHover) draw();
     }
@@ -1557,7 +1710,6 @@
 
   canvas.addEventListener('dblclick', (e) => {
     if (isSplitMode) return;
-
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -1565,15 +1717,12 @@
     const vHit = findVertexUnderMouse(mx, my);
     if (vHit) {
       const shape = shapes.find(s => s.id === vHit.shapeId);
-      if (shape) {
-        const minPts = shape.type === 'line' ? 2 : 3;
-        if (shape.points.length > minPts) {
-          shape.points.splice(vHit.index, 1);
-          hoveredVertex = null;
-          selectedEdge = null;
-          draw();
-          updateInspector();
-        }
+      if (shape && shape.points.length > (shape.type === 'line' ? 2 : 3)) {
+        shape.points.splice(vHit.index, 1);
+        hoveredVertex = null;
+        selectedEdge = null;
+        draw();
+        updateInspector();
       }
       return;
     }
@@ -1584,8 +1733,7 @@
       if (shape) {
         const sp1 = worldToScreen(shape.points[eHit.edgeIndex]);
         const sp2 = worldToScreen(shape.points[(eHit.edgeIndex + 1) % shape.points.length]);
-        const projScreen = projectOnSegment({ x: mx, y: my }, sp1, sp2);
-        const projWorld = screenToWorld(projScreen.x, projScreen.y);
+        const projWorld = screenToWorld(projectOnSegment({ x: mx, y: my }, sp1, sp2).x, projectOnSegment({ x: mx, y: my }, sp1, sp2).y);
 
         shape.points.splice(eHit.edgeIndex + 1, 0, {
           x: snapToInch(projWorld.x),
@@ -1600,9 +1748,7 @@
 
   window.addEventListener('dragover', (e) => {
     e.preventDefault();
-    if (e.dataTransfer.types.includes('Files')) {
-      canvasContainer.classList.add('drag-over');
-    }
+    if (e.dataTransfer.types.includes('Files')) canvasContainer.classList.add('drag-over');
   });
 
   window.addEventListener('dragleave', (e) => {
@@ -1615,12 +1761,12 @@
     e.preventDefault();
     canvasContainer.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
-    if (file && (file.type.includes('svg') || file.name.toLowerCase().endsWith('.svg'))) {
+    if (file) {
       const reader = new FileReader();
       reader.onload = (evt) => {
-        importSvgString(evt.target.result, {
+        processRawImport(evt.target.result, {
           scaleUnits: true,
-          splitT: true,
+          filterVoids: true,
           targetMode: 'current_level'
         });
       };
@@ -1639,327 +1785,274 @@
     return inside;
   }
 
-  // --- SVG IMPORTER LOGIC ---
-  const SVG_CLASS_MAP = {
-    'living-room': 'Living Room',
-    'kitchen': 'Kitchen',
-    'bedroom': 'Bedroom',
-    'bathroom': 'Bathroom',
-    'office': 'Office',
-    'closet': 'Closet',
-    'laundry': 'Laundry',
-    'hallway': 'Hallway',
-    'staircase': 'Staircase',
-    'dining-room': 'Dining Room',
-    'garage': 'Garage',
-    'other': 'Room'
-  };
-
-  function parseSvgPathCoordinates(dStr, scale) {
-    const clean = dStr.replace(/[MmLlZz]/g, ' ').trim();
-    const nums = clean.split(/[\s,]+/).map(parseFloat).filter(n => !isNaN(n));
-    let pts = [];
-    for (let i = 0; i < nums.length; i += 2) {
-      if (i + 1 < nums.length) {
-        pts.push({
-          x: snapToInch(nums[i] * scale),
-          y: snapToInch(nums[i+1] * scale)
-        });
+  function processRawImport(rawText, opts = {}) {
+    rawText = rawText.trim();
+    if (rawText.startsWith('{') || rawText.startsWith('[')) {
+      try {
+        const json = JSON.parse(rawText);
+        importJsonModel(json, opts);
+      } catch (err) {
+        alert('Invalid JSON file format: ' + err.message);
       }
+    } else {
+      importSvgString(rawText, opts);
     }
-    
-    pts = removeDuplicateLoops(pts, 0.20);
-    pts = simplifyPolygon(pts, 0.15);
-    pts = removeDuplicateLoops(pts, 0.20);
-
-    return pts;
   }
 
-  function removeDuplicateLoops(pts, tolFt = 0.20) {
-    if (pts.length < 3) return pts;
-    let changed = true;
-    let iterations = 0;
+  // Robust topological unwinding with 2-core antenna/leaf pruning to extract perimeter + stub walls
+  function unwindTopologicalRoomEdges(boundaryEdges, edgeLookup) {
+    if (!boundaryEdges || boundaryEdges.length < 3) return null;
 
-    while (changed && iterations < 30) {
-      changed = false;
-      iterations++;
+    const adj = new Map();
+    const edgeMap = new Map();
 
-      if (pts.length > 1) {
-        const first = pts[0];
-        const last = pts[pts.length - 1];
-        if (Math.hypot(first.x - last.x, first.y - last.y) < tolFt) {
-          pts.pop();
-          changed = true;
-          continue;
-        }
-      }
+    boundaryEdges.forEach(be => {
+      const ed = edgeLookup.get(be.id);
+      if (!ed) return;
+      edgeMap.set(ed.id, ed);
 
-      for (let i = 0; i < pts.length; i++) {
-        for (let j = i + 1; j < pts.length; j++) {
-          const dist = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
-          if (dist < tolFt) {
-            const countToRemove = j - i;
-            if (pts.length - countToRemove >= 3) {
-              pts.splice(i + 1, countToRemove);
-              changed = true;
-              break;
-            } else if (pts.length - countToRemove < 3 && j === pts.length - 1) {
-              pts.pop();
-              changed = true;
-              break;
-            }
-          }
-        }
-        if (changed) break;
-      }
-    }
-    return pts;
-  }
+      if (!adj.has(ed.v0Id)) adj.set(ed.v0Id, []);
+      if (!adj.has(ed.v1Id)) adj.set(ed.v1Id, []);
 
-  function simplifyPolygon(pts, distTolFt = 0.15) {
-    if (pts.length <= 3) return pts;
-    let res = [];
-    for (let i = 0; i < pts.length; i++) {
-      const next = pts[(i + 1) % pts.length];
-      if (Math.hypot(pts[i].x - next.x, pts[i].y - next.y) > distTolFt) {
-        res.push(pts[i]);
-      }
-    }
-    if (res.length <= 3) return res;
-
-    let simplified = [];
-    for (let i = 0; i < res.length; i++) {
-      const prev = res[(i - 1 + res.length) % res.length];
-      const curr = res[i];
-      const next = res[(i + 1) % res.length];
-
-      const v1 = { x: curr.x - prev.x, y: curr.y - prev.y };
-      const v2 = { x: next.x - curr.x, y: next.y - curr.y };
-      const cross = Math.abs(v1.x * v2.y - v1.y * v2.x);
-      const l1 = Math.hypot(v1.x, v1.y);
-      const l2 = Math.hypot(v2.x, v2.y);
-
-      if (l1 > 0 && l2 > 0 && (cross / (l1 * l2)) < 0.04) {
-        continue;
-      }
-      simplified.push(curr);
-    }
-    return simplified.length >= 3 ? simplified : res;
-  }
-
-  function resolveTIntersections(roomShapes, toleranceFt = 0.35) {
-    for (let iter = 0; iter < 8; iter++) {
-      const allPts = [];
-      roomShapes.forEach(r => r.points.forEach(p => allPts.push(p)));
-
-      for (let i = 0; i < allPts.length; i++) {
-        for (let j = i + 1; j < allPts.length; j++) {
-          const d = Math.hypot(allPts[i].x - allPts[j].x, allPts[i].y - allPts[j].y);
-          if (d > 0 && d <= toleranceFt) {
-            allPts[j].x = allPts[i].x;
-            allPts[j].y = allPts[i].y;
-          }
-        }
-      }
-
-      const uniqueVertices = [];
-      allPts.forEach(p => {
-        if (!uniqueVertices.some(uv => Math.hypot(uv.x - p.x, uv.y - p.y) < 1e-4)) {
-          uniqueVertices.push({ x: p.x, y: p.y });
-        }
-      });
-
-      let anySplit = false;
-      roomShapes.forEach(r => {
-        const newPts = [];
-        const pts = r.points;
-        const n = pts.length;
-
-        for (let i = 0; i < n; i++) {
-          const p1 = pts[i];
-          const p2 = pts[(i + 1) % n];
-          newPts.push(p1);
-
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const l2 = dx * dx + dy * dy;
-          if (l2 < 0.04) continue;
-
-          const splits = [];
-          uniqueVertices.forEach(v => {
-            const d1 = Math.hypot(v.x - p1.x, v.y - p1.y);
-            const d2 = Math.hypot(v.x - p2.x, v.y - p2.y);
-            if (d1 < 0.08 || d2 < 0.08) return;
-
-            const t = ((v.x - p1.x) * dx + (v.y - p1.y) * dy) / l2;
-            if (t > 0.02 && t < 0.98) {
-              const projX = p1.x + t * dx;
-              const projY = p1.y + t * dy;
-              const dist = Math.hypot(v.x - projX, v.y - projY);
-
-              if (dist <= toleranceFt) {
-                v.x = snapToInch(projX);
-                v.y = snapToInch(projY);
-                splits.push({ t: t, pt: { x: v.x, y: v.y } });
-              }
-            }
-          });
-
-          if (splits.length > 0) {
-            splits.sort((a, b) => a.t - b.t);
-            splits.forEach(s => {
-              if (!newPts.some(np => Math.hypot(np.x - s.pt.x, np.y - s.pt.y) < 1e-4)) {
-                newPts.push(s.pt);
-                anySplit = true;
-              }
-            });
-          }
-        }
-
-        const cleaned = [];
-        for (let k = 0; k < newPts.length; k++) {
-          const curr = newPts[k];
-          const nxt = newPts[(k + 1) % newPts.length];
-          if (Math.hypot(curr.x - nxt.x, curr.y - nxt.y) > 0.02) {
-            cleaned.push(curr);
-          }
-        }
-        r.points = cleaned.length >= 3 ? cleaned : newPts;
-      });
-
-      if (!anySplit) break;
-    }
-
-    roomShapes.forEach(shape => {
-      shape.points = shape.points.map(p => ({
-        x: snapToInch(p.x),
-        y: snapToInch(p.y)
-      }));
+      adj.get(ed.v0Id).push({ nbr: ed.v1Id, edgeId: ed.id });
+      adj.get(ed.v1Id).push({ nbr: ed.v0Id, edgeId: ed.id });
     });
-  }
 
-  function handleSvgFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      document.getElementById('svg-import-input').value = e.target.result;
-    };
-    reader.readAsText(file);
-  }
-
-  function importSvgString(svgText, opts = {}) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(svgText, 'image/svg+xml');
-    const parserError = doc.querySelector('parsererror');
-    if (parserError) {
-      alert('Invalid SVG document format.');
-      return;
+    // Iteratively prune degree-1 leaves (antenna stub walls)
+    let prunedAny = true;
+    const removedEdgeIds = new Set();
+    while (prunedAny) {
+      prunedAny = false;
+      for (const [v, nbrs] of adj.entries()) {
+        if (nbrs.length === 1) {
+          const item = nbrs[0];
+          removedEdgeIds.add(item.edgeId);
+          adj.set(v, []);
+          const otherNbrs = adj.get(item.nbr) || [];
+          adj.set(item.nbr, otherNbrs.filter(x => x.nbr !== v));
+          prunedAny = true;
+        }
+      }
     }
 
+    const cycleEdgeIds = boundaryEdges.map(be => be.id).filter(id => edgeMap.has(id) && !removedEdgeIds.has(id));
+    const stubEdges = Array.from(removedEdgeIds).map(id => edgeMap.get(id)).filter(Boolean);
+
+    if (cycleEdgeIds.length < 3) return null;
+
+    const remaining = cycleEdgeIds.map(id => {
+      const ed = edgeMap.get(id);
+      return {
+        id: ed.id,
+        v0Id: ed.v0Id,
+        v1Id: ed.v1Id,
+        p0: { ...ed.p0 },
+        p1: { ...ed.p1 }
+      };
+    });
+
+    const first = remaining.shift();
+    const path = [first.p0, first.p1];
+    let lastVId = first.v1Id;
+
+    while (remaining.length > 0) {
+      const curr = path[path.length - 1];
+      let bestIdx = -1;
+      let bestRev = false;
+
+      for (let i = 0; i < remaining.length; i++) {
+        const seg = remaining[i];
+        if (lastVId && seg.v0Id === lastVId) {
+          bestIdx = i; bestRev = false; break;
+        } else if (lastVId && seg.v1Id === lastVId) {
+          bestIdx = i; bestRev = true; break;
+        }
+      }
+
+      if (bestIdx === -1) {
+        let bestD = Infinity;
+        for (let i = 0; i < remaining.length; i++) {
+          const seg = remaining[i];
+          const d0 = Math.hypot(curr.x - seg.p0.x, curr.y - seg.p0.y);
+          const d1 = Math.hypot(curr.x - seg.p1.x, curr.y - seg.p1.y);
+          if (d0 < bestD) { bestD = d0; bestIdx = i; bestRev = false; }
+          if (d1 < bestD) { bestD = d1; bestIdx = i; bestRev = true; }
+        }
+        if (bestIdx === -1 || bestD > 0.45) break;
+      }
+
+      const seg = remaining.splice(bestIdx, 1)[0];
+      path.push(bestRev ? seg.p0 : seg.p1);
+      lastVId = bestRev ? seg.v0Id : seg.v1Id;
+    }
+
+    if (path.length > 3) {
+      const dClose = Math.hypot(path[0].x - path[path.length - 1].x, path[0].y - path[path.length - 1].y);
+      if (dClose < 0.25) {
+        path.pop();
+      }
+    }
+
+    return path.length >= 3 ? { poly: path, stubEdges: stubEdges } : null;
+  }
+
+  function importJsonModel(json, opts = {}) {
     const scale = opts.scaleUnits ? 3.28084 : 1.0;
+    const filterVoids = opts.filterVoids !== false;
 
-    const labelElements = doc.querySelectorAll('g.room-label');
-    const extractedLabels = [];
-    labelElements.forEach(g => {
-      const transformAttr = g.getAttribute('style') || g.getAttribute('transform') || '';
-      const match = transformAttr.match(/translate\(\s*([\d\.-]+)(?:px)?\s*,\s*([\d\.-]+)(?:px)?\s*\)/i);
-      const textElem = g.querySelector('text');
-      const labelText = textElem ? textElem.textContent.trim() : '';
+    const data = json.data?.model || json.model || json;
+    const floors = data.floors || [];
+    const allRooms = data.rooms || [];
 
-      if (match && labelText) {
-        extractedLabels.push({
-          x: parseFloat(match[1]) * scale,
-          y: parseFloat(match[2]) * scale,
-          text: labelText
-        });
-      }
-    });
-
-    let roomPaths = Array.from(doc.querySelectorAll('g.rooms path, g.active-rooms path'));
-
-    if (roomPaths.length === 0) {
-      roomPaths = Array.from(doc.querySelectorAll('path[data-roomid]'));
-    }
-
-    if (roomPaths.length === 0) {
-      roomPaths = Array.from(doc.querySelectorAll('path')).filter(p => {
-        const cls = (p.getAttribute('class') || '').toLowerCase();
-        return !cls.includes('wall') && !cls.includes('divider') && !cls.includes('opening') && !cls.includes('caret') && !cls.includes('label');
-      });
-    }
-
-    roomPaths = roomPaths.filter(p => {
-      const shadowAncestor = p.closest('g.lower-rooms, g.upper-rooms, g.shadow, g.shadows, g.shadow-rooms, g.silhouette, g.silhouettes, g.lower-floor, g.upper-floor, g.background-rooms, [data-shadow], .shadow');
-      if (shadowAncestor) return false;
-
-      const cls = (p.getAttribute('class') || '').toLowerCase();
-      const fill = (p.getAttribute('fill') || '').toLowerCase();
-      if (cls.includes('inaccessible-area') || cls.includes('shadow') || cls.includes('silhouette') || cls.includes('lower-floor') || cls.includes('upper-floor')) return false;
-      if (fill.includes('silhouette') || fill.includes('shadow')) return false;
-
-      return true;
-    });
-
-    if (roomPaths.length === 0) {
-      alert('No active room geometries found in this SVG.');
+    if (floors.length === 0 && allRooms.length === 0) {
+      alert("No floor or room geometries found in this JSON structure.");
       return;
     }
 
-    let targetLevelId = currentLevelId;
-    if (opts.targetMode === 'new_level') {
-      const newLvlName = opts.newLevelName || `Level ${levels.length + 1}`;
-      addNewLevel(newLvlName);
-      targetLevelId = currentLevelId;
-    } else if (opts.targetMode === 'current_level') {
-      shapes = shapes.filter(s => s.levelId !== currentLevelId);
+    // Automatic multi-floor handling
+    const floorLevelMap = new Map();
+    if (floors.length > 1) {
+      levels = [];
+      floors.forEach((fl, idx) => {
+        const lvlId = levelIdSeed++;
+        const lvlName = `Level ${idx + 1}`;
+        levels.push({ id: lvlId, name: lvlName, levelNumber: idx + 1 });
+        floorLevelMap.set(fl.id, lvlId);
+      });
+      currentLevelId = levels[0].id;
+      shapes = [];
+      wallMetadataList = [];
+    } else {
+      if (opts.targetMode === 'new_level') {
+        const newLvlName = opts.newLevelName || `Level ${levels.length + 1}`;
+        addNewLevel(newLvlName);
+      } else if (opts.targetMode === 'current_level') {
+        shapes = shapes.filter(s => s.levelId !== currentLevelId);
+        wallMetadataList = [];
+      }
+      floorLevelMap.set(floors[0]?.id || 'fl0', currentLevelId);
     }
 
     const newShapes = [];
     const usedNames = {};
 
-    roomPaths.forEach(path => {
-      const d = path.getAttribute('d');
-      if (!d) return;
+    floors.forEach((fl) => {
+      const targetLevelId = floorLevelMap.get(fl.id) || currentLevelId;
+      const floorEdges = fl.edges || [];
+      const edgeLookup = new Map();
 
-      const pts = parseSvgPathCoordinates(d, scale);
-      if (pts.length < 3) return;
+      floorEdges.forEach(ed => {
+        if (!ed.vertices || ed.vertices.length < 2) return;
+        const v0 = ed.vertices[0];
+        const v1 = ed.vertices[1];
 
-      const pathClass = (path.getAttribute('class') || '').trim();
-      let matchedName = '';
+        const p0Ft = { x: snapToInch(v0.position.x * scale), y: snapToInch(-v0.position.y * scale) };
+        const p1Ft = { x: snapToInch(v1.position.x * scale), y: snapToInch(-v1.position.y * scale) };
+        const thicknessMeters = ed.thickness || 0.14;
+        const thicknessFt = snapToInch(thicknessMeters * scale);
+        const thicknessUnits = Math.round(thicknessMeters * 5000);
 
-      for (const lbl of extractedLabels) {
-        if (isPointInsidePoly(lbl, pts)) {
-          matchedName = lbl.text;
-          break;
+        const openingsList = (ed.openings || []).map(op => {
+          const lbl = (op.label || '').toLowerCase();
+          const opType = (op.type || '').toLowerCase();
+          
+          const isWin = lbl.includes('window') || opType === 'window';
+          const isDr = !isWin && (
+            lbl.includes('pivot') ||
+            lbl.includes('hinged') ||
+            lbl.includes('swing') ||
+            lbl.includes('sliding') ||
+            lbl.includes('bifold') ||
+            lbl.includes('pocket') ||
+            lbl.includes('french')
+          );
+          const isMissing = !isWin && !isDr;
+
+          return {
+            id: op.id,
+            widthFt: (op.width || 0.9) * scale,
+            heightFt: (op.height || 2.0) * scale,
+            lowerElevationFt: (op.lowerElevation || 0.0) * scale,
+            relativeCenter: op.relativeCenter !== undefined ? op.relativeCenter : 0.5,
+            label: isWin ? 'Window' : (isDr ? 'Door' : 'Opening'),
+            isWindow: isWin,
+            isDoor: isDr,
+            isMissingWall: isMissing
+          };
+        });
+
+        const edgeData = {
+          id: ed.id,
+          v0Id: v0.id,
+          v1Id: v1.id,
+          p0: p0Ft,
+          p1: p1Ft,
+          thicknessFt: thicknessFt,
+          thicknessUnits: thicknessUnits,
+          centerLineBias: ed.centerLineBias !== undefined ? ed.centerLineBias : 0.5,
+          isInvisible: ed.type === 'invisible',
+          openings: openingsList
+        };
+
+        edgeLookup.set(ed.id, edgeData);
+        wallMetadataList.push(edgeData);
+      });
+
+      const floorRooms = allRooms.filter(r => !r.floor || r.floor.id === fl.id || allRooms.length === 1);
+      (floorRooms.length > 0 ? floorRooms : allRooms).forEach(rm => {
+        if (filterVoids) {
+          const isVoid = (rm.classifications || []).some(c => c.label && c.label.toLowerCase() === 'void');
+          const isHidden = (rm.keywords || []).some(k => ['hide', 'nonarea'].includes(k.toLowerCase()));
+          if (isVoid || isHidden) return;
         }
-      }
 
-      if (!matchedName) {
-        matchedName = SVG_CLASS_MAP[pathClass] || 'Room';
-      }
+        const bEdges = rm.boundary?.edges || [];
+        const unwindRes = unwindTopologicalRoomEdges(bEdges, edgeLookup);
+        if (!unwindRes) return;
 
-      usedNames[matchedName] = (usedNames[matchedName] || 0) + 1;
-      const finalName = usedNames[matchedName] > 1 ? `${matchedName} ${usedNames[matchedName]}` : matchedName;
+        const { poly, stubEdges } = unwindRes;
 
-      const id = getNextId();
-      newShapes.push({
-        id: id,
-        levelId: targetLevelId,
-        type: 'room',
-        name: finalName,
-        dimCode: sanitizeDimCode(finalName),
-        isDimCodeManual: false,
-        points: pts
+        let roomName = rm.label || '';
+        if (!roomName && rm.classifications && rm.classifications.length > 0) {
+          roomName = rm.classifications[0].label;
+        }
+        if (!roomName || roomName.toLowerCase() === 'other') roomName = 'Room';
+
+        usedNames[roomName] = (usedNames[roomName] || 0) + 1;
+        const finalName = usedNames[roomName] > 1 ? `${roomName} ${usedNames[roomName]}` : roomName;
+
+        let ceilHtFt = 8.0;
+        if (rm.ceiling && rm.ceiling.maxHeight) {
+          ceilHtFt = rm.ceiling.maxHeight * scale;
+        } else if (rm.dimensionEstimates && rm.dimensionEstimates.height) {
+          ceilHtFt = rm.dimensionEstimates.height * scale;
+        }
+        ceilHtFt = Math.round(ceilHtFt * 4) / 4;
+
+        // Form native attached stub wall records
+        const attachedStubs = (stubEdges || []).map(st => ({
+          id: st.id,
+          p0: { ...st.p0 },
+          p1: { ...st.p1 },
+          meta: st
+        }));
+
+        newShapes.push({
+          id: getNextId(),
+          levelId: targetLevelId,
+          type: 'room',
+          name: finalName,
+          dimCode: sanitizeDimCode(finalName),
+          isDimCodeManual: false,
+          ceilingHeightFt: ceilHtFt,
+          points: poly,
+          stubWalls: attachedStubs
+        });
       });
     });
 
     if (newShapes.length > 0) {
-      if (opts.splitT) {
-        resolveTIntersections(newShapes);
-      }
       shapes = shapes.concat(newShapes);
-
       selectedShapeId = newShapes[0].id;
       selectedEdge = null;
       renderLevelTabs();
@@ -1968,36 +2061,157 @@
       closeImportModal();
       resetView();
     } else {
-      alert('Could not parse valid room boundaries from the active layer.');
+      alert("Could not construct valid rooms from this JSON.");
     }
   }
 
-  function executeSvgImport() {
-    const svgText = document.getElementById('svg-import-input').value.trim();
-    if (!svgText) {
-      alert('Please paste SVG markup or choose an SVG file.');
+  const SVG_CLASS_MAP = {
+    'living-room': 'Living Room', 'kitchen': 'Kitchen', 'bedroom': 'Bedroom',
+    'bathroom': 'Bathroom', 'office': 'Office', 'closet': 'Closet',
+    'laundry': 'Laundry', 'hallway': 'Hallway', 'staircase': 'Staircase',
+    'dining-room': 'Dining Room', 'garage': 'Garage', 'other': 'Room'
+  };
+
+  function parseSvgPathCoordinates(dStr, scale) {
+    const clean = dStr.replace(/[MmLlZz]/g, ' ').trim();
+    const nums = clean.split(/[\s,]+/).map(parseFloat).filter(n => !isNaN(n));
+    let pts = [];
+    for (let i = 0; i < nums.length; i += 2) {
+      if (i + 1 < nums.length) {
+        pts.push({ x: snapToInch(nums[i] * scale), y: snapToInch(nums[i+1] * scale) });
+      }
+    }
+    return pts;
+  }
+
+  function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      document.getElementById('import-input').value = e.target.result;
+    };
+    reader.readAsText(file);
+  }
+
+  function importSvgString(svgText, opts = {}) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgText, 'image/svg+xml');
+    if (doc.querySelector('parsererror')) {
+      alert('Invalid SVG document format.');
       return;
     }
-    const targetMode = document.getElementById('svg-import-target').value;
-    const newLvlName = document.getElementById('svg-new-level-name').value.trim();
 
-    importSvgString(svgText, {
-      scaleUnits: document.getElementById('svg-unit-scale').checked,
-      splitT: document.getElementById('svg-split-t').checked,
-      targetMode: targetMode,
-      newLevelName: newLvlName
+    const scale = opts.scaleUnits ? 3.28084 : 1.0;
+    const labelElements = doc.querySelectorAll('g.room-label');
+    const extractedLabels = [];
+    labelElements.forEach(g => {
+      const transformAttr = g.getAttribute('style') || g.getAttribute('transform') || '';
+      const match = transformAttr.match(/translate\(\s*([\d\.-]+)(?:px)?\s*,\s*([\d\.-]+)(?:px)?\s*\)/i);
+      const textElem = g.querySelector('text');
+      if (match && textElem) {
+        extractedLabels.push({
+          x: parseFloat(match[1]) * scale,
+          y: parseFloat(match[2]) * scale,
+          text: textElem.textContent.trim()
+        });
+      }
+    });
+
+    let roomPaths = Array.from(doc.querySelectorAll('g.rooms path, g.active-rooms path, path[data-roomid]'));
+    if (roomPaths.length === 0) {
+      roomPaths = Array.from(doc.querySelectorAll('path')).filter(p => {
+        const cls = (p.getAttribute('class') || '').toLowerCase();
+        return !cls.includes('wall') && !cls.includes('divider') && !cls.includes('opening') && !cls.includes('label');
+      });
+    }
+
+    roomPaths = roomPaths.filter(p => {
+      if (p.closest('g.shadow, g.silhouette, g.lower-floor, g.upper-floor, [data-shadow]')) return false;
+      const cls = (p.getAttribute('class') || '').toLowerCase();
+      return !cls.includes('inaccessible') && !cls.includes('shadow') && !cls.includes('silhouette');
+    });
+
+    let targetLevelId = currentLevelId;
+    if (opts.targetMode === 'new_level') {
+      const newLvlName = opts.newLevelName || `Level ${levels.length + 1}`;
+      addNewLevel(newLvlName);
+      targetLevelId = currentLevelId;
+    } else if (opts.targetMode === 'current_level') {
+      shapes = shapes.filter(s => s.levelId !== currentLevelId);
+      wallMetadataList = [];
+    }
+
+    const newShapes = [];
+    const usedNames = {};
+
+    roomPaths.forEach(path => {
+      const d = path.getAttribute('d');
+      if (!d) return;
+      const pts = parseSvgPathCoordinates(d, scale);
+      if (pts.length < 3) return;
+
+      let matchedName = '';
+      for (const lbl of extractedLabels) {
+        if (isPointInsidePoly(lbl, pts)) { matchedName = lbl.text; break; }
+      }
+      if (!matchedName) {
+        matchedName = SVG_CLASS_MAP[(path.getAttribute('class') || '').trim()] || 'Room';
+      }
+
+      usedNames[matchedName] = (usedNames[matchedName] || 0) + 1;
+      const finalName = usedNames[matchedName] > 1 ? `${matchedName} ${usedNames[matchedName]}` : matchedName;
+
+      newShapes.push({
+        id: getNextId(),
+        levelId: targetLevelId,
+        type: 'room',
+        name: finalName,
+        dimCode: sanitizeDimCode(finalName),
+        isDimCodeManual: false,
+        ceilingHeightFt: 8.0,
+        points: pts,
+        stubWalls: []
+      });
+    });
+
+    if (newShapes.length > 0) {
+      shapes = shapes.concat(newShapes);
+      selectedShapeId = newShapes[0].id;
+      selectedEdge = null;
+      renderLevelTabs();
+      updateInspector();
+      updateSidebar();
+      closeImportModal();
+      resetView();
+    } else {
+      alert('Could not parse valid room boundaries from SVG.');
+    }
+  }
+
+  function executeImport() {
+    const rawText = document.getElementById('import-input').value.trim();
+    if (!rawText) {
+      alert('Please paste content or choose a file.');
+      return;
+    }
+    processRawImport(rawText, {
+      scaleUnits: document.getElementById('unit-scale-meters').checked,
+      filterVoids: document.getElementById('filter-voids').checked,
+      targetMode: document.getElementById('import-target').value,
+      newLevelName: document.getElementById('new-level-name').value.trim()
     });
   }
 
   function openImportModal() {
-    document.getElementById('svg-new-level-name').value = `Level ${levels.length + 1}`;
+    document.getElementById('new-level-name').value = `Level ${levels.length + 1}`;
     document.getElementById('import-modal').style.display = 'flex';
   }
   function closeImportModal() {
     document.getElementById('import-modal').style.display = 'none';
   }
 
-  // --- MULTI-LEVEL XML TEMPLATE GENERATOR ---
+  // --- XML GENERATOR WITH NATIVE STUB WALLS (flags="251658240", roomIDs="R R") ---
   function generateXML() {
     const docUuid = generateExUuid();
     const structUuid = generateExUuid();
@@ -2007,20 +2221,15 @@
       return "";
     }
 
-    levels.forEach(lvl => {
-      const roomShapes = shapes.filter(s => s.type === 'room' && s.levelId === lvl.id);
-      if (roomShapes.length > 0) {
-        resolveTIntersections(roomShapes, 0.25);
-      }
+    let minY = Infinity, maxY = -Infinity;
+    shapes.forEach(s => {
+      s.points.forEach(p => {
+        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+      });
+      (s.stubWalls || []).forEach(sw => {
+        minY = Math.min(minY, sw.p0.y, sw.p1.y); maxY = Math.max(maxY, sw.p0.y, sw.p1.y);
+      });
     });
-    draw();
-
-    // Compute global bounding box centroid across ALL shapes so all floors flip consistently
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    shapes.forEach(s => s.points.forEach(p => {
-      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
-    }));
     const cy = (minY + maxY) / 2;
 
     const coordinates = ["0 0 0", "-97129.6 25527 0", "-102679.5 33210.5 0", "-84645.5 33337.5 0"];
@@ -2033,19 +2242,27 @@
     levels.forEach((lvl, lIdx) => {
       const levelUuid = generateExUuid();
       const lvlShapes = shapes.filter(s => s.levelId === lvl.id);
-      const lvlFloorElevation = ELEV_FLOOR + (lIdx * CEIL_HEIGHT);
-      const lvlCeilElevation = lvlFloorElevation + CEIL_HEIGHT;
+      const lvlFloorElevation = ELEV_FLOOR + (lIdx * DEFAULT_CEIL_HEIGHT);
       const levelKey = `GRP${21 + lIdx}`;
 
       if (lvlShapes.length === 0) return;
 
-      const lvlRooms = lvlShapes.filter(s => s.type === 'room').map(room => ({
-        ...room,
-        points: room.points.map(p => ({
+      const lvlRooms = lvlShapes.filter(s => s.type === 'room').map(room => {
+        const xactPts = room.points.map(p => ({
           x: p.x,
           y: snapToInch(2 * cy - p.y)
-        })).reverse()
-      }));
+        }));
+        const xactStubs = (room.stubWalls || []).map(sw => ({
+          ...sw,
+          p0: { x: sw.p0.x, y: snapToInch(2 * cy - sw.p0.y) },
+          p1: { x: sw.p1.x, y: snapToInch(2 * cy - sw.p1.y) }
+        }));
+        return {
+          ...room,
+          points: ensureWindingOrder(xactPts, true),
+          stubWalls: xactStubs
+        };
+      });
 
       const lvlLines = lvlShapes.filter(s => s.type === 'line').map(line => ({
         ...line,
@@ -2055,24 +2272,27 @@
         }))
       }));
 
-      const lvlSectors = lvlShapes.filter(s => s.type === 'area' || s.type === 'block').map(sec => ({
-        ...sec,
-        points: sec.points.map(p => ({
+      const lvlSectors = lvlShapes.filter(s => s.type === 'area' || s.type === 'block').map(sec => {
+        const xactPts = sec.points.map(p => ({
           x: p.x,
           y: snapToInch(2 * cy - p.y)
-        })).reverse()
-      }));
+        }));
+        return {
+          ...sec,
+          points: ensureWindingOrder(xactPts, true)
+        };
+      });
 
       const canonicalPoints = [];
-      function getCanonicalPoint(p, tol = 0.15) {
+      function getCanonicalPoint(p, roomCeilFt = 8.0, tol = 0.08) {
         for (let i = 0; i < canonicalPoints.length; i++) {
           const cp = canonicalPoints[i];
-          if (Math.hypot(cp.x - p.x, cp.y - p.y) < tol) {
-            return cp;
-          }
+          if (Math.hypot(cp.x - p.x, cp.y - p.y) <= tol) return cp;
         }
         const xu = BASE_ANCHOR_X + Math.round(p.x * UNITS_PER_FT);
         const yu = BASE_ANCHOR_Y + Math.round(p.y * UNITS_PER_FT);
+        const ceilHeightUnits = Math.round(roomCeilFt * UNITS_PER_FT);
+        const lvlCeilElevation = lvlFloorElevation + ceilHeightUnits;
 
         const botIdx = coordinates.length;
         coordinates.push(`${xu} ${yu} ${lvlFloorElevation}`);
@@ -2098,35 +2318,63 @@
       lvlRooms.forEach(room => {
         const wallIdsForRoom = [];
         const n = room.points.length;
+        const roomCeil = room.ceilingHeightFt || 8.0;
 
+        // 1. Boundary Perimeter Walls
         for (let i = 0; i < n; i++) {
           const p1 = room.points[i];
           const p2 = room.points[(i + 1) % n];
-          const cpA = getCanonicalPoint(p1);
-          const cpB = getCanonicalPoint(p2);
+          const cpA = getCanonicalPoint(p1, roomCeil);
+          const cpB = getCanonicalPoint(p2, roomCeil);
 
           if (cpA.id === cpB.id) continue;
 
           const edgeKey = Math.min(cpA.id, cpB.id) + "_" + Math.max(cpA.id, cpB.id);
 
+          const origP1 = { x: p1.x, y: snapToInch(2 * cy - p1.y) };
+          const origP2 = { x: p2.x, y: snapToInch(2 * cy - p2.y) };
+          const meta = findWallMeta(origP1, origP2);
+
           if (!edgesMap.has(edgeKey)) {
             const wId = getNextId();
             edgesMap.set(edgeKey, {
               id: wId,
+              isStub: false,
               roomIDs: [room.id],
               cpA: cpA,
               cpB: cpB,
-              dimCode: `W${edgesMap.size || ''}`
+              dimCode: `W${edgesMap.size || ''}`,
+              meta: meta
             });
             wallIdsForRoom.push(wId);
           } else {
             const edgeData = edgesMap.get(edgeKey);
-            if (!edgeData.roomIDs.includes(room.id)) {
-              edgeData.roomIDs.push(room.id);
-            }
+            if (!edgeData.roomIDs.includes(room.id)) edgeData.roomIDs.push(room.id);
+            if (!edgeData.meta && meta) edgeData.meta = meta;
             wallIdsForRoom.push(edgeData.id);
           }
         }
+
+        // 2. Attached Native Stub Walls (flags="251658240", roomIDs="room.id room.id")
+        (room.stubWalls || []).forEach(sw => {
+          const cpA = getCanonicalPoint(sw.p0, roomCeil);
+          const cpB = getCanonicalPoint(sw.p1, roomCeil);
+          if (cpA.id === cpB.id) return;
+
+          const edgeKey = `STUB_${room.id}_${Math.min(cpA.id, cpB.id)}_${Math.max(cpA.id, cpB.id)}`;
+          const wId = getNextId();
+          edgesMap.set(edgeKey, {
+            id: wId,
+            isStub: true,
+            roomIDs: [room.id, room.id],
+            cpA: cpA,
+            cpB: cpB,
+            dimCode: `W${edgesMap.size || ''}`,
+            meta: sw.meta
+          });
+          wallIdsForRoom.push(wId);
+        });
+
         roomEdgeLists.set(room.id, wallIdsForRoom);
       });
 
@@ -2140,6 +2388,7 @@
         globalRoomCount++;
         const roomWallIds = roomEdgeLists.get(room.id) || [];
         const roomDimCode = room.dimCode || `ROOM${rIdx + 1}`;
+        const roomCeilFt = (room.ceilingHeightFt || 8.0).toFixed(7);
 
         let linesXML = '';
         lvlLines.forEach(line => {
@@ -2153,22 +2402,102 @@
               coordinates.push(`${lxu} ${lyu} ${lvlFloorElevation}`);
             });
 
-            linesXML += `<SKETCHREFLINE id="SKT${line.id}" exUuid="${generateExUuid()}" prevReadOrder="0" dimCode="${line.dimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" mainItemID="0" baseHeight="0.0000000" height="0.0000000" color="-16777217" textureID="0" width="0.0000000" wall0="0" wall1="0" wall0Dist="0.0000000" wall1Dist="0.0000000" wall0Side="0" wall1Side="0" isBeam="0" beamPos="1" flags="0" underStairs="0" attachedObjID="0" attachedFace="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="2" posInit="1" justify="0" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${line.name}]]></SKETCHCDATACHILD></SKETCHLABEL><SKETCHREFLINEGEOM id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" controlPoints="${ptIndices.join(' ')}" pointFlags="${ptIndices.map(() => '0').join(' ')}" flags="0"/></SKETCHREFLINE>`;
+            linesXML += `<SKETCHREFLINE id="SKT${line.id}" exUuid="${generateExUuid()}" prevReadOrder="0" dimCode="${line.dimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" mainItemID="0" baseHeight="0.0000000" height="0.0000000" color="-16777217" textureID="0" width="0.0000000" wall0="0" wall1="0" wall0Dist="0.0000000" wall1Dist="0.0000000" wall0Side="0" wall1Side="0" isBeam="0" beamPos="1" flags="0" underStairs="0" attachedObjID="0" attachedFace="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="2" posInit="1" justify="0" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${line.name}]]></SKETCHCDATACHILD></SKETCHLABEL><SKETCHREFLINEGEOM id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" controlPoints="${ptIndices.join(' ')}" pointFlags="${ptIndices.map(() => '0').join(' ')}" flags="0"/></SKETCHREFLINE>`;
           }
         });
 
-        roomsXML += `<SKETCHROOM id="SKT${room.id}" exUuid="${generateExUuid()}" prevReadOrder="40" dimCode="${roomDimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP${globalRoomCount + 55}" grpType="1" parentKey="${levelKey}" grpDesc="${room.name}" mainRoomID="0" lastDims="" wallIDs="${roomWallIds.join(' ')}" floorHeight="0.0000000" ceilingType="0" ceilingColor="-16777217" floorColor="-16777217" ceilingTexture="0" textureID="0" ceilingHeight="8.0000000" flags="0" above="1" floorFrameOrient="0" floorConst="0" ffrmCenters="1" ffrmJoists="FRMIJ9" ffrmRimBoard="FRMIJ9" ffrmSheathing="FRMSHW3/4T" ffrmBeams="FRMBMM2X8" ffrmDoBeams="0" slabThickness="508.0000000" slabIsReinforced="0" slabRebarSize="CNCRB4" slabVertSpacing="1524.0000000" slabHorzSpacing="1524.0000000" useRollCarpetFromHere="0" flooringMinFillCut="3048.0000000" flooringMinFillCutWidth="3048.0000000" flooringSeamOverCut="381.0000000" flooringRoomOverCut="381.0000000" useScrap="1" useGroupFloorLayDir="0" maxFillPieces="4" autoELEDone="0" autoPLMDone="0" attachedRoof="0" castBeamBeamBlock="NONE_OPTION" castBeamInsulation="NONE_OPTION" castBeamSlab="NONE_OPTION" castBeamReinforce="NONE_OPTION" castBeamReinforceMesh="NONE_OPTION" castBeamFloorScreed="NONE_OPTION" latitude="0.0000000" longitude="0.0000000" carpetStartingWallID="0" waterMitZoneId="0" arCaptureMethod="0" arCaptureDuration="0.0000000" arCapturedInAR="0" isNonGeometricRoom="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="41" color="-16777216" fontFace="Tahoma" fontSize="10" fontStyle="5" angle="0.0000000" namePosition="1" posInit="1" justify="1" flags="3" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${room.name}]]></SKETCHCDATACHILD></SKETCHLABEL>${linesXML}</SKETCHROOM>`;
+        roomsXML += `<SKETCHROOM id="SKT${room.id}" exUuid="${generateExUuid()}" prevReadOrder="40" dimCode="${roomDimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP${globalRoomCount + 55}" grpType="1" parentKey="${levelKey}" grpDesc="${room.name}" mainRoomID="0" lastDims="" wallIDs="${roomWallIds.join(' ')}" floorHeight="0.0000000" ceilingType="0" ceilingColor="-16777217" floorColor="-16777217" ceilingTexture="0" textureID="0" ceilingHeight="${roomCeilFt}" flags="0" above="1" floorFrameOrient="0" floorConst="0" ffrmCenters="1" ffrmJoists="FRMIJ9" ffrmRimBoard="FRMIJ9" ffrmSheathing="FRMSHW3/4T" ffrmBeams="FRMBMM2X8" ffrmDoBeams="0" slabThickness="508.0000000" slabIsReinforced="0" slabRebarSize="CNCRB4" slabVertSpacing="1524.0000000" slabHorzSpacing="1524.0000000" useRollCarpetFromHere="0" flooringMinFillCut="3048.0000000" flooringMinFillCutWidth="3048.0000000" flooringSeamOverCut="381.0000000" flooringRoomOverCut="381.0000000" useScrap="1" useGroupFloorLayDir="0" maxFillPieces="4" autoELEDone="0" autoPLMDone="0" attachedRoof="0" castBeamBeamBlock="NONE_OPTION" castBeamInsulation="NONE_OPTION" castBeamSlab="NONE_OPTION" castBeamReinforce="NONE_OPTION" castBeamReinforceMesh="NONE_OPTION" castBeamFloorScreed="NONE_OPTION" latitude="0.0000000" longitude="0.0000000" carpetStartingWallID="0" waterMitZoneId="0" arCaptureDuration="0.0000000" arCapturedInAR="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="41" color="-16777216" fontFace="Tahoma" fontSize="10" fontStyle="5" angle="0.0000000" namePosition="1" posInit="1" justify="1" flags="3" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${room.name}]]></SKETCHCDATACHILD></SKETCHLABEL>${linesXML}</SKETCHROOM>`;
       });
 
       let wallsXML = '';
-      edgesMap.forEach((edge, key) => {
-        const isShared = edge.roomIDs.length > 1;
-        const roomIDsStr = isShared ? `${edge.roomIDs[0]} ${edge.roomIDs[1]}` : `${edge.roomIDs[0]} 0`;
-        const wallFlags = isShared ? "788529152" : "385875968";
+      let openCount = 0;
+      edgesMap.forEach((edge) => {
+        let roomIDsStr = '';
+        let wallFlags = '385875968';
+
+        if (edge.isStub) {
+          roomIDsStr = `${edge.roomIDs[0]} ${edge.roomIDs[0]}`;
+          wallFlags = '251658240'; // Stub wall flag
+        } else if (edge.roomIDs.length > 1) {
+          roomIDsStr = `${edge.roomIDs[0]} ${edge.roomIDs[1]}`;
+          wallFlags = '788529152'; // Shared partition wall flag
+        } else {
+          roomIDsStr = `${edge.roomIDs[0]} 0`;
+          wallFlags = '385875968'; // Exterior perimeter wall flag
+        }
+
         const coordIdx = `${edge.cpA.botIndex} ${edge.cpB.botIndex} ${edge.cpB.topIndex} ${edge.cpA.topIndex}`;
         const vertIds = `${edge.cpA.vertexId} ${edge.cpB.vertexId}`;
 
-        wallsXML += `<SKETCHWALL id="SKT${edge.id}" exUuid="${generateExUuid()}" prevReadOrder="28" dimCode="${edge.dimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" roomIDs="${roomIDsStr}" coordIndex="${coordIdx}" vertexIDs="${vertIds}" flags="${wallFlags}" wallConstruction="0" thickness="508.0000000" bearingWall="0" extendExtWallSurfDown="1" extendExtWallSurfDownLength="1524.0000000" wfrmCenters="1" wfrmStudSize="2x4" wfrmStudSizeAuto="0" wfrmTrimmerStyle="1" wfrmHeaderSize="2x10" deckAddHandRail="0" castBeamBeamBlock="NONE_OPTION" castBeamInsulation="NONE_OPTION" brickFacing="NONE_OPTION" metalStudSize="NONE_OPTION" metalStudCenter="0" headTrack="NONE_OPTION" floorTrack="NONE_OPTION" masonryFinish="NONE_OPTION" wallArcControlPt="0" sharedSnapRecordIds="" activityAreaEdge="0" doFooting="0" footingHeight="1270.0000000" footingWidth="2540.0000000" rebarSize="CNCRB4" rebarNumber="2" jBarType="CNCRBJ42" spacing="1524.0000000" wfrmNumTopPlates="2" fndWallRebarSize="CNCRB4" fndWallSpacerDistVert="1524.0000000" fndWallSpacerDistHorz="1524.0000000" fndWallBlockSize="MASBL4" foundationSill="FRMDBP6" foundationSillState="0" wallHeight="12192.0000000" deckEndBoardType="2" noRoofFace="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="29" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="8" posInit="1" justify="1" flags="0" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${edge.dimCode}]]></SKETCHCDATACHILD></SKETCHLABEL><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="30" dimCode="WS1" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="0" color="-16777217" textureID="0" sheathing="FRMSHW1/2" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="31" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="8" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[WS1]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="33" dimCode="WS2" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="1" color="-16777217" textureID="0" sheathing="FRMSHW1/2" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="34" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="8" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[WS2]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE></SKETCHWALL>`;
+        const meta = edge.meta;
+        const isInvisible = meta && meta.isInvisible;
+        const wallThickness = isInvisible ? "0.0000000" : (meta && meta.thicknessUnits ? `${meta.thicknessUnits}.0000000` : "508.0000000");
+
+        let wallOpeningsXML = '';
+
+        if (isInvisible) {
+          openCount++;
+          wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" dimCode="WO${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${coordIdx}" baseHeight="0.0000000" flags="3198" type="0" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowAHt="3048.0000000" windowBHt="6096.0000000" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[WO]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
+        }
+
+        if (meta && meta.openings && meta.openings.length > 0) {
+          const wallLenFt = Math.hypot(edge.cpB.x - edge.cpA.x, edge.cpB.y - edge.cpA.y) || 1;
+          const xuA = BASE_ANCHOR_X + Math.round(edge.cpA.x * UNITS_PER_FT);
+          const yuA = BASE_ANCHOR_Y + Math.round(edge.cpA.y * UNITS_PER_FT);
+          const xuB = BASE_ANCHOR_X + Math.round(edge.cpB.x * UNITS_PER_FT);
+          const yuB = BASE_ANCHOR_Y + Math.round(edge.cpB.y * UNITS_PER_FT);
+
+          meta.openings.forEach(op => {
+            openCount++;
+            const rc = op.relativeCenter !== undefined ? op.relativeCenter : 0.5;
+            const wFt = op.widthFt || 3.0;
+            const hFt = op.heightFt || 6.6667;
+            const baseFt = Math.max(0, op.lowerElevationFt || 0);
+
+            const origMetaP0_xact = { x: meta.p0.x, y: snapToInch(2 * cy - meta.p0.y) };
+            const origMetaP1_xact = { x: meta.p1.x, y: snapToInch(2 * cy - meta.p1.y) };
+
+            const cXactX = origMetaP0_xact.x + rc * (origMetaP1_xact.x - origMetaP0_xact.x);
+            const cXactY = origMetaP0_xact.y + rc * (origMetaP1_xact.y - origMetaP0_xact.y);
+
+            const segDx = edge.cpB.x - edge.cpA.x;
+            const segDy = edge.cpB.y - edge.cpA.y;
+            const segL2 = segDx * segDx + segDy * segDy;
+            let tCenter = 0.5;
+            if (segL2 > 1e-6) {
+              tCenter = ((cXactX - edge.cpA.x) * segDx + (cXactY - edge.cpA.y) * segDy) / segL2;
+            }
+
+            const dt = (wFt / 2) / wallLenFt;
+            const t1 = Math.max(0, tCenter - dt);
+            const t2 = Math.min(1, tCenter + dt);
+
+            const opX1 = Math.round(xuA + t1 * (xuB - xuA));
+            const opY1 = Math.round(yuA + t1 * (yuB - yuA));
+            const opX2 = Math.round(xuA + t2 * (xuB - xuA));
+            const opY2 = Math.round(yuA + t2 * (yuB - yuA));
+
+            const baseUnits = Math.round(baseFt * UNITS_PER_FT);
+            const heightUnits = Math.round(hFt * UNITS_PER_FT);
+            const zBot = lvlFloorElevation + baseUnits;
+            const zTop = zBot + heightUnits;
+
+            const i1 = coordinates.length; coordinates.push(`${opX1} ${opY1} ${zBot}`);
+            const i2 = coordinates.length; coordinates.push(`${opX2} ${opY2} ${zBot}`);
+            const i3 = coordinates.length; coordinates.push(`${opX2} ${opY2} ${zTop}`);
+            const i4 = coordinates.length; coordinates.push(`${opX1} ${opY1} ${zTop}`);
+
+            if (op.isWindow) {
+              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="4" dimCode="WINDOW${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="552" type="1" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowType="1" windowAHt="${Math.round(heightUnits/2)}.0000000" windowBHt="${heightUnits}.0000000" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="5" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Window]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
+            } else if (op.isDoor) {
+              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="6" dimCode="DOOR${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="56" type="2" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" doorType="0" doorStyle="0" doorAngle="20" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="7" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Door]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
+            } else {
+              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" dimCode="WO${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="56" type="0" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowAHt="${Math.round(heightUnits/2)}.0000000" windowBHt="${heightUnits}.0000000" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[MissingWall]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
+            }
+          });
+        }
+
+        wallsXML += `<SKETCHWALL id="SKT${edge.id}" exUuid="${generateExUuid()}" prevReadOrder="28" dimCode="${edge.dimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" roomIDs="${roomIDsStr}" coordIndex="${coordIdx}" vertexIDs="${vertIds}" flags="${wallFlags}" wallConstruction="0" thickness="${wallThickness}" bearingWall="0" extendExtWallSurfDown="1" extendExtWallSurfDownLength="1524.0000000" wfrmCenters="1" wfrmStudSize="2x4" wfrmStudSizeAuto="0" wfrmTrimmerStyle="1" wfrmHeaderSize="2x10" deckAddHandRail="0" castBeamBeamBlock="NONE_OPTION" castBeamInsulation="NONE_OPTION" brickFacing="NONE_OPTION" metalStudSize="NONE_OPTION" metalStudCenter="0" headTrack="NONE_OPTION" floorTrack="NONE_OPTION" masonryFinish="NONE_OPTION" wallArcControlPt="0" sharedSnapRecordIds="" activityAreaEdge="0" doFooting="0" footingHeight="1270.0000000" footingWidth="2540.0000000" rebarSize="CNCRB4" rebarNumber="2" jBarType="CNCRBJ42" spacing="1524.0000000" wfrmNumTopPlates="2" fndWallRebarSize="CNCRB4" fndWallSpacerDistVert="1524.0000000" fndWallSpacerDistHorz="1524.0000000" fndWallBlockSize="MASBL4" foundationSill="FRMDBP6" foundationSillState="0" wallHeight="12192.0000000" deckEndBoardType="2" noRoofFace="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="29" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="8" posInit="1" justify="1" flags="0" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${edge.dimCode}]]></SKETCHCDATACHILD></SKETCHLABEL><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="30" dimCode="WS1" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="0" color="-16777217" textureID="0" sheathing="FRMSHW1/2" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="31" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="8" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[WS1]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="33" dimCode="WS2" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="1" color="-16777217" textureID="0" sheathing="FRMSHW1/2" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="34" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="8" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[WS2]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE>${wallOpeningsXML}</SKETCHWALL>`;
       });
 
       let verticesXML = '';
@@ -2213,10 +2542,10 @@
 
           verticesXML += `<SKETCHLEVELVERTEX id="SKT${svCurr}" exUuid="${generateExUuid()}" prevReadOrder="16" vertex="${ptIndices[i]}" wallIDs="${prevSw} ${swId}"/>`;
 
-          sectorWallsXML += `<SKETCHSECTORWALL id="SKT${swId}" exUuid="${generateExUuid()}" prevReadOrder="4" dimCode="SW${i || ''}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" roomIDs="0 ${sec.id}" coordIndex="${ptIndices[i]} ${ptIndices[next]} ${ptIndices[next]} ${ptIndices[i]}" vertexIDs="${svCurr} ${svNext}" flags="721422464" wallConstruction="0" thickness="0.0000000" bearingWall="0" extendExtWallSurfDown="1" extendExtWallSurfDownLength="1524.0000000" wfrmCenters="1" wfrmStudSize="2x4" wfrmStudSizeAuto="0" wfrmTrimmerStyle="1" wfrmHeaderSize="2x10" deckAddHandRail="0" castBeamBeamBlock="NONE_OPTION" castBeamInsulation="NONE_OPTION" brickFacing="NONE_OPTION" metalStudSize="NONE_OPTION" metalStudCenter="1" headTrack="NONE_OPTION" floorTrack="NONE_OPTION" masonryFinish="NONE_OPTION" wallArcControlPt="0" sharedSnapRecordIds="" activityAreaEdge="0" doFooting="0" footingHeight="1270.0000000" footingWidth="2540.0000000" rebarSize="" rebarNumber="2" jBarType="" spacing="1524.0000000" wfrmNumTopPlates="1" fndWallRebarSize="" fndWallSpacerDistVert="1524.0000000" fndWallSpacerDistHorz="1524.0000000" fndWallBlockSize="NONE_OPTION" foundationSill="" foundationSillState="0" wallHeight="0.0000000" deckEndBoardType="2" noRoofFace="0" sectorFixedLenWall="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="5" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="46" posInit="1" justify="0" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="0"><SKETCHCDATACHILD><![CDATA[SW${i || ''}]]></SKETCHCDATACHILD></SKETCHLABEL><SKETCHBALUSTERPROPS id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="6" railHasRail="0" railHandrailHeight="4572.0000000" railConstruction="0" railHandrail="-1" falseCapTreads="" railBalusters="&amp;lt;BALUSTERS&amp;gt;&amp;lt;/BALUSTERS&amp;gt;" railNewels="-1" railFittings="&amp;lt;FITTINGS&amp;gt;&amp;lt;/FITTINGS&amp;gt;" railingShoe="-1" wallCap="-1" railingVolute="-1" railNumNewels="0" railNewelHeight="0.0000000"/><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="48" dimCode="WS" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="1" color="-16777217" textureID="0" sheathing="" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="49" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="47" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="0"><SKETCHCDATACHILD><![CDATA[WS]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="50" dimCode="WS" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="0" color="-16777217" textureID="0" sheathing="" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="51" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="47" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="0"><SKETCHCDATACHILD><![CDATA[WS]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE></SKETCHSECTORWALL>`;
+          sectorWallsXML += `<SKETCHSECTORWALL id="SKT${swId}" exUuid="${generateExUuid()}" prevReadOrder="4" dimCode="SW${i || ''}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" roomIDs="0 ${sec.id}" coordIndex="${ptIndices[i]} ${ptIndices[next]} ${ptIndices[next]} ${ptIndices[i]}" vertexIDs="${svCurr} ${svNext}" flags="721422464" wallConstruction="0" thickness="0.0000000" bearingWall="0" extendExtWallSurfDown="1" extendExtWallSurfDownLength="1524.0000000" wfrmCenters="1" wfrmStudSize="2x4" wfrmStudSizeAuto="0" wfrmTrimmerStyle="1" wfrmHeaderSize="2x10" deckAddHandRail="0" castBeamBeamBlock="NONE_OPTION" castBeamInsulation="NONE_OPTION" brickFacing="NONE_OPTION" metalStudSize="NONE_OPTION" metalStudCenter="1" headTrack="NONE_OPTION" floorTrack="NONE_OPTION" masonryFinish="NONE_OPTION" wallArcControlPt="0" sharedSnapRecordIds="" activityAreaEdge="0" doFooting="0" footingHeight="1270.0000000" footingWidth="2540.0000000" rebarSize="" rebarNumber="2" jBarType="" spacing="1524.0000000" wfrmNumTopPlates="1" fndWallRebarSize="" fndWallSpacerDistVert="1524.0000000" fndWallSpacerDistHorz="1524.0000000" fndWallBlockSize="NONE_OPTION" foundationSill="" foundationSillState="0" wallHeight="0.0000000" deckEndBoardType="2" noRoofFace="0" sectorFixedLenWall="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="5" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="46" posInit="1" justify="0" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="0"><SKETCHCDATACHILD><![CDATA[SW${i || ''}]]></SKETCHCDATACHILD></SKETCHLABEL><SKETCHBALUSTERPROPS id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="6" railHasRail="0" railHandrailHeight="4572.0000000" railConstruction="0" railHandrail="-1" falseCapTreads="" railBalusters="&amp;lt;BALUSTERS&amp;gt;&amp;lt;/BALUSTERS&amp;gt;" railNewels="-1" railFittings="&amp;lt;FITTINGS&amp;gt;&amp;lt;/FITTINGS&amp;gt;" railingShoe="-1" wallCap="-1" railingVolute="-1" railNumNewels="0" railNewelHeight="0.0000000"/><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="48" dimCode="WS" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="1" color="-16777217" textureID="0" sheathing="" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="49" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="47" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="0"><SKETCHCDATACHILD><![CDATA[WS]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE><SKETCHWALLSURFACE id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="50" dimCode="WS" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" side="0" color="-16777217" textureID="0" sheathing="" liningLayer="0" lingingBoard="NONE_OPTION" liningFinish="NONE_OPTION" wallSurfLiningID="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="51" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="47" posInit="1" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="0"><SKETCHCDATACHILD><![CDATA[WS]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLSURFACE></SKETCHSECTORWALL>`;
         }
 
-        sectorsXML += `<SKETCHSECTOR id="SKT${sec.id}" exUuid="${generateExUuid()}" prevReadOrder="20" dimCode="${sec.dimCode}" abbrevNum="${sIdx + 1}" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP0" grpType="1" parentKey="GRP1" grpDesc="" mainRoomID="0" lastDims="" wallIDs="${swIds.join(' ')}" floorHeight="0.0000000" ceilingType="0" ceilingColor="-16777217" floorColor="-16777217" ceilingTexture="0" textureID="0" ceilingHeight="8.0000000" flags="0" above="1" floorFrameOrient="0" floorConst="0" ffrmCenters="0" ffrmJoists="" ffrmRimBoard="" ffrmSheathing="" ffrmBeams="" ffrmDoBeams="0" slabThickness="508.0000000" slabIsReinforced="1" slabRebarSize="" slabVertSpacing="762.0000000" slabHorzSpacing="762.0000000" useRollCarpetFromHere="0" flooringMinFillCut="3048.0000000" flooringMinFillCutWidth="0.0000000" flooringSeamOverCut="381.0000000" flooringRoomOverCut="381.0000000" useScrap="1" useGroupFloorLayDir="0" maxFillPieces="4" autoELEDone="0" autoPLMDone="0" attachedRoof="0" castBeamBeamBlock="" castBeamInsulation="" castBeamSlab="" castBeamReinforce="" castBeamReinforceMesh="" castBeamFloorScreed="" latitude="0.0000000" longitude="0.0000000" carpetStartingWallID="0" waterMitZoneId="0" arCaptureMethod="0" arCaptureDuration="0.0000000" arCapturedInAR="0" sortOrder="SKT0" hideMeasure="0" containRoomID="${containRoomId}" containWallID="0" preCustGrpContId="0" containWallSurface="0" containRoofFace="0" containWireFace="0" containExteriorSurface="0" isRefObj="${isBlock ? '1' : '0'}" autoStretch="1" hole="0" flooringHole="${isBlock ? '1' : '0'}" excludeAreaBehind="${isBlock ? '1' : '0'}" excludeLinearBehind="${isBlock ? '1' : '0'}" excludeFloorBehind="${isBlock ? '1' : '0'}" excludeLinearBehindCeiling="${isBlock ? '1' : '0'}" excludeCeilingAbove="${isBlock ? '1' : '0'}" orientation="44" sectorColor="-16777217" sectorTextureID="0" baseHeight="0.0000000" height="4572.0000000" newSymbolID="-1" symbolID="0" underStairs="0" slopeEq="0.0000000" imageType="0" piType="" eqMake="" eqModel="" eqAssetId="" imageInspectionImageId="" roofWireHoleID="0" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" equipmentDays="0.0000000" readingsClimateType="1" saturationMaterial="" saturationLocation="0" saturationHeight="0.0000000" saturationDryingStandard="0.0000000" readingsDoneCheckbox="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="21" color="-16777216" fontFace="Tahoma" fontSize="10" fontStyle="5" angle="0.0000000" namePosition="45" posInit="1" justify="1" flags="3" multiline="0" roofAnnotation="0" roomAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${sec.name}]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHSECTOR>`;
+        sectorsXML += `<SKETCHSECTOR id="SKT${sec.id}" exUuid="${generateExUuid()}" prevReadOrder="20" dimCode="${sec.dimCode}" abbrevNum="${sIdx + 1}" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP0" grpType="1" parentKey="GRP1" grpDesc="" mainRoomID="0" lastDims="" wallIDs="${swIds.join(' ')}" floorHeight="0.0000000" ceilingType="0" ceilingColor="-16777217" floorColor="-16777217" ceilingTexture="0" textureID="0" ceilingHeight="8.0000000" flags="0" above="1" floorFrameOrient="0" floorConst="0" ffrmCenters="0" ffrmJoists="" ffrmRimBoard="" ffrmSheathing="" ffrmBeams="" ffrmDoBeams="0" slabThickness="508.0000000" slabIsReinforced="1" slabRebarSize="" slabVertSpacing="762.0000000" slabHorzSpacing="762.0000000" useRollCarpetFromHere="0" flooringMinFillCut="3048.0000000" flooringMinFillCutWidth="0.0000000" flooringSeamOverCut="381.0000000" flooringRoomOverCut="381.0000000" useScrap="1" useGroupFloorLayDir="0" maxFillPieces="4" autoELEDone="0" autoPLMDone="0" attachedRoof="0" castBeamBeamBlock="" castBeamInsulation="" castBeamSlab="" castBeamReinforce="" castBeamReinforceMesh="" castBeamFloorScreed="" latitude="0.0000000" longitude="0.0000000" carpetStartingWallID="0" waterMitZoneId="0" arCaptureDuration="0.0000000" arCapturedInAR="0" sortOrder="SKT0" hideMeasure="0" containRoomID="${containRoomId}" containWallID="0" preCustGrpContId="0" containWallSurface="0" containRoofFace="0" containWireFace="0" containExteriorSurface="0" isRefObj="${isBlock ? '1' : '0'}" autoStretch="1" hole="0" flooringHole="${isBlock ? '1' : '0'}" excludeAreaBehind="${isBlock ? '1' : '0'}" excludeLinearBehind="${isBlock ? '1' : '0'}" excludeFloorBehind="${isBlock ? '1' : '0'}" excludeLinearBehindCeiling="${isBlock ? '1' : '0'}" excludeCeilingAbove="${isBlock ? '1' : '0'}" orientation="44" sectorColor="-16777217" sectorTextureID="0" baseHeight="0.0000000" height="4572.0000000" newSymbolID="-1" symbolID="0" underStairs="0" slopeEq="0.0000000" imageType="0" piType="" imageInspectionImageId="" roofWireHoleID="0" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" equipmentDays="0.0000000" readingsClimateType="1" saturationMaterial="" saturationLocation="0" saturationHeight="0.0000000" saturationDryingStandard="0.0000000" readingsDoneCheckbox="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="21" color="-16777216" fontFace="Tahoma" fontSize="10" fontStyle="5" angle="0.0000000" namePosition="45" posInit="1" justify="1" flags="3" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[${sec.name}]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHSECTOR>`;
       });
 
       const lvlDimCode = sanitizeDimCode(lvl.name) || `LEVEL_${lIdx + 1}`;
@@ -2252,11 +2581,7 @@
     if (typeof JSZip !== 'undefined') {
       const zip = new JSZip();
       zip.file("XACTDOC.XML", xmlContent);
-      const blob = await zip.generateAsync({
-        type: "blob",
-        compression: "DEFLATE",
-        compressionOptions: { level: 6 }
-      });
+      const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
       triggerDownload(blob, filename);
     } else {
       const blob = createPureZipBlob("XACTDOC.XML", xmlContent);
@@ -2294,9 +2619,7 @@
       crcTable[i] = c;
     }
     let crc = 0 ^ (-1);
-    for (let i = 0; i < fileData.length; i++) {
-      crc = (crc >>> 8) ^ crcTable[(crc ^ fileData[i]) & 0xFF];
-    }
+    for (let i = 0; i < fileData.length; i++) crc = (crc >>> 8) ^ crcTable[(crc ^ fileData[i]) & 0xFF];
     crc = (crc ^ (-1)) >>> 0;
 
     const size = fileData.length;
@@ -2337,7 +2660,6 @@
     return new Blob([localHeader, fileData, cdHeader, eocd], { type: 'application/octet-stream' });
   }
 
-  // Initialize
   renderLevelTabs();
   resizeCanvas();
   updateSidebar();
