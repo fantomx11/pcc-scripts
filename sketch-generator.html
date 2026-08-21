@@ -561,8 +561,12 @@
   let draggedShape = null;
   let activeSnapTarget = null;
 
-  // Corner Drag Alignment Guides: 0 = Off, 1 = Orthogonal (H+V), 2 = 45-degree diagonals
-  let dragGuideMode = 0;
+  // Corner Drag Alignment Guides & Constraint State
+  // 0 = Off, 1 = Horizontal (0°), 2 = +45° Diagonal, 3 = Vertical (90°), 4 = -45° Diagonal
+  let primaryGuideMode = 0;
+  let secondaryGuideMode = 0;
+  let constraintAnchor = null;
+  let isCtrlHeld = false;
 
   // Split Room Feature State
   let isSplitMode = false;
@@ -760,6 +764,28 @@
     }
   }
 
+  function updateInstructionsPill() {
+    const pill = document.getElementById('instructions-pill');
+    if (isSplitMode) {
+      pill.innerHTML = `✂️ <b>Split Mode:</b> Click corners to split room.`;
+      return;
+    }
+    if (draggedVertex) {
+      const modeNames = ['Off', 'Horizontal (0°)', '+45° Diagonal', 'Vertical (90°)', '-45° Diagonal'];
+      let txt = `• <b>Corner Drag:</b> Guide: <b>${modeNames[primaryGuideMode]}</b>`;
+      if (secondaryGuideMode !== 0) {
+        txt += ` | Secondary: <b>${modeNames[secondaryGuideMode]}</b>`;
+      }
+      if (isCtrlHeld && primaryGuideMode !== 0) {
+        txt += ` &bull; <b style="color: #fbbf24;">[CONSTRAINED]</b>`;
+      }
+      txt += ` &bull; <b>R-Click:</b> Cycle guide &bull; <b>Hold Ctrl:</b> Constrain along line`;
+      pill.innerHTML = txt;
+      return;
+    }
+    pill.innerHTML = `• <b>Scroll / Swipe</b> to pan • <b>Ctrl+Scroll</b> to zoom • <b>Space / Right-click drag</b> to pan • <b>Click wall</b> to scale`;
+  }
+
   function renderLevelTabs() {
     const container = document.getElementById('level-tabs-container');
     container.innerHTML = '';
@@ -854,7 +880,7 @@
     isSplitMode = false;
     splitFirstCorner = null;
     document.getElementById('split-room-btn').classList.remove('btn-active-tool');
-    document.getElementById('instructions-pill').innerHTML = `• <b>Scroll / Swipe</b> to pan • <b>Ctrl+Scroll</b> to zoom • <b>Space / Right-click drag</b> to pan • <b>Click wall</b> to scale`;
+    updateInstructionsPill();
     draw();
   }
 
@@ -1566,35 +1592,48 @@
       });
     });
 
-    // Dynamic Corner Drag Alignment Guides (Orthogonal or 45-degree)
-    if (draggedVertex && dragGuideMode > 0) {
+    // Dynamic Corner Drag Alignment Guides & Movement Constraint Lines
+    if (draggedVertex) {
       const shape = shapes.find(s => s.id === draggedVertex.shapeId);
       if (shape && shape.points[draggedVertex.index]) {
-        const sp = worldToScreen(shape.points[draggedVertex.index]);
-        ctx.save();
-        ctx.strokeStyle = dragGuideMode === 1 ? 'rgba(56, 189, 248, 0.7)' : 'rgba(244, 114, 182, 0.75)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
+        const pt = shape.points[draggedVertex.index];
+        const sp = worldToScreen(pt);
+        const L = Math.max(canvas.width, canvas.height) * 2.5;
 
-        if (dragGuideMode === 1) {
-          // Mode 1: Horizontal and Vertical Orthogonal Guides
+        const drawGuideLine = (mode, isConstraining, isSecondary = false) => {
+          if (mode === 0) return;
+          ctx.save();
+          if (isConstraining) {
+            ctx.strokeStyle = '#facc15'; // Bright Gold when actively constraining movement
+            ctx.lineWidth = 1.6;
+            ctx.setLineDash([6, 4]);
+          } else {
+            ctx.strokeStyle = isSecondary ? 'rgba(244, 114, 182, 0.85)' : 'rgba(56, 189, 248, 0.85)';
+            ctx.lineWidth = 1.2;
+            ctx.setLineDash([4, 4]);
+          }
+
           ctx.beginPath();
-          ctx.moveTo(0, sp.y);
-          ctx.lineTo(canvas.width, sp.y);
-          ctx.moveTo(sp.x, 0);
-          ctx.lineTo(sp.x, canvas.height);
+          if (mode === 1) { // Horizontal
+            ctx.moveTo(0, sp.y);
+            ctx.lineTo(canvas.width, sp.y);
+          } else if (mode === 2) { // +45° Diagonal
+            ctx.moveTo(sp.x - L, sp.y - L);
+            ctx.lineTo(sp.x + L, sp.y + L);
+          } else if (mode === 3) { // Vertical
+            ctx.moveTo(sp.x, 0);
+            ctx.lineTo(sp.x, canvas.height);
+          } else if (mode === 4) { // -45° Diagonal
+            ctx.moveTo(sp.x - L, sp.y + L);
+            ctx.lineTo(sp.x + L, sp.y - L);
+          }
           ctx.stroke();
-        } else if (dragGuideMode === 2) {
-          // Mode 2: Two 45-degree Diagonal Alignment Guides
-          const maxDim = Math.max(canvas.width, canvas.height) * 2;
-          ctx.beginPath();
-          ctx.moveTo(sp.x - maxDim, sp.y - maxDim);
-          ctx.lineTo(sp.x + maxDim, sp.y + maxDim);
-          ctx.moveTo(sp.x - maxDim, sp.y + maxDim);
-          ctx.lineTo(sp.x + maxDim, sp.y - maxDim);
-          ctx.stroke();
-        }
-        ctx.restore();
+          ctx.restore();
+        };
+
+        const isConstraining = isCtrlHeld && primaryGuideMode !== 0;
+        if (primaryGuideMode !== 0) drawGuideLine(primaryGuideMode, isConstraining, false);
+        if (secondaryGuideMode !== 0) drawGuideLine(secondaryGuideMode, false, true);
       }
     }
 
@@ -1737,12 +1776,32 @@
         canvas.style.cursor = 'grab';
       }
     }
+    if (e.key === 'Control' || e.key === 'Meta') {
+      if (!isCtrlHeld) {
+        isCtrlHeld = true;
+        if (draggedVertex) {
+          const shape = shapes.find(s => s.id === draggedVertex.shapeId);
+          if (shape && shape.points[draggedVertex.index]) {
+            constraintAnchor = { ...shape.points[draggedVertex.index] };
+          }
+          updateInstructionsPill();
+          draw();
+        }
+      }
+    }
   });
 
   window.addEventListener('keyup', (e) => {
     if (e.code === 'Space') {
       isSpacePressed = false;
       if (!isPanning) canvas.style.cursor = 'default';
+    }
+    if (e.key === 'Control' || e.key === 'Meta') {
+      isCtrlHeld = false;
+      if (draggedVertex) {
+        updateInstructionsPill();
+        draw();
+      }
     }
   });
 
@@ -1771,11 +1830,22 @@
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
-    // Right-click while actively dragging a corner cycles alignment guide modes (0 -> 1 -> 2 -> 0)
+    // Right-click while dragging corner: cycles 5 modes (0=Off, 1=H, 2=+45°, 3=V, 4=-45°)
     if (draggedVertex && e.button === 2) {
-      dragGuideMode = (dragGuideMode + 1) % 3;
-      const guideLabels = ['Guides: Off', 'Guides: Orthogonal (H+V)', 'Guides: 45° Diagonals'];
-      document.getElementById('instructions-pill').innerHTML = `• <b>Corner Drag:</b> ${guideLabels[dragGuideMode]} &bull; Right-click to cycle`;
+      e.preventDefault();
+      const shape = shapes.find(s => s.id === draggedVertex.shapeId);
+      const currPt = shape ? shape.points[draggedVertex.index] : null;
+
+      if (e.ctrlKey && primaryGuideMode !== 0) {
+        // While constrained by holding Ctrl, right-click adds a secondary unconstrained guide line
+        secondaryGuideMode = (secondaryGuideMode + 1) % 5;
+      } else {
+        // Cycle primary guide line
+        primaryGuideMode = (primaryGuideMode + 1) % 5;
+        if (currPt) constraintAnchor = { ...currPt };
+        if (primaryGuideMode === 0) secondaryGuideMode = 0;
+      }
+      updateInstructionsPill();
       draw();
       return;
     }
@@ -1795,10 +1865,16 @@
     const vHit = findVertexUnderMouse(mx, my);
     if (vHit) {
       draggedVertex = vHit;
-      dragGuideMode = 0; // Default: start dragging with no guide lines
+      primaryGuideMode = 0;
+      secondaryGuideMode = 0;
+      isCtrlHeld = e.ctrlKey || e.metaKey;
+      const shape = shapes.find(s => s.id === vHit.shapeId);
+      if (shape && shape.points[vHit.index]) {
+        constraintAnchor = { ...shape.points[vHit.index] };
+      }
       selectedEdge = null;
       selectShape(vHit.shapeId);
-      document.getElementById('instructions-pill').innerHTML = `• <b>Corner Drag:</b> Drag corner &bull; <b>Right-click</b> to cycle alignment lines (Orthogonal / 45° / Off)`;
+      updateInstructionsPill();
       return;
     }
 
@@ -1853,10 +1929,41 @@
 
     if (draggedVertex) {
       const rawWorld = screenToWorld(mx, my);
-      const snapResult = getSnapCoordinate(rawWorld, draggedVertex.shapeId, draggedVertex.index);
-      activeSnapTarget = snapResult.isCornerSnap ? snapResult.point : null;
       const shape = shapes.find(s => s.id === draggedVertex.shapeId);
-      if (shape) shape.points[draggedVertex.index] = snapResult.point;
+      if (!shape) return;
+
+      let targetWorld = { ...rawWorld };
+      const isCtrl = e.ctrlKey || e.metaKey || isCtrlHeld;
+
+      if (isCtrl && primaryGuideMode !== 0) {
+        // Movement is strictly constrained along the primary guide line
+        const anc = constraintAnchor || { ...shape.points[draggedVertex.index] };
+
+        if (primaryGuideMode === 1) { // Horizontal: lock Y
+          targetWorld.y = anc.y;
+          targetWorld.x = snapToInch(rawWorld.x);
+        } else if (primaryGuideMode === 3) { // Vertical: lock X
+          targetWorld.x = anc.x;
+          targetWorld.y = snapToInch(rawWorld.y);
+        } else if (primaryGuideMode === 2) { // +45° Diagonal: dy = dx
+          const delta = snapToInch(((rawWorld.x - anc.x) + (rawWorld.y - anc.y)) / 2);
+          targetWorld.x = snapToInch(anc.x + delta);
+          targetWorld.y = snapToInch(anc.y + delta);
+        } else if (primaryGuideMode === 4) { // -45° Diagonal: dy = -dx
+          const delta = snapToInch(((rawWorld.x - anc.x) - (rawWorld.y - anc.y)) / 2);
+          targetWorld.x = snapToInch(anc.x + delta);
+          targetWorld.y = snapToInch(anc.y - delta);
+        }
+        activeSnapTarget = null;
+      } else {
+        // Free movement with snapping
+        const snapResult = getSnapCoordinate(rawWorld, draggedVertex.shapeId, draggedVertex.index);
+        targetWorld = snapResult.point;
+        activeSnapTarget = snapResult.isCornerSnap ? snapResult.point : null;
+        constraintAnchor = { ...targetWorld };
+      }
+
+      shape.points[draggedVertex.index] = targetWorld;
       draw();
       return;
     }
@@ -1912,11 +2019,13 @@
       return;
     }
     if (draggedVertex) {
-      document.getElementById('instructions-pill').innerHTML = `• <b>Scroll / Swipe</b> to pan • <b>Ctrl+Scroll</b> to zoom • <b>Space / Right-click drag</b> to pan • <b>Click wall</b> to scale`;
+      draggedVertex = null;
+      primaryGuideMode = 0;
+      secondaryGuideMode = 0;
+      constraintAnchor = null;
+      updateInstructionsPill();
     }
-    draggedVertex = null;
     draggedShape = null;
-    dragGuideMode = 0;
     isPanning = false;
     activeSnapTarget = null;
     canvas.style.cursor = isSpacePressed ? 'grab' : 'default';
