@@ -561,6 +561,9 @@
   let draggedShape = null;
   let activeSnapTarget = null;
 
+  // Corner Drag Alignment Guides: 0 = Off, 1 = Orthogonal (H+V), 2 = 45-degree diagonals
+  let dragGuideMode = 0;
+
   // Split Room Feature State
   let isSplitMode = false;
   let splitFirstCorner = null; 
@@ -1563,6 +1566,38 @@
       });
     });
 
+    // Dynamic Corner Drag Alignment Guides (Orthogonal or 45-degree)
+    if (draggedVertex && dragGuideMode > 0) {
+      const shape = shapes.find(s => s.id === draggedVertex.shapeId);
+      if (shape && shape.points[draggedVertex.index]) {
+        const sp = worldToScreen(shape.points[draggedVertex.index]);
+        ctx.save();
+        ctx.strokeStyle = dragGuideMode === 1 ? 'rgba(56, 189, 248, 0.7)' : 'rgba(244, 114, 182, 0.75)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+
+        if (dragGuideMode === 1) {
+          // Mode 1: Horizontal and Vertical Orthogonal Guides
+          ctx.beginPath();
+          ctx.moveTo(0, sp.y);
+          ctx.lineTo(canvas.width, sp.y);
+          ctx.moveTo(sp.x, 0);
+          ctx.lineTo(sp.x, canvas.height);
+          ctx.stroke();
+        } else if (dragGuideMode === 2) {
+          // Mode 2: Two 45-degree Diagonal Alignment Guides
+          const maxDim = Math.max(canvas.width, canvas.height) * 2;
+          ctx.beginPath();
+          ctx.moveTo(sp.x - maxDim, sp.y - maxDim);
+          ctx.lineTo(sp.x + maxDim, sp.y + maxDim);
+          ctx.moveTo(sp.x - maxDim, sp.y + maxDim);
+          ctx.lineTo(sp.x + maxDim, sp.y - maxDim);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+
     if (isSplitMode && splitFirstCorner) {
       const sp1 = worldToScreen(splitFirstCorner.pt);
       ctx.beginPath();
@@ -1736,6 +1771,15 @@
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
+    // Right-click while actively dragging a corner cycles alignment guide modes (0 -> 1 -> 2 -> 0)
+    if (draggedVertex && e.button === 2) {
+      dragGuideMode = (dragGuideMode + 1) % 3;
+      const guideLabels = ['Guides: Off', 'Guides: Orthogonal (H+V)', 'Guides: 45° Diagonals'];
+      document.getElementById('instructions-pill').innerHTML = `• <b>Corner Drag:</b> ${guideLabels[dragGuideMode]} &bull; Right-click to cycle`;
+      draw();
+      return;
+    }
+
     if (e.button === 1 || e.button === 2 || (e.button === 0 && (e.altKey || isSpacePressed))) {
       isPanning = true;
       lastMouse = { x: mx, y: my };
@@ -1751,8 +1795,10 @@
     const vHit = findVertexUnderMouse(mx, my);
     if (vHit) {
       draggedVertex = vHit;
+      dragGuideMode = 0; // Default: start dragging with no guide lines
       selectedEdge = null;
       selectShape(vHit.shapeId);
+      document.getElementById('instructions-pill').innerHTML = `• <b>Corner Drag:</b> Drag corner &bull; <b>Right-click</b> to cycle alignment lines (Orthogonal / 45° / Off)`;
       return;
     }
 
@@ -1860,9 +1906,17 @@
     }
   });
 
-  window.addEventListener('mouseup', () => {
+  window.addEventListener('mouseup', (e) => {
+    // Prevent releasing right mouse button during a vertex drag from canceling the drag
+    if (e.button === 2 && draggedVertex) {
+      return;
+    }
+    if (draggedVertex) {
+      document.getElementById('instructions-pill').innerHTML = `• <b>Scroll / Swipe</b> to pan • <b>Ctrl+Scroll</b> to zoom • <b>Space / Right-click drag</b> to pan • <b>Click wall</b> to scale`;
+    }
     draggedVertex = null;
     draggedShape = null;
+    dragGuideMode = 0;
     isPanning = false;
     activeSnapTarget = null;
     canvas.style.cursor = isSpacePressed ? 'grab' : 'default';
