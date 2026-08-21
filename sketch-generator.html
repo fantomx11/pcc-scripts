@@ -393,6 +393,8 @@
           <input type="number" step="0.25" id="prop-ceiling-height" oninput="onSelectedCeilingChange(this.value)">
         </div>
 
+        <div id="ceil-warning-box" style="display: none;"></div>
+
         <div class="calibration-box" id="calibration-panel" style="display: none;">
           <div class="calibration-title">
             <span>📏</span> Scale Sketch by Wall
@@ -414,6 +416,27 @@
     <div class="sidebar-section" style="flex: 1;">
       <h3>Floor Elements (<span id="elements-count">0</span>)</h3>
       <div id="elements-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for Ceiling Clearance Warning before Export -->
+<div id="export-warning-modal" class="modal-backdrop">
+  <div class="modal-content" style="width: 520px; border-color: #ef4444;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="color: #ef4444; display: flex; align-items: center; gap: 6px;">
+        <span>⚠️</span> Ceiling Clearance Warning
+      </h3>
+      <button class="btn btn-secondary btn-sm" onclick="closeExportWarningModal()">&times;</button>
+    </div>
+    <p style="font-size: 0.82rem; color: var(--text-muted);">
+      One or more rooms have ceiling heights lower than their doors, windows, or wall openings. This can cause rendering or estimate errors in Xactimate.
+    </p>
+    <div id="export-warning-list" style="background: #090d16; border: 1px solid #7f1d1d; border-radius: 6px; padding: 10px; max-height: 180px; overflow-y: auto; font-size: 0.78rem; display: flex; flex-direction: column; gap: 6px;">
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+      <button class="btn btn-secondary" onclick="closeExportWarningModal()">Review &amp; Fix</button>
+      <button class="btn btn-danger" onclick="proceedWithExportAnyway()">Proceed with Export</button>
     </div>
   </div>
 </div>
@@ -453,7 +476,7 @@
       <button class="btn btn-secondary btn-sm" onclick="closeImportModal()">&times; Close</button>
     </div>
     <p style="font-size: 0.8rem; color: var(--text-muted);">
-      Paste or upload JSON / SVG floorplans. Graph walls, partition dividers, ceiling heights, doors, windows, and wall openings are imported directly[cite: 3, 4].
+      Paste or upload JSON / SVG floorplans. Graph walls, partition dividers, ceiling heights, doors, windows, and wall openings are imported directly[cite: 1].
     </p>
     
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: #090d16; padding: 10px; border-radius: 6px; border: 1px solid var(--panel-border);">
@@ -517,7 +540,8 @@
 <script>
   const BASE_FT_TO_PX = 20;
   const UNITS_PER_FT = 1524;
-  const ELEV_FLOOR = 152400; 
+  const UNITS_PER_INCH = 127; // Exactly 127 units = 1 inch
+  const ELEV_FLOOR = 152400;  // 100 ft baseline
   const DEFAULT_CEIL_HEIGHT = 12192; // 8ft
   const SNAP_DISTANCE_PX = 14;
 
@@ -625,6 +649,18 @@
     return total > 0 ? total : null;
   }
 
+  // Exact 2-inch increment quantization for Xactimate wall thicknesses
+  function quantizeWallThickness(rawMeters, isInvisible = false) {
+    if (isInvisible || rawMeters <= 0.03) {
+      return { inches: 0, units: 0, feet: 0 };
+    }
+    const rawInches = rawMeters * 39.37007874;
+    const inchesRounded = Math.max(2, Math.round(rawInches / 2) * 2); // 4", 6", 8", 10", 12"
+    const units = inchesRounded * UNITS_PER_INCH; // Exactly 508, 762, 1016, etc.
+    const feet = inchesRounded / 12;
+    return { inches: inchesRounded, units: units, feet: feet };
+  }
+
   function getPolygonSignedArea(pts) {
     const n = pts.length;
     let a = 0.0;
@@ -645,6 +681,80 @@
       return pts.slice().reverse();
     }
     return pts.slice();
+  }
+
+  // --- CEILING VS. OPENING HEIGHT VALIDATION ENGINE ---
+  function getRoomCeilingViolations(room) {
+    if (!room || room.type !== 'room') return { maxTop: 0, violations: [], ceilFt: 8.0 };
+
+    const ceilFt = room.ceilingHeightFt || 8.0;
+    let maxTop = 0;
+    const violations = [];
+
+    const inspectWall = (p1, p2, customMeta = null) => {
+      const meta = customMeta || findWallMeta(p1, p2);
+      if (!meta || !meta.openings) return;
+      meta.openings.forEach(op => {
+        const rawHFt = op.heightFt || (op.isDoor ? 6.6667 : 3.0);
+        const rawBaseFt = Math.max(0, op.lowerElevationFt || 0);
+
+        // Snap using the 2" increment rule used during export
+        const hFt = Math.max(2 / 12, Math.round(rawHFt * 6) / 6);
+        const baseFt = Math.max(0, Math.round(rawBaseFt * 6) / 6);
+        const topFt = baseFt + hFt;
+
+        if (topFt > maxTop) maxTop = topFt;
+        if (topFt > ceilFt + 0.001) {
+          violations.push({
+            op: op,
+            label: op.label || (op.isWindow ? 'Window' : (op.isDoor ? 'Door' : 'Opening')),
+            topFt: topFt,
+            baseFt: baseFt,
+            heightFt: hFt,
+            diffFt: topFt - ceilFt
+          });
+        }
+      });
+    };
+
+    const n = room.points.length;
+    for (let i = 0; i < n; i++) {
+      inspectWall(room.points[i], room.points[(i + 1) % n]);
+    }
+    (room.stubWalls || []).forEach(sw => {
+      inspectWall(sw.p0, sw.p1, sw.meta);
+    });
+
+    return { maxTop, violations, ceilFt };
+  }
+
+  function getAllCeilingViolations() {
+    const list = [];
+    shapes.filter(s => s.type === 'room').forEach(room => {
+      const res = getRoomCeilingViolations(room);
+      if (res.violations.length > 0) {
+        const lvl = levels.find(l => l.id === room.levelId);
+        list.push({
+          room: room,
+          levelName: lvl ? lvl.name : `Level ${room.levelId}`,
+          ceilFt: res.ceilFt,
+          maxTop: res.maxTop,
+          violations: res.violations
+        });
+      }
+    });
+    return list;
+  }
+
+  function autoFixCeilingHeight(shapeId, recommendedCeilFt) {
+    const shape = shapes.find(s => s.id === shapeId);
+    if (shape) {
+      shape.ceilingHeightFt = recommendedCeilFt;
+      document.getElementById('prop-ceiling-height').value = recommendedCeilFt;
+      updateInspector();
+      updateSidebar();
+      draw();
+    }
   }
 
   function renderLevelTabs() {
@@ -1078,6 +1188,7 @@
     const form = document.getElementById('selection-form');
     const calibPanel = document.getElementById('calibration-panel');
     const ceilField = document.getElementById('prop-ceil-field');
+    const ceilWarnBox = document.getElementById('ceil-warning-box');
 
     if (!selectedShapeId) {
       noSel.style.display = 'block';
@@ -1101,8 +1212,31 @@
     if (shape.type === 'room') {
       ceilField.style.display = 'flex';
       document.getElementById('prop-ceiling-height').value = shape.ceilingHeightFt || 8.0;
+
+      // Clearance Validation Alert in Inspector
+      const ceilCheck = getRoomCeilingViolations(shape);
+      if (ceilCheck.violations.length > 0) {
+        ceilWarnBox.style.display = 'block';
+        const recCeil = Math.ceil((ceilCheck.maxTop + 0.05) * 4) / 4;
+        ceilWarnBox.innerHTML = `
+          <div class="calibration-box" style="border-color: #ef4444; background: rgba(239, 68, 68, 0.12); margin-top: 6px;">
+            <div style="color: #f87171; font-weight: bold; font-size: 0.75rem; display: flex; align-items: center; gap: 4px;">
+              ⚠️ Ceiling Lower Than Openings
+            </div>
+            <div style="font-size: 0.72rem; color: #fca5a5;">
+              Tallest opening reaches <b>${formatFtIn(ceilCheck.maxTop)}</b> (Current ceiling is ${formatFtIn(ceilCheck.ceilFt)}).
+            </div>
+            <button class="btn btn-sm btn-danger" style="margin-top: 4px; font-size: 0.72rem;" onclick="autoFixCeilingHeight(${shape.id}, ${recCeil})">
+              Adjust Ceiling to ${formatFtIn(recCeil)}
+            </button>
+          </div>
+        `;
+      } else {
+        ceilWarnBox.style.display = 'none';
+      }
     } else {
       ceilField.style.display = 'none';
+      ceilWarnBox.style.display = 'none';
     }
 
     if (selectedEdge && selectedEdge.shapeId === shape.id) {
@@ -1125,8 +1259,14 @@
     document.getElementById('elements-count').innerText = active.length;
 
     active.forEach(shape => {
+      const isRoom = shape.type === 'room';
+      const ceilCheck = isRoom ? getRoomCeilingViolations(shape) : { violations: [] };
+      const hasViolation = ceilCheck.violations.length > 0;
+
       const card = document.createElement('div');
       card.className = `item-card ${shape.id === selectedShapeId ? 'active' : ''}`;
+      if (hasViolation) card.style.borderColor = '#ef4444';
+
       card.onclick = () => {
         selectedEdge = null;
         selectShape(shape.id);
@@ -1135,6 +1275,7 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="badge badge-${shape.type}">${shape.type}</span>
           <span style="font-size: 0.85rem; font-weight: 500;">${shape.name}</span>
+          ${hasViolation ? '<span class="badge" style="background: #ef4444; color: #fff; font-size: 0.6rem;">⚠️ Ceil Low</span>' : ''}
         </div>
         <span style="font-size: 0.75rem; font-family: monospace; color: var(--accent);">${shape.dimCode}</span>
       `;
@@ -1170,6 +1311,9 @@
     if (!isNaN(parsed) && parsed > 0) {
       shape.ceilingHeightFt = parsed;
     }
+    updateInspector();
+    updateSidebar();
+    draw();
   }
 
   function worldToScreen(pt) {
@@ -1328,6 +1472,11 @@
       const isSelected = shape.id === selectedShapeId;
       const pts = shape.points.map(worldToScreen);
 
+      // Check ceiling clearance violations for rooms
+      const isRoom = shape.type === 'room';
+      const ceilCheck = isRoom ? getRoomCeilingViolations(shape) : { violations: [] };
+      const hasViolation = ceilCheck.violations.length > 0;
+
       ctx.beginPath();
       if (pts.length > 0) {
         ctx.moveTo(pts[0].x, pts[0].y);
@@ -1340,6 +1489,12 @@
       if (shape.type === 'line') strokeColor = '#f472b6';
       if (shape.type === 'area') { strokeColor = '#4ade80'; fillColor = 'rgba(74, 222, 128, 0.15)'; }
       if (shape.type === 'block') { strokeColor = '#facc15'; fillColor = 'rgba(250, 204, 21, 0.2)'; }
+
+      // Apply red alert highlight if room ceiling is lower than openings
+      if (hasViolation) {
+        strokeColor = '#ef4444';
+        fillColor = 'rgba(239, 68, 68, 0.22)';
+      }
 
       if (shape.type !== 'line') {
         ctx.fillStyle = fillColor;
@@ -1370,7 +1525,6 @@
           ctx.stroke();
           drawEdgeWithMeta(sw.p0, sw.p1, false, strokeColor);
 
-          // Draw stub tip endpoint
           ctx.beginPath();
           ctx.arc(sp1.x, sp1.y, 4, 0, Math.PI * 2);
           ctx.fillStyle = '#f59e0b';
@@ -1387,6 +1541,13 @@
       ctx.font = '10px monospace';
       ctx.fillStyle = '#94a3b8';
       ctx.fillText(`[${shape.dimCode}]${shape.ceilingHeightFt ? ` ${shape.ceilingHeightFt}'` : ''}`, center.x, center.y + 8);
+
+      // Render Ceiling Warning Banner on Canvas
+      if (hasViolation) {
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(`⚠️ Ceil ${formatFtIn(ceilCheck.ceilFt)} < Req ${formatFtIn(ceilCheck.maxTop)}`, center.x, center.y + 22);
+      }
 
       pts.forEach((pt, idx) => {
         const isHovered = hoveredVertex && hoveredVertex.shapeId === shape.id && hoveredVertex.index === idx;
@@ -1799,7 +1960,6 @@
     }
   }
 
-  // Robust topological unwinding with 2-core antenna/leaf pruning to extract perimeter + stub walls
   function unwindTopologicalRoomEdges(boundaryEdges, edgeLookup) {
     if (!boundaryEdges || boundaryEdges.length < 3) return null;
 
@@ -1818,7 +1978,6 @@
       adj.get(ed.v1Id).push({ nbr: ed.v0Id, edgeId: ed.id });
     });
 
-    // Iteratively prune degree-1 leaves (antenna stub walls)
     let prunedAny = true;
     const removedEdgeIds = new Set();
     while (prunedAny) {
@@ -1896,6 +2055,55 @@
     return path.length >= 3 ? { poly: path, stubEdges: stubEdges } : null;
   }
 
+  function extractStubsAndCleanSvgPolygon(rawPts, tolFt = 0.3) {
+    const points = rawPts.map(p => ({ ...p }));
+    const stubWalls = [];
+    let collapsed = true;
+    let maxIterations = 100;
+
+    while (collapsed && points.length >= 3 && maxIterations-- > 0) {
+      collapsed = false;
+      const n = points.length;
+      for (let i = 0; i < n; i++) {
+        const prev = points[(i - 1 + n) % n];
+        const curr = points[i];
+        const next = points[(i + 1) % n];
+
+        const dPrevNext = Math.hypot(prev.x - next.x, prev.y - next.y);
+        const spurLen = Math.hypot(curr.x - prev.x, curr.y - prev.y);
+
+        if (dPrevNext <= tolFt && spurLen > tolFt) {
+          stubWalls.push({
+            id: `stub_svg_${getNextId()}`,
+            p0: { x: prev.x, y: prev.y },
+            p1: { x: curr.x, y: curr.y },
+            meta: {
+              id: `meta_svg_${getNextId()}`,
+              p0: { x: prev.x, y: prev.y },
+              p1: { x: curr.x, y: curr.y },
+              thicknessFt: 4 / 12,
+              thicknessUnits: 508,
+              thicknessInches: 4,
+              isInvisible: false,
+              openings: []
+            }
+          });
+
+          if (i === n - 1) {
+            points.splice(n - 1, 1);
+            points.splice(0, 1);
+          } else {
+            points.splice(i, 2);
+          }
+          collapsed = true;
+          break;
+        }
+      }
+    }
+
+    return { cleanPoints: points, stubWalls: stubWalls };
+  }
+
   function importJsonModel(json, opts = {}) {
     const scale = opts.scaleUnits ? 3.28084 : 1.0;
     const filterVoids = opts.filterVoids !== false;
@@ -1909,7 +2117,6 @@
       return;
     }
 
-    // Automatic multi-floor handling
     const floorLevelMap = new Map();
     if (floors.length > 1) {
       levels = [];
@@ -1941,6 +2148,22 @@
       const floorEdges = fl.edges || [];
       const edgeLookup = new Map();
 
+      // Find floor's minimum base elevation for relative opening offset calculation
+      let floorBaseZM = 0;
+      const floorRoomsForZ = allRooms.filter(r => !r.floor || r.floor.id === fl.id);
+      const zValues = [];
+      floorRoomsForZ.forEach(r => {
+        (r.ceiling?.planes || []).forEach(pl => {
+          (pl.measurements || []).forEach(m => {
+            if (m.bottom && typeof m.bottom.z === 'number') zValues.push(m.bottom.z);
+          });
+        });
+      });
+      if (zValues.length > 0) {
+        zValues.sort((a, b) => a - b);
+        floorBaseZM = zValues[0];
+      }
+
       floorEdges.forEach(ed => {
         if (!ed.vertices || ed.vertices.length < 2) return;
         const v0 = ed.vertices[0];
@@ -1948,16 +2171,21 @@
 
         const p0Ft = { x: snapToInch(v0.position.x * scale), y: snapToInch(-v0.position.y * scale) };
         const p1Ft = { x: snapToInch(v1.position.x * scale), y: snapToInch(-v1.position.y * scale) };
-        const thicknessMeters = ed.thickness || 0.14;
-        const thicknessFt = snapToInch(thicknessMeters * scale);
-        const thicknessUnits = Math.round(thicknessMeters * 5000);
+        const isInvis = ed.type === 'invisible';
+        
+        // Exact 2" increment quantization
+        const tQuant = quantizeWallThickness(ed.thickness || 0.14, isInvis);
 
         const openingsList = (ed.openings || []).map(op => {
           const lbl = (op.label || '').toLowerCase();
           const opType = (op.type || '').toLowerCase();
           
           const isWin = lbl.includes('window') || opType === 'window';
+          
+          // Complete robust door classification
           const isDr = !isWin && (
+            opType === 'doorway' ||
+            lbl.includes('door') ||
             lbl.includes('pivot') ||
             lbl.includes('hinged') ||
             lbl.includes('swing') ||
@@ -1965,14 +2193,26 @@
             lbl.includes('bifold') ||
             lbl.includes('pocket') ||
             lbl.includes('french')
-          );
+          ) && !lbl.includes('divider') && !lbl.includes('cased');
+
           const isMissing = !isWin && !isDr;
+
+          // Normalize vertical elevation relative to floor plane
+          const rawLowerElevationM = op.lowerElevation || 0.0;
+          let relLowerElevationM = rawLowerElevationM;
+          if (floorBaseZM > 1.0 && rawLowerElevationM > 1.0) {
+            relLowerElevationM = rawLowerElevationM - floorBaseZM;
+          }
+          if (relLowerElevationM < 0.04 && relLowerElevationM > -0.06) {
+            relLowerElevationM = 0.0;
+          }
+          const lowerElevationFt = Math.max(0, relLowerElevationM * scale);
 
           return {
             id: op.id,
             widthFt: (op.width || 0.9) * scale,
             heightFt: (op.height || 2.0) * scale,
-            lowerElevationFt: (op.lowerElevation || 0.0) * scale,
+            lowerElevationFt: lowerElevationFt,
             relativeCenter: op.relativeCenter !== undefined ? op.relativeCenter : 0.5,
             label: isWin ? 'Window' : (isDr ? 'Door' : 'Opening'),
             isWindow: isWin,
@@ -1987,10 +2227,11 @@
           v1Id: v1.id,
           p0: p0Ft,
           p1: p1Ft,
-          thicknessFt: thicknessFt,
-          thicknessUnits: thicknessUnits,
+          thicknessFt: tQuant.feet,
+          thicknessUnits: tQuant.units,
+          thicknessInches: tQuant.inches,
           centerLineBias: ed.centerLineBias !== undefined ? ed.centerLineBias : 0.5,
-          isInvisible: ed.type === 'invisible',
+          isInvisible: isInvis,
           openings: openingsList
         };
 
@@ -2022,14 +2263,13 @@
         const finalName = usedNames[roomName] > 1 ? `${roomName} ${usedNames[roomName]}` : roomName;
 
         let ceilHtFt = 8.0;
-        if (rm.ceiling && rm.ceiling.maxHeight) {
+        if (rm.ceiling && rm.ceiling.maxHeight && rm.ceiling.maxHeight > 0) {
           ceilHtFt = rm.ceiling.maxHeight * scale;
-        } else if (rm.dimensionEstimates && rm.dimensionEstimates.height) {
+        } else if (rm.dimensionEstimates && rm.dimensionEstimates.height && rm.dimensionEstimates.height > 0) {
           ceilHtFt = rm.dimensionEstimates.height * scale;
         }
         ceilHtFt = Math.round(ceilHtFt * 4) / 4;
 
-        // Form native attached stub wall records
         const attachedStubs = (stubEdges || []).map(st => ({
           id: st.id,
           p0: { ...st.p0 },
@@ -2148,12 +2388,15 @@
     roomPaths.forEach(path => {
       const d = path.getAttribute('d');
       if (!d) return;
-      const pts = parseSvgPathCoordinates(d, scale);
-      if (pts.length < 3) return;
+      const rawPts = parseSvgPathCoordinates(d, scale);
+      if (rawPts.length < 3) return;
+
+      const { cleanPoints, stubWalls } = extractStubsAndCleanSvgPolygon(rawPts);
+      if (cleanPoints.length < 3) return;
 
       let matchedName = '';
       for (const lbl of extractedLabels) {
-        if (isPointInsidePoly(lbl, pts)) { matchedName = lbl.text; break; }
+        if (isPointInsidePoly(lbl, cleanPoints)) { matchedName = lbl.text; break; }
       }
       if (!matchedName) {
         matchedName = SVG_CLASS_MAP[(path.getAttribute('class') || '').trim()] || 'Room';
@@ -2170,8 +2413,8 @@
         dimCode: sanitizeDimCode(finalName),
         isDimCodeManual: false,
         ceilingHeightFt: 8.0,
-        points: pts,
-        stubWalls: []
+        points: cleanPoints,
+        stubWalls: stubWalls
       });
     });
 
@@ -2211,7 +2454,7 @@
     document.getElementById('import-modal').style.display = 'none';
   }
 
-  // --- XML GENERATOR WITH NATIVE STUB WALLS (flags="251658240", roomIDs="R R") ---
+  // --- XML GENERATOR WITH 2" QUANTIZED WALLS & OPENINGS, NATIVE STUB WALLS & DYNAMIC DOUBLE DOORS ---
   function generateXML() {
     const docUuid = generateExUuid();
     const structUuid = generateExUuid();
@@ -2355,7 +2598,7 @@
           }
         }
 
-        // 2. Attached Native Stub Walls (flags="251658240", roomIDs="room.id room.id")
+        // 2. Attached Native Stub Walls
         (room.stubWalls || []).forEach(sw => {
           const cpA = getCanonicalPoint(sw.p0, roomCeil);
           const cpB = getCanonicalPoint(sw.p1, roomCeil);
@@ -2417,13 +2660,13 @@
 
         if (edge.isStub) {
           roomIDsStr = `${edge.roomIDs[0]} ${edge.roomIDs[0]}`;
-          wallFlags = '251658240'; // Stub wall flag
+          wallFlags = '251658240';
         } else if (edge.roomIDs.length > 1) {
           roomIDsStr = `${edge.roomIDs[0]} ${edge.roomIDs[1]}`;
-          wallFlags = '788529152'; // Shared partition wall flag
+          wallFlags = '788529152';
         } else {
           roomIDsStr = `${edge.roomIDs[0]} 0`;
-          wallFlags = '385875968'; // Exterior perimeter wall flag
+          wallFlags = '385875968';
         }
 
         const coordIdx = `${edge.cpA.botIndex} ${edge.cpB.botIndex} ${edge.cpB.topIndex} ${edge.cpA.topIndex}`;
@@ -2450,9 +2693,15 @@
           meta.openings.forEach(op => {
             openCount++;
             const rc = op.relativeCenter !== undefined ? op.relativeCenter : 0.5;
-            const wFt = op.widthFt || 3.0;
-            const hFt = op.heightFt || 6.6667;
-            const baseFt = Math.max(0, op.lowerElevationFt || 0);
+
+            // Snap width, height, and base elevation to exact 2-inch increments (1/6 ft = 254 Xactimate units)
+            const rawWFt = op.widthFt || 3.0;
+            const rawHFt = op.heightFt || 6.6667;
+            const rawBaseFt = Math.max(0, op.lowerElevationFt || 0);
+
+            const wFt = Math.max(2 / 12, Math.round(rawWFt * 6) / 6);
+            const hFt = Math.max(2 / 12, Math.round(rawHFt * 6) / 6);
+            const baseFt = Math.max(0, Math.round(rawBaseFt * 6) / 6);
 
             const origMetaP0_xact = { x: meta.p0.x, y: snapToInch(2 * cy - meta.p0.y) };
             const origMetaP1_xact = { x: meta.p1.x, y: snapToInch(2 * cy - meta.p1.y) };
@@ -2490,7 +2739,12 @@
             if (op.isWindow) {
               wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="4" dimCode="WINDOW${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="552" type="1" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowType="1" windowAHt="${Math.round(heightUnits/2)}.0000000" windowBHt="${heightUnits}.0000000" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="5" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Window]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
             } else if (op.isDoor) {
-              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="6" dimCode="DOOR${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="56" type="2" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" doorType="0" doorStyle="0" doorAngle="20" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="7" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Door]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
+              // Dynamic double door determination strictly during export processing (>= 4.0 ft)
+              const isDoubleDoor = (wFt >= 3.999);
+              const doubleDoorVal = isDoubleDoor ? "1" : "0";
+              const doorFlags = isDoubleDoor ? "312" : "56"; // 312 = 56 + 256 (0x100 bit activates Xactimate double-door rendering)
+
+              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="6" dimCode="DOOR${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="${doorFlags}" type="2" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="${doubleDoorVal}" doorType="0" doorStyle="0" doorAngle="20" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="7" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Door]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
             } else {
               wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" dimCode="WO${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="56" type="0" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowAHt="${Math.round(heightUnits/2)}.0000000" windowBHt="${heightUnits}.0000000" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[MissingWall]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
             }
@@ -2557,12 +2811,62 @@
     return `<?xml version='1.0' encoding='UTF-8' ?><SKETCHDOCUMENT id="SKT${getNextId()}" exUuid="${docUuid}" prevReadOrder="0" dimCode="" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP0" grpType="1" parentKey="GRP1" grpDesc="" mainRoomID="0" lastDims="" isSelectedDoc="0" majorVersion="1" minorVersion="27" buildNum="3400" compassRotation="0.0000000" geoLocation="0" geoLocationZone="0" fromPrevLoss="0" useTransition="0" roofsExcludeUngroupedValleys="0" createdVersion="127" documentPrefs="${docPrefs}" isManualFlooring="0" isCustomGroupsDisabled="0" allowImgInspElevMode="0"><SKETCHSTRUCTURE structureType="0" id="SKT${getNextId()}" exUuid="${structUuid}" prevReadOrder="0" dimCode="" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP0" grpType="1" parentKey="GRP0" grpDesc="" mainRoomID="0" lastDims="">${levelsXML}</SKETCHSTRUCTURE><COORDINATE3>${coordinates.join(' ')}</COORDINATE3></SKETCHDOCUMENT>`;
   }
 
-  function openExportModal() {
+  function openExportModal(force = false) {
+    if (!force) {
+      const violations = getAllCeilingViolations();
+      if (violations.length > 0) {
+        showExportWarningModal(violations);
+        return;
+      }
+    }
     const xml = generateXML();
     if (!xml) return;
     document.getElementById('xml-output').value = xml;
     document.getElementById('export-modal').style.display = 'flex';
   }
+
+  function showExportWarningModal(violations) {
+    const listContainer = document.getElementById('export-warning-list');
+    listContainer.innerHTML = '';
+
+    violations.forEach(v => {
+      const item = document.createElement('div');
+      item.style.borderBottom = '1px solid #1e293b';
+      item.style.paddingBottom = '4px';
+
+      const opListStr = v.violations.map(viol => 
+        `${viol.label} (Top: ${formatFtIn(viol.topFt)})`
+      ).join(', ');
+
+      item.innerHTML = `
+        <div style="color: #f87171; font-weight: bold;">
+          ${v.levelName} &rsaquo; ${v.room.name} [${v.room.dimCode}]
+        </div>
+        <div style="color: var(--text-muted); font-size: 0.73rem;">
+          Ceiling: <b style="color: #fff;">${formatFtIn(v.ceilFt)}</b> &bull; Tallest: <b style="color: #f87171;">${formatFtIn(v.maxTop)}</b> &bull; ${opListStr}
+        </div>
+      `;
+      listContainer.appendChild(item);
+    });
+
+    document.getElementById('export-warning-modal').style.display = 'flex';
+  }
+
+  function closeExportWarningModal() {
+    document.getElementById('export-warning-modal').style.display = 'none';
+    const violations = getAllCeilingViolations();
+    if (violations.length > 0) {
+      const first = violations[0];
+      switchLevel(first.room.levelId);
+      selectShape(first.room.id);
+    }
+  }
+
+  function proceedWithExportAnyway() {
+    document.getElementById('export-warning-modal').style.display = 'none';
+    openExportModal(true);
+  }
+
   function closeExportModal() {
     document.getElementById('export-modal').style.display = 'none';
   }
