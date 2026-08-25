@@ -39,7 +39,8 @@ export const Store = {
   async initialFetch(scrapedData, Estimate) {
     this.updateStatusUI('syncing');
     try {
-      const resp = await fetch(this.API_URL);
+      const companyId = window.mixpanelDashCompanyID || 'default';
+      const resp = await fetch(`${this.API_URL}?companyId=${encodeURIComponent(companyId)}`);
       const cloudData = await resp.json();
 
       if (cloudData.manual) this.save(CONFIG.KEYS.MANUAL, cloudData.manual);
@@ -64,6 +65,7 @@ export const Store = {
   async push() {
     this.updateStatusUI('syncing');
     const payload = {
+      companyId: window.mixpanelDashCompanyID || 'default',
       manual: this.get(CONFIG.KEYS.MANUAL),
       overrides: this.get(CONFIG.KEYS.OVERRIDE)
     };
