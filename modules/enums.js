@@ -3,6 +3,7 @@ const {getDaysSince} = await import("./lib.js");
 export const KanbanPhases = {
   "AssignEstimator": {
     column: "Assign Estimator",
+    kanbanDisplay: true,
     description: "A new job that needs an estimator assigned",
     aging: est => getDaysSince(est.received),
     active: true,

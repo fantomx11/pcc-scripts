@@ -14,7 +14,7 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
     const selectedDivisions = Array.from(document.getElementById('division-filter')?.selectedOptions || []).map(opt => opt.value);
 
     const filtered = estimates.filter(e => {
-      const estimatorMatch = (activeEstimator === "All" ? true : e.estimator === activeEstimator || e.supervisor === activeEstimator);
+      const estimatorMatch = (activeEstimator === "All" ? true : e.estimator === activeEstimator || e.supervisor === activeEstimator || e.phase === KanbanPhases.AssignEstimator );
       const divisionMatch = selectedDivisions.length === 0 || selectedDivisions.includes(e.division);
       return estimatorMatch && divisionMatch;
     });
