@@ -52,7 +52,7 @@
   const scraper = App.scraper = App.scraper || new Scraper({
     rowMapper: {
       "Job Number": cell => ({ jobNumber: cell.textContent.trim(), url: cell.querySelector("a")?.href }),
-      "Estimator": cell => ({ "estimator": cell.textContent.trim() || "Unassigned" }),
+      "Estimator": cell => ({ "estimator": cell.textContent.trim() }),
       "Date Received": cell => ({ "received": cell.textContent.trim() }),
       "Date Inspected": cell => ({ "inspected": cell.textContent.trim() }),
       "Date Estimate Sent": cell => ({ "sent": cell.textContent.trim() }),
