@@ -101,10 +101,8 @@ body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; }
 @keyframes ribbon-pulse {
   0%, 100% {
     filter: brightness(1);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
   50% {
-    filter: brightness(1.08);
-    box-shadow: 0 0 12px 2px rgba(156, 39, 176, 0.5); /* Purple aura matching Intake */
+    filter: brightness(0.35); /* Dims the ribbon deeply */
   }
 }
