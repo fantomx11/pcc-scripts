@@ -68,11 +68,12 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
         ${Object.keys(groups).map(groupKey => {
           const group = groups[groupKey];
           const isCollapsed = collapsedGroups[groupKey];
+          const hasJobs = group.count > 0;
           
           // Render thin placeholder ribbon if group is collapsed
           if (isCollapsed) {
             return html`
-              <div class=${`kanban-group-collapsed ${groupKey}`} onClick=${() => focusGroup(groupKey)} title="Click to Expand">
+              <div class=${`kanban-group-collapsed ${groupKey} ${hasJobs ? 'has-items-flash' : ''}`} onClick=${() => focusGroup(groupKey)} title="Click to Expand">
                 <div class="collapsed-title">${group.label.toUpperCase()} (${group.count})</div>
               </div>
             `;
