@@ -59,6 +59,7 @@ export class Estimate {
   get isProcessed() { return this.origEstimate > 0; }
   get isInvoiced() { return isDate(this.invoiced); }
   get hasSupervisor() { return this.supervisor !== ""; }
+  get hasEstimator() { return this.estimator !== ""; }
 
   get isActive() {
     if (this.deleted) return false;

@@ -1,6 +1,13 @@
 const {getDaysSince} = await import("./lib.js");
 
 export const KanbanPhases = {
+  "AssignEstimator": {
+    column: "Assign Estimator",
+    description: "A new job that needs an estimator assigned",
+    aging: est => getDaysSince(est.received),
+    active: true,
+    kanbanGroup: "group-pre-con"
+  },
   "Inspection": {
     column: "Inspection",
     kanbanDisplay: true,
@@ -109,7 +116,8 @@ export const KanbanPhases = {
     const status = (estimate.jobStatus || "").toLowerCase();
 
     return [
-      { phase: KanbanPhases.Inspection, isCurrent: true },
+      { phase: KanbanPhases.AssignEstimator, isCurrent: true },
+      { phase: KanbanPhases.Inspection, isCurrent: estimate.hasEstimator },
       { phase: KanbanPhases.Estimate, isCurrent: estimate.isInspected },
       { phase: KanbanPhases.Review, isCurrent: estimate.isSent },
       { phase: KanbanPhases.Approval, isCurrent: !estimate.isReviewRequired && estimate.isSent || estimate.isReviewed },
