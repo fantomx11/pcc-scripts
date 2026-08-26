@@ -6,6 +6,7 @@ const { JobCard } = await import("./JobCard.js");
 export const KanbanBoard = ({ estimates, activeEstimator }) => {
     // Local state tracking which column groups are collapsed
     const [collapsedGroups, setCollapsedGroups] = useState({
+      "group-intake": true,
       "group-pre-con": false,
       "group-pm": true,
       "group-collections": true
@@ -21,6 +22,7 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
 
     // Define structural columns groups in sequential display order
     const groups = {
+      "group-intake": { label: "Intake", phases: [], count: 0 },
       "group-pre-con": { label: "Pre-Production", phases: [], count: 0 },
       "group-pm": { label: "Production", phases: [], count: 0 },
       "group-collections": { label: "Collections", phases: [], count: 0 }

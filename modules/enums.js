@@ -7,7 +7,7 @@ export const KanbanPhases = {
     description: "A new job that needs an estimator assigned",
     aging: est => getDaysSince(est.received),
     active: true,
-    kanbanGroup: "group-pre-con"
+    kanbanGroup: "group-intake"
   },
   "Inspection": {
     column: "Inspection",
