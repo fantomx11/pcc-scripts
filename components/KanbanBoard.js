@@ -6,6 +6,7 @@ const { JobCard } = await import("./JobCard.js");
 export const KanbanBoard = ({ estimates, activeEstimator }) => {
     // Local state tracking which column groups are collapsed
     const [collapsedGroups, setCollapsedGroups] = useState({
+      "group-intake": true,
       "group-pre-con": false,
       "group-pm": true,
       "group-collections": true
@@ -14,13 +15,14 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
     const selectedDivisions = Array.from(document.getElementById('division-filter')?.selectedOptions || []).map(opt => opt.value);
 
     const filtered = estimates.filter(e => {
-      const estimatorMatch = (activeEstimator === "All" ? true : e.estimator === activeEstimator || e.supervisor === activeEstimator);
+      const estimatorMatch = (activeEstimator === "All" ? true : e.estimator === activeEstimator || e.supervisor === activeEstimator || e.phase === KanbanPhases.AssignEstimator );
       const divisionMatch = selectedDivisions.length === 0 || selectedDivisions.includes(e.division);
       return estimatorMatch && divisionMatch;
     });
 
     // Define structural columns groups in sequential display order
     const groups = {
+      "group-intake": { label: "Intake", phases: [], count: 0 },
       "group-pre-con": { label: "Pre-Production", phases: [], count: 0 },
       "group-pm": { label: "Production", phases: [], count: 0 },
       "group-collections": { label: "Collections", phases: [], count: 0 }
@@ -66,11 +68,12 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
         ${Object.keys(groups).map(groupKey => {
           const group = groups[groupKey];
           const isCollapsed = collapsedGroups[groupKey];
+          const hasJobs = group.count > 0;
           
           // Render thin placeholder ribbon if group is collapsed
           if (isCollapsed) {
             return html`
-              <div class=${`kanban-group-collapsed ${groupKey}`} onClick=${() => focusGroup(groupKey)} title="Click to Expand">
+              <div class=${`kanban-group-collapsed ${groupKey} ${hasJobs ? 'has-items-flash' : ''}`} onClick=${() => focusGroup(groupKey)} title="Click to Expand">
                 <div class="collapsed-title">${group.label.toUpperCase()} (${group.count})</div>
               </div>
             `;

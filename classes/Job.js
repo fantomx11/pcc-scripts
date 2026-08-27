@@ -4,7 +4,7 @@ export class Job {
   constructor(data) {
     this.jobNumber = data.jobNumber;
     this.customer = data.customer;
-    this.estimator = data.estimator || "Unassigned";
+    this.estimator = data.estimator || "";
     this.division = data.division;
     this.url = data.url || "#";
     this.xactId = data.xactId;
