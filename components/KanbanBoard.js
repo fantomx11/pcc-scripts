@@ -22,22 +22,24 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
 
     // Define structural columns groups in sequential display order
     const groups = {
-      "group-intake": { label: "Intake", phases: [], count: 0 },
-      "group-pre-con": { label: "Pre-Production", phases: [], count: 0 },
-      "group-pm": { label: "Production", phases: [], count: 0 },
-      "group-collections": { label: "Collections", phases: [], count: 0 }
+      "group-intake": { label: "Intake", phases: [], count: 0, shouldFlash: false },
+      "group-pre-con": { label: "Pre-Production", phases: [], count: 0, shouldFlash: false },
+      "group-pm": { label: "Production", phases: [], count: 0, shouldFlash: false },
+      "group-collections": { label: "Collections", phases: [], count: 0, shouldFlash: false }
     };
 
     // Sort phases into their respective display categories
     Object.keys(KanbanPhases).forEach(phaseKey => {
       const phase = KanbanPhases[phaseKey];
       if (phase.kanbanDisplay && groups[phase.kanbanGroup]) {
+        const count = filtered.filter(e => e.phase === phase && e.division !== "Warranty").length;
+        const shouldFlash = phase.flashIfOccupied && count > 0;
+
         groups[phase.kanbanGroup].phases.push(phase);
-        groups[phase.kanbanGroup].count += filtered.filter(e => e.phase === phase && e.division !== "Warranty").length;
+        groups[phase.kanbanGroup].count += count;
+        groups[phase.kanbanGroup].shouldFlash ||= shouldFlash;
       }
     });
-
-    
 
     const toggleGroup = (groupKey) => {
       setCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
@@ -68,12 +70,12 @@ export const KanbanBoard = ({ estimates, activeEstimator }) => {
         ${Object.keys(groups).map(groupKey => {
           const group = groups[groupKey];
           const isCollapsed = collapsedGroups[groupKey];
-          const hasJobs = group.count > 0;
+          const shouldFlash = group.shouldFlash;
           
           // Render thin placeholder ribbon if group is collapsed
           if (isCollapsed) {
             return html`
-              <div class=${`kanban-group-collapsed ${groupKey} ${hasJobs ? 'has-items-flash' : ''}`} onClick=${() => focusGroup(groupKey)} title="Click to Expand">
+              <div class=${`kanban-group-collapsed ${groupKey} ${shouldFlash ? 'has-items-flash' : ''}`} onClick=${() => focusGroup(groupKey)} title="Click to Expand">
                 <div class="collapsed-title">${group.label.toUpperCase()} (${group.count})</div>
               </div>
             `;

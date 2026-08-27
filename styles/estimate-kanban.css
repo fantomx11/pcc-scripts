@@ -47,9 +47,9 @@ body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; }
 .kanban-group-collapsed:hover { filter: brightness(0.95); }
 .kanban-group-collapsed.group-collections { background: #fff3e0; border-top: 4px solid #ff9800; color: #e65100; }
 .kanban-group-collapsed.group-intake { background: #f3e5f5; border-top: 4px solid #9c27b0; color: #4a148c; }
-.kanban-group-collapsed.group-intake.has-items-flash { animation: ribbon-pulse 1.8s infinite ease-in-out; border-top-width: 5px; }
 .kanban-group-collapsed.group-pm { background: #f1f8e9; border-top: 4px solid #8bc34a; color: #33691e; }
 .kanban-group-collapsed.group-pre-con { background: #e3f2fd; border-top: 4px solid #2196f3; color: #0d47a1; }
+.kanban-group-collapsed.has-items-flash { animation: ribbon-pulse 1.8s infinite ease-in-out; border-top-width: 5px; }
 .kanban-group-wrapper { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; flex: 1; min-width: 0; }
 .main-content { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; }
 .modal-box { background: white; padding: 20px; border-radius: 8px; width: 450px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); }
