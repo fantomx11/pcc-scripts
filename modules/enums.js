@@ -7,6 +7,7 @@ export const KanbanPhases = {
     description: "A new job that needs an estimator assigned",
     aging: est => getDaysSince(est.received),
     active: true,
+    flashIfOccupied: true,
     kanbanGroup: "group-intake"
   },
   "Inspection": {
@@ -15,6 +16,7 @@ export const KanbanPhases = {
     description: "Default phase for all new jobs before an inspection date is entered.",
     aging: est => getDaysSince(est.received),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-pre-con"
   },
   "Estimate": {
@@ -23,6 +25,7 @@ export const KanbanPhases = {
     description: "Jobs that have been inspected but do not have an 'Estimate Sent' date yet.",
     aging: est => getDaysSince(est.inspected),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-pre-con"
   },
   "Review": {
@@ -31,6 +34,7 @@ export const KanbanPhases = {
     description: "Estimates that have been sent and have an Xactimate ID, but no 'Reviewed' date.",
     aging: est => getDaysSince(est.sent),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-pre-con"
   },
   "Approval": {
@@ -39,6 +43,7 @@ export const KanbanPhases = {
     description: "Estimates sent/reviewed that are waiting for an 'Approved' date.",
     aging: est => Math.min(est.isReviewRequired ? getDaysSince(est.reviewed) : getDaysSince(est.sent), getDaysSince(est.lastFollowUp)),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-pre-con"
   },
   "Process": {
@@ -47,6 +52,7 @@ export const KanbanPhases = {
     description: "Jobs approved but awaiting processing (Total Estimates > $0).",
     aging: est => getDaysSince(est.approved),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-pre-con"
   },
   "AssignPM": {
@@ -54,6 +60,7 @@ export const KanbanPhases = {
     kanbanDisplay: true,
     description: "Structure jobs that are processed but do not have a Supervisor assigned. Adding an invoice date will bypass PM assignment.",
     active: false,
+    flashIfOccupied: true,
     kanbanGroup: "group-pm"
   },
 
@@ -63,6 +70,7 @@ export const KanbanPhases = {
     description: "Job is assigned to a PM and in pre-production setup.",
     aging: est => getDaysSince(est.approved),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-pm"    
   },
   "WorkInProgress": {
@@ -71,6 +79,7 @@ export const KanbanPhases = {
     description: "Job is actively being reconstructed or mitigated.",
     aging: est => getDaysSince(est.approved),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-pm"
   },
   "CompletedWithoutPaperwork": {
@@ -79,6 +88,7 @@ export const KanbanPhases = {
     description: "Reconstruction completed physically; awaiting closing paperwork.",
     aging: est => getDaysSince(est.approved),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-pm"
   },  
 
@@ -88,6 +98,7 @@ export const KanbanPhases = {
     description: "Job package is with accounting awaiting structural invoicing.",
     aging: est => getDaysSince(est.approved),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-collections"
   },
   "AccountsReceivable": {
@@ -96,6 +107,7 @@ export const KanbanPhases = {
     description: "Invoiced subtotal has been sent to payer; tracking open AR collection aging.",
     aging: est => getDaysSince(est.invoiced || est.approved),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-collections"
   },
   "WaitingForFinalClosure": {
@@ -104,12 +116,13 @@ export const KanbanPhases = {
     description: "Paid but lingering open in the core operating environment.",
     aging: est => getDaysSince(est.invoiced || est.approved),
     active: true,
+    flashIfOccupied: false,
     kanbanGroup: "group-collections"
   },
-
   "Completed": {
     column: "Completed",
     active: false,
+    flashIfOccupied: false,
     kanbanDisplay: false
   },
 
