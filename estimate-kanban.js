@@ -66,6 +66,33 @@
     }
   });
 
+  const ORIGINAL_PAGE_URL = window.location.href;
+
+  async function fetchBackgroundScrapedData() {
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = ORIGINAL_PAGE_URL;
+    document.body.appendChild(iframe);
+
+    // Wait for the iframe DOM to finish loading
+    await new Promise(resolve => iframe.onload = resolve);
+
+    try {
+      const backgroundScraper = new Scraper({
+        contextWindow: iframe.contentWindow,
+        rowMapper: scraper.rowMapper
+      });
+
+      const freshScrapedRows = await backgroundScraper.scrape();
+      return freshScrapedRows;
+    } catch (err) {
+      console.error("Background scrape failed:", err);
+      return null;
+    } finally {
+      iframe.remove();
+    }
+  }
+
   Components.App = ({ initialEstimates }) => {
     const [estimates, setEstimates] = useState(initialEstimates);
     const [activeTab, setActiveTab] = useState("All");
@@ -87,16 +114,50 @@
         setComplianceTasks(tasks); // Pushes fresh metrics directly to UI sub-trees reactively
       });
 
-      return () => { 
-        Store.statusListener = null; 
+      return () => {
+        Store.statusListener = null;
         Store.onCacheRebuilt = null;
       };
-    }, []);  
+    }, []);
 
     useEffect(() => {
       window.App.openModal = (id = null) => {
         console.log("Opening modal for:", id);
         setEditingId(id || `new-${Date.now()}`);
+      };
+    }, []);
+
+    useEffect(() => {
+      Store.statusListener = (status) => setSyncStatus(status);
+      Store.onCacheRebuilt = (updatedEstimates) => setEstimates(updatedEstimates);
+
+      Store.initialFetch(App.scraper.results, Estimate);
+
+      import(`${baseUrl}/modules/compliance.js`).then(async (mod) => {
+        const tasks = await mod.fetchComplianceTasks();
+        setComplianceTasks(tasks);
+      });
+
+      // 10-minute interval background polling (10 * 60 * 1000 ms)
+      const POLL_INTERVAL = 10 * 60 * 1000;
+      const intervalId = setInterval(async () => {
+        Store.updateStatusUI('syncing with Dash');
+        const freshData = await fetchBackgroundScrapedData();
+
+        if (freshData && freshData.length > 0) {
+          App.scraper.results = freshData;
+          // Re-merges fresh scraped records with local manual/overrides
+          Store.rebuildLocal(freshData, Estimate);
+          Store.updateStatusUI('saved');
+        } else {
+          Store.updateStatusUI('saved');
+        }
+      }, POLL_INTERVAL);
+
+      return () => {
+        clearInterval(intervalId);
+        Store.statusListener = null;
+        Store.onCacheRebuilt = null;
       };
     }, []);
 
