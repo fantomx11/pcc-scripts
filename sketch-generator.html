@@ -73,7 +73,7 @@
     .main-layout {
       flex: 1;
       display: grid;
-      grid-template-columns: 1fr 320px;
+      grid-template-columns: 1fr 340px;
       position: relative;
       overflow: hidden;
     }
@@ -231,6 +231,17 @@
       text-transform: uppercase;
     }
 
+    .opening-card {
+      background: #0f172a;
+      border: 1px solid var(--panel-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
     .badge {
       font-size: 0.65rem;
       font-weight: bold;
@@ -314,6 +325,7 @@
   <h1><span>📐</span> Xactimate Multi-Floor Sketch Generator</h1>
   <div class="level-tabs" id="level-tabs-container"></div>
   <div style="display: flex; gap: 8px;">
+    <button class="btn btn-secondary" onclick="openDefaultsModal()">⚙️ Deduct Settings</button>
     <button class="btn btn-secondary" onclick="openImportModal()">📥 Import (JSON / SVG)</button>
     <button class="btn" onclick="openExportModal()">Export Template (.SKX)</button>
   </div>
@@ -346,7 +358,7 @@
     </div>
 
     <div class="instructions-pill" id="instructions-pill">
-      • <b>Scroll / Swipe</b> to pan • <b>Ctrl+Scroll</b> to zoom • <b>Space / Right-click drag</b> to pan • <b>Click wall</b> to scale
+      • <b>Scroll / Swipe</b> to pan • <b>Ctrl+Scroll</b> to zoom • <b>Space / Right-click drag</b> to pan • <b>Click wall</b> to inspect
     </div>
 
     <canvas id="canvas"></canvas>
@@ -395,6 +407,15 @@
 
         <div id="ceil-warning-box" style="display: none;"></div>
 
+        <!-- Wall Openings Deduction Inspector -->
+        <div class="calibration-box" id="wall-openings-panel" style="display: none; border-color: #38bdf8;">
+          <div class="calibration-title" style="color: #38bdf8;">
+            <span>🚪</span> Wall Openings &amp; Status
+          </div>
+          <div id="wall-openings-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+        </div>
+
+        <!-- Wall Calibration -->
         <div class="calibration-box" id="calibration-panel" style="display: none;">
           <div class="calibration-title">
             <span>📏</span> Scale Sketch by Wall
@@ -416,6 +437,60 @@
     <div class="sidebar-section" style="flex: 1;">
       <h3>Floor Elements (<span id="elements-count">0</span>)</h3>
       <div id="elements-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for Global Opening Deduction Settings -->
+<div id="defaults-modal" class="modal-backdrop">
+  <div class="modal-content" style="width: 480px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="color: var(--accent);">⚙️ Global Opening Deduction Settings</h3>
+      <button class="btn btn-secondary btn-sm" onclick="closeDefaultsModal()">&times;</button>
+    </div>
+    <p style="font-size: 0.8rem; color: var(--text-muted);">
+      Set the global <b>Deduct if &gt; (Sq Ft)</b> thresholds. These values override and apply to <b>all</b> doors, windows, and wall openings across the entire sketch (converted to Xactimate square units × 2,322,576 upon export).
+    </p>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div class="field">
+        <label>🚪 All Doors: Deduct if &gt; (Sq Ft)</label>
+        <input type="number" step="0.5" min="0" id="def-door-deduct" value="0">
+      </div>
+      <div class="field">
+        <label>🪟 All Windows: Deduct if &gt; (Sq Ft)</label>
+        <input type="number" step="0.5" min="0" id="def-window-deduct" value="0">
+      </div>
+      <div class="field">
+        <label>🧱 All Missing Walls / Openings: Deduct if &gt; (Sq Ft)</label>
+        <input type="number" step="0.5" min="0" id="def-missing-deduct" value="0">
+      </div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;">
+      <button class="btn" onclick="saveOpeningDefaults()">Apply Globally</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for Deduction Warning before Export -->
+<div id="deduct-warning-modal" class="modal-backdrop">
+  <div class="modal-content" style="width: 500px; border-color: #fbbf24;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="color: #fbbf24; display: flex; align-items: center; gap: 6px;">
+        <span>⚠️</span> Deduction Thresholds Not Set
+      </h3>
+      <button class="btn btn-secondary btn-sm" onclick="closeDeductWarningModal()">&times;</button>
+    </div>
+    <p style="font-size: 0.82rem; color: var(--text-muted);">
+      None of the <b>"Deduct if &gt;"</b> opening thresholds have been set (all currently 0 SF). Without threshold limits, Xactimate will deduct 100% of all door, window, and wall opening surface areas.
+    </p>
+    <div style="background: #090d16; border: 1px solid var(--panel-border); border-radius: 6px; padding: 10px; font-size: 0.76rem; color: #cbd5e1; display: flex; flex-direction: column; gap: 4px;">
+      <div>• <b>Door Deduct:</b> 0 SF (Deduct 100%)</div>
+      <div>• <b>Window Deduct:</b> 0 SF (Deduct 100%)</div>
+      <div>• <b>Opening Deduct:</b> 0 SF (Deduct 100%)</div>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+      <button class="btn btn-amber" onclick="configureDeductionsFromWarning()">⚙️ Set Deductions</button>
+      <button class="btn btn-secondary" onclick="proceedWithExportFromDeductWarning()">Proceed with Export</button>
     </div>
   </div>
 </div>
@@ -451,7 +526,7 @@
     <p style="font-size: 0.82rem; color: var(--text-muted);" id="split-modal-desc">
       Split this room into two separate rooms along the dividing line?
     </p>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+    <div style="grid-template-columns: 1fr 1fr; display: grid; gap: 10px;">
       <div class="field">
         <label>Room 1 Name</label>
         <input type="text" id="split-name-1">
@@ -541,6 +616,7 @@
   const BASE_FT_TO_PX = 20;
   const UNITS_PER_FT = 1524;
   const UNITS_PER_INCH = 127; // Exactly 127 units = 1 inch
+  const SQ_UNITS_PER_SQ_FT = 2322576; // Exact Xactimate square units per sq ft (1524 * 1524)
   const ELEV_FLOOR = 152400;  // 100 ft baseline
   const DEFAULT_CEIL_HEIGHT = 12192; // 8ft
   const SNAP_DISTANCE_PX = 14;
@@ -554,6 +630,15 @@
   let shapes = [];
   let wallMetadataList = [];
 
+  // Global Deduct Settings (overrides all openings globally)
+  let openingDefaults = {
+    doorDeductArea: 0.0,
+    windowDeductArea: 0.0,
+    missingWallDeductArea: 0.0
+  };
+
+  let pendingExportAfterDeduct = false;
+
   let selectedShapeId = null;
   let selectedEdge = null; 
   let hoveredVertex = null;
@@ -562,7 +647,6 @@
   let activeSnapTarget = null;
 
   // Corner Drag Alignment Guides & Constraint State
-  // 0 = Off, 1 = Horizontal (0°), 2 = +45° Diagonal, 3 = Vertical (90°), 4 = -45° Diagonal
   let primaryGuideMode = 0;
   let secondaryGuideMode = 0;
   let constraintAnchor = null;
@@ -656,14 +740,13 @@
     return total > 0 ? total : null;
   }
 
-  // Exact 2-inch increment quantization for Xactimate wall thicknesses
   function quantizeWallThickness(rawMeters, isInvisible = false) {
     if (isInvisible || rawMeters <= 0.03) {
       return { inches: 0, units: 0, feet: 0 };
     }
     const rawInches = rawMeters * 39.37007874;
-    const inchesRounded = Math.max(2, Math.round(rawInches / 2) * 2); // 4", 6", 8", 10", 12"
-    const units = inchesRounded * UNITS_PER_INCH; // Exactly 508, 762, 1016, etc.
+    const inchesRounded = Math.max(2, Math.round(rawInches / 2) * 2);
+    const units = inchesRounded * UNITS_PER_INCH;
     const feet = inchesRounded / 12;
     return { inches: inchesRounded, units: units, feet: feet };
   }
@@ -690,6 +773,49 @@
     return pts.slice();
   }
 
+  // --- OPENING DEDUCTION MODAL MANAGEMENT ---
+  function openDefaultsModal() {
+    document.getElementById('def-door-deduct').value = openingDefaults.doorDeductArea;
+    document.getElementById('def-window-deduct').value = openingDefaults.windowDeductArea;
+    document.getElementById('def-missing-deduct').value = openingDefaults.missingWallDeductArea;
+    document.getElementById('defaults-modal').style.display = 'flex';
+  }
+  function closeDefaultsModal() {
+    pendingExportAfterDeduct = false;
+    document.getElementById('defaults-modal').style.display = 'none';
+  }
+  function saveOpeningDefaults() {
+    openingDefaults.doorDeductArea = Math.max(0, parseFloat(document.getElementById('def-door-deduct').value) || 0);
+    openingDefaults.windowDeductArea = Math.max(0, parseFloat(document.getElementById('def-window-deduct').value) || 0);
+    openingDefaults.missingWallDeductArea = Math.max(0, parseFloat(document.getElementById('def-missing-deduct').value) || 0);
+    
+    const shouldExport = pendingExportAfterDeduct;
+    pendingExportAfterDeduct = false;
+
+    document.getElementById('defaults-modal').style.display = 'none';
+    updateInspector();
+
+    if (shouldExport) {
+      openExportModal(true);
+    }
+  }
+
+  function showDeductWarningModal() {
+    document.getElementById('deduct-warning-modal').style.display = 'flex';
+  }
+  function closeDeductWarningModal() {
+    document.getElementById('deduct-warning-modal').style.display = 'none';
+  }
+  function configureDeductionsFromWarning() {
+    pendingExportAfterDeduct = true;
+    closeDeductWarningModal();
+    openDefaultsModal();
+  }
+  function proceedWithExportFromDeductWarning() {
+    closeDeductWarningModal();
+    openExportModal(true);
+  }
+
   // --- CEILING VS. OPENING HEIGHT VALIDATION ENGINE ---
   function getRoomCeilingViolations(room) {
     if (!room || room.type !== 'room') return { maxTop: 0, violations: [], ceilFt: 8.0 };
@@ -705,7 +831,6 @@
         const rawHFt = op.heightFt || (op.isDoor ? 6.6667 : 3.0);
         const rawBaseFt = Math.max(0, op.lowerElevationFt || 0);
 
-        // Snap using the 2" increment rule used during export
         const hFt = Math.max(2 / 12, Math.round(rawHFt * 6) / 6);
         const baseFt = Math.max(0, Math.round(rawBaseFt * 6) / 6);
         const topFt = baseFt + hFt;
@@ -783,7 +908,7 @@
       pill.innerHTML = txt;
       return;
     }
-    pill.innerHTML = `• <b>Scroll / Swipe</b> to pan • <b>Ctrl+Scroll</b> to zoom • <b>Space / Right-click drag</b> to pan • <b>Click wall</b> to scale`;
+    pill.innerHTML = `• <b>Scroll / Swipe</b> to pan • <b>Ctrl+Scroll</b> to zoom • <b>Space / Right-click drag</b> to pan • <b>Click wall</b> to inspect`;
   }
 
   function renderLevelTabs() {
@@ -1216,6 +1341,8 @@
     const noSel = document.getElementById('no-selection');
     const form = document.getElementById('selection-form');
     const calibPanel = document.getElementById('calibration-panel');
+    const openingsPanel = document.getElementById('wall-openings-panel');
+    const openingsList = document.getElementById('wall-openings-list');
     const ceilField = document.getElementById('prop-ceil-field');
     const ceilWarnBox = document.getElementById('ceil-warning-box');
 
@@ -1242,7 +1369,6 @@
       ceilField.style.display = 'flex';
       document.getElementById('prop-ceiling-height').value = shape.ceilingHeightFt || 8.0;
 
-      // Clearance Validation Alert in Inspector
       const ceilCheck = getRoomCeilingViolations(shape);
       if (ceilCheck.violations.length > 0) {
         ceilWarnBox.style.display = 'block';
@@ -1276,8 +1402,44 @@
       calibPanel.style.display = 'flex';
       document.getElementById('calib-curr-len').innerText = formatFtIn(distFt);
       document.getElementById('calib-target-len').value = formatFtIn(distFt);
+
+      // Render Wall Openings with Active Global Deduct Status
+      const meta = findWallMeta(p1, p2);
+      if (meta && meta.openings && meta.openings.length > 0) {
+        openingsPanel.style.display = 'flex';
+        openingsList.innerHTML = '';
+
+        meta.openings.forEach((op, oIdx) => {
+          const wFt = op.widthFt || 3.0;
+          const hFt = op.heightFt || (op.isDoor ? 6.6667 : 3.0);
+          const areaSqFt = parseFloat((wFt * hFt).toFixed(1));
+          const opLabel = op.isDoor ? '🚪 Door' : (op.isWindow ? '🪟 Window' : '🧱 Missing Wall');
+          
+          const globalThreshold = op.isDoor ? openingDefaults.doorDeductArea : (op.isWindow ? openingDefaults.windowDeductArea : openingDefaults.missingWallDeductArea);
+          const isDeducted = globalThreshold === 0 || areaSqFt > globalThreshold;
+
+          const card = document.createElement('div');
+          card.className = 'opening-card';
+          card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; font-weight: 600;">
+              <span>${opLabel} #${oIdx + 1}</span>
+              <span style="color: var(--accent); font-family: monospace;">${formatFtIn(wFt)} × ${formatFtIn(hFt)} (${areaSqFt} SF)</span>
+            </div>
+            <div style="font-size: 0.7rem; display: flex; justify-content: space-between; align-items: center; color: var(--text-muted);">
+              <span>Global Rule: <b>&gt; ${globalThreshold} SF</b></span>
+              <span style="font-weight: bold; color: ${isDeducted ? '#4ade80' : '#f59e0b'};">
+                ${isDeducted ? '✓ Deducted' : '✗ Not Deducted'}
+              </span>
+            </div>
+          `;
+          openingsList.appendChild(card);
+        });
+      } else {
+        openingsPanel.style.display = 'none';
+      }
     } else {
       calibPanel.style.display = 'none';
+      openingsPanel.style.display = 'none';
     }
   }
 
@@ -1501,7 +1663,6 @@
       const isSelected = shape.id === selectedShapeId;
       const pts = shape.points.map(worldToScreen);
 
-      // Check ceiling clearance violations for rooms
       const isRoom = shape.type === 'room';
       const ceilCheck = isRoom ? getRoomCeilingViolations(shape) : { violations: [] };
       const hasViolation = ceilCheck.violations.length > 0;
@@ -1519,7 +1680,6 @@
       if (shape.type === 'area') { strokeColor = '#4ade80'; fillColor = 'rgba(74, 222, 128, 0.15)'; }
       if (shape.type === 'block') { strokeColor = '#facc15'; fillColor = 'rgba(250, 204, 21, 0.2)'; }
 
-      // Apply red alert highlight if room ceiling is lower than openings
       if (hasViolation) {
         strokeColor = '#ef4444';
         fillColor = 'rgba(239, 68, 68, 0.22)';
@@ -1541,7 +1701,6 @@
         drawEdgeWithMeta(p1, p2, isThisEdgeSelected, strokeColor);
       }
 
-      // Draw attached native stub walls
       if (shape.stubWalls && shape.stubWalls.length > 0) {
         shape.stubWalls.forEach((sw) => {
           ctx.beginPath();
@@ -1571,7 +1730,6 @@
       ctx.fillStyle = '#94a3b8';
       ctx.fillText(`[${shape.dimCode}]${shape.ceilingHeightFt ? ` ${shape.ceilingHeightFt}'` : ''}`, center.x, center.y + 8);
 
-      // Render Ceiling Warning Banner on Canvas
       if (hasViolation) {
         ctx.fillStyle = '#ef4444';
         ctx.font = 'bold 9px monospace';
@@ -1592,7 +1750,6 @@
       });
     });
 
-    // Dynamic Corner Drag Alignment Guides & Movement Constraint Lines
     if (draggedVertex) {
       const shape = shapes.find(s => s.id === draggedVertex.shapeId);
       if (shape && shape.points[draggedVertex.index]) {
@@ -1604,7 +1761,7 @@
           if (mode === 0) return;
           ctx.save();
           if (isConstraining) {
-            ctx.strokeStyle = '#facc15'; // Bright Gold when actively constraining movement
+            ctx.strokeStyle = '#facc15';
             ctx.lineWidth = 1.6;
             ctx.setLineDash([6, 4]);
           } else {
@@ -1614,18 +1771,14 @@
           }
 
           ctx.beginPath();
-          if (mode === 1) { // Horizontal
-            ctx.moveTo(0, sp.y);
-            ctx.lineTo(canvas.width, sp.y);
-          } else if (mode === 2) { // +45° Diagonal
-            ctx.moveTo(sp.x - L, sp.y - L);
-            ctx.lineTo(sp.x + L, sp.y + L);
-          } else if (mode === 3) { // Vertical
-            ctx.moveTo(sp.x, 0);
-            ctx.lineTo(sp.x, canvas.height);
-          } else if (mode === 4) { // -45° Diagonal
-            ctx.moveTo(sp.x - L, sp.y + L);
-            ctx.lineTo(sp.x + L, sp.y - L);
+          if (mode === 1) {
+            ctx.moveTo(0, sp.y); ctx.lineTo(canvas.width, sp.y);
+          } else if (mode === 2) {
+            ctx.moveTo(sp.x - L, sp.y - L); ctx.lineTo(sp.x + L, sp.y + L);
+          } else if (mode === 3) {
+            ctx.moveTo(sp.x, 0); ctx.lineTo(sp.x, canvas.height);
+          } else if (mode === 4) {
+            ctx.moveTo(sp.x - L, sp.y + L); ctx.lineTo(sp.x + L, sp.y - L);
           }
           ctx.stroke();
           ctx.restore();
@@ -1830,17 +1983,14 @@
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
-    // Right-click while dragging corner: cycles 5 modes (0=Off, 1=H, 2=+45°, 3=V, 4=-45°)
     if (draggedVertex && e.button === 2) {
       e.preventDefault();
       const shape = shapes.find(s => s.id === draggedVertex.shapeId);
       const currPt = shape ? shape.points[draggedVertex.index] : null;
 
       if (e.ctrlKey && primaryGuideMode !== 0) {
-        // While constrained by holding Ctrl, right-click adds a secondary unconstrained guide line
         secondaryGuideMode = (secondaryGuideMode + 1) % 5;
       } else {
-        // Cycle primary guide line
         primaryGuideMode = (primaryGuideMode + 1) % 5;
         if (currPt) constraintAnchor = { ...currPt };
         if (primaryGuideMode === 0) secondaryGuideMode = 0;
@@ -1936,27 +2086,23 @@
       const isCtrl = e.ctrlKey || e.metaKey || isCtrlHeld;
 
       if (isCtrl && primaryGuideMode !== 0) {
-        // Movement is strictly constrained along the primary guide line
         const anc = constraintAnchor || { ...shape.points[draggedVertex.index] };
 
-        if (primaryGuideMode === 1) { // Horizontal: lock Y
-          targetWorld.y = anc.y;
-          targetWorld.x = snapToInch(rawWorld.x);
-        } else if (primaryGuideMode === 3) { // Vertical: lock X
-          targetWorld.x = anc.x;
-          targetWorld.y = snapToInch(rawWorld.y);
-        } else if (primaryGuideMode === 2) { // +45° Diagonal: dy = dx
+        if (primaryGuideMode === 1) {
+          targetWorld.y = anc.y; targetWorld.x = snapToInch(rawWorld.x);
+        } else if (primaryGuideMode === 3) {
+          targetWorld.x = anc.x; targetWorld.y = snapToInch(rawWorld.y);
+        } else if (primaryGuideMode === 2) {
           const delta = snapToInch(((rawWorld.x - anc.x) + (rawWorld.y - anc.y)) / 2);
           targetWorld.x = snapToInch(anc.x + delta);
           targetWorld.y = snapToInch(anc.y + delta);
-        } else if (primaryGuideMode === 4) { // -45° Diagonal: dy = -dx
+        } else if (primaryGuideMode === 4) {
           const delta = snapToInch(((rawWorld.x - anc.x) - (rawWorld.y - anc.y)) / 2);
           targetWorld.x = snapToInch(anc.x + delta);
           targetWorld.y = snapToInch(anc.y - delta);
         }
         activeSnapTarget = null;
       } else {
-        // Free movement with snapping
         const snapResult = getSnapCoordinate(rawWorld, draggedVertex.shapeId, draggedVertex.index);
         targetWorld = snapResult.point;
         activeSnapTarget = snapResult.isCornerSnap ? snapResult.point : null;
@@ -2014,7 +2160,6 @@
   });
 
   window.addEventListener('mouseup', (e) => {
-    // Prevent releasing right mouse button during a vertex drag from canceling the drag
     if (e.button === 2 && draggedVertex) {
       return;
     }
@@ -2311,7 +2456,6 @@
       const floorEdges = fl.edges || [];
       const edgeLookup = new Map();
 
-      // Find floor's minimum base elevation for relative opening offset calculation
       let floorBaseZM = 0;
       const floorRoomsForZ = allRooms.filter(r => !r.floor || r.floor.id === fl.id);
       const zValues = [];
@@ -2336,7 +2480,6 @@
         const p1Ft = { x: snapToInch(v1.position.x * scale), y: snapToInch(-v1.position.y * scale) };
         const isInvis = ed.type === 'invisible';
         
-        // Exact 2" increment quantization
         const tQuant = quantizeWallThickness(ed.thickness || 0.14, isInvis);
 
         const openingsList = (ed.openings || []).map(op => {
@@ -2345,7 +2488,6 @@
           
           const isWin = lbl.includes('window') || opType === 'window';
           
-          // Complete robust door classification
           const isDr = !isWin && (
             opType === 'doorway' ||
             lbl.includes('door') ||
@@ -2360,7 +2502,6 @@
 
           const isMissing = !isWin && !isDr;
 
-          // Normalize vertical elevation relative to floor plane
           const rawLowerElevationM = op.lowerElevation || 0.0;
           let relLowerElevationM = rawLowerElevationM;
           if (floorBaseZM > 1.0 && rawLowerElevationM > 1.0) {
@@ -2372,7 +2513,7 @@
           const lowerElevationFt = Math.max(0, relLowerElevationM * scale);
 
           return {
-            id: op.id,
+            id: op.id || `op_${getNextId()}`,
             widthFt: (op.width || 0.9) * scale,
             heightFt: (op.height || 2.0) * scale,
             lowerElevationFt: lowerElevationFt,
@@ -2617,7 +2758,7 @@
     document.getElementById('import-modal').style.display = 'none';
   }
 
-  // --- XML GENERATOR WITH 2" QUANTIZED WALLS & OPENINGS, NATIVE STUB WALLS & DYNAMIC DOUBLE DOORS ---
+  // --- XML GENERATOR WITH EXACT CONVERSION (SQ FT * 2322576) ---
   function generateXML() {
     const docUuid = generateExUuid();
     const structUuid = generateExUuid();
@@ -2726,7 +2867,6 @@
         const n = room.points.length;
         const roomCeil = room.ceilingHeightFt || 8.0;
 
-        // 1. Boundary Perimeter Walls
         for (let i = 0; i < n; i++) {
           const p1 = room.points[i];
           const p2 = room.points[(i + 1) % n];
@@ -2761,7 +2901,6 @@
           }
         }
 
-        // 2. Attached Native Stub Walls
         (room.stubWalls || []).forEach(sw => {
           const cpA = getCanonicalPoint(sw.p0, roomCeil);
           const cpB = getCanonicalPoint(sw.p1, roomCeil);
@@ -2843,7 +2982,8 @@
 
         if (isInvisible) {
           openCount++;
-          wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" dimCode="WO${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${coordIdx}" baseHeight="0.0000000" flags="3198" type="0" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowAHt="3048.0000000" windowBHt="6096.0000000" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[WO]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
+          const deductUnits = ((openingDefaults.missingWallDeductArea || 0.0) * SQ_UNITS_PER_SQ_FT).toFixed(7);
+          wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" dimCode="WO${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${coordIdx}" baseHeight="0.0000000" flags="3198" type="0" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowAHt="3048.0000000" windowBHt="6096.0000000" defWindowDeductOpeningArea="${deductUnits}" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[WO]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
         }
 
         if (meta && meta.openings && meta.openings.length > 0) {
@@ -2857,7 +2997,6 @@
             openCount++;
             const rc = op.relativeCenter !== undefined ? op.relativeCenter : 0.5;
 
-            // Snap width, height, and base elevation to exact 2-inch increments (1/6 ft = 254 Xactimate units)
             const rawWFt = op.widthFt || 3.0;
             const rawHFt = op.heightFt || 6.6667;
             const rawBaseFt = Math.max(0, op.lowerElevationFt || 0);
@@ -2899,17 +3038,27 @@
             const i3 = coordinates.length; coordinates.push(`${opX2} ${opY2} ${zTop}`);
             const i4 = coordinates.length; coordinates.push(`${opX1} ${opY1} ${zTop}`);
 
+            // Strict global threshold conversion: Sq Ft * 2,322,576
+            let deductValSqFt = 0.0;
+            if (op.isDoor) {
+              deductValSqFt = openingDefaults.doorDeductArea;
+            } else if (op.isWindow) {
+              deductValSqFt = openingDefaults.windowDeductArea;
+            } else {
+              deductValSqFt = openingDefaults.missingWallDeductArea;
+            }
+            const deductStr = (deductValSqFt * SQ_UNITS_PER_SQ_FT).toFixed(7);
+
             if (op.isWindow) {
-              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="4" dimCode="WINDOW${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="552" type="1" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowType="1" windowAHt="${Math.round(heightUnits/2)}.0000000" windowBHt="${heightUnits}.0000000" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="5" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Window]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
+              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="4" dimCode="WINDOW${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="552" type="1" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowType="1" windowAHt="${Math.round(heightUnits/2)}.0000000" windowBHt="${heightUnits}.0000000" defWindowDeductOpeningArea="${deductStr}" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="5" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Window]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
             } else if (op.isDoor) {
-              // Dynamic double door determination strictly during export processing (>= 4.0 ft)
               const isDoubleDoor = (wFt >= 3.999);
               const doubleDoorVal = isDoubleDoor ? "1" : "0";
-              const doorFlags = isDoubleDoor ? "312" : "56"; // 312 = 56 + 256 (0x100 bit activates Xactimate double-door rendering)
+              const doorFlags = isDoubleDoor ? "312" : "56";
 
-              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="6" dimCode="DOOR${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="${doorFlags}" type="2" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="${doubleDoorVal}" doorType="0" doorStyle="0" doorAngle="20" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="7" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Door]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
+              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="6" dimCode="DOOR${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="${doorFlags}" type="2" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="${doubleDoorVal}" doorType="0" doorStyle="0" doorAngle="20" defWindowDeductOpeningArea="${deductStr}" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="7" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Door]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
             } else {
-              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" dimCode="WO${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="56" type="0" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowAHt="${Math.round(heightUnits/2)}.0000000" windowBHt="${heightUnits}.0000000" defWindowDeductOpeningArea="0.0000000" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[MissingWall]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
+              wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" dimCode="WO${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="56" type="0" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowAHt="${Math.round(heightUnits/2)}.0000000" windowBHt="${heightUnits}.0000000" defWindowDeductOpeningArea="${deductStr}" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="0"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="0" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[MissingWall]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
             }
           });
         }
@@ -2969,7 +3118,11 @@
       levelsXML += `<SKETCHLEVEL id="SKT${103 + lIdx}" exUuid="${levelUuid}" prevReadOrder="3" name="${lvl.name}" dimCode="${lvlDimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="${levelKey}" grpType="11" parentKey="GRP1" grpDesc="${lvl.name}" mainRoomID="0" lastDims="" levelNumber="${lvl.levelNumber}" floorElevation="${lvlFloorElevation}.0000000" copyExisting="1" aerialRoofsCreated="0" piImported="0" riImported="0" importID="0" importSource="" isExteriorLevel="0" hideLevelMeasurements="0" wireFaceGroupMode="0" levelLocked="0">${roomsXML}${wallsXML}${verticesXML}${sectorWallsXML}${sectorsXML}</SKETCHLEVEL>`;
     });
 
-    const docPrefs = "StartWithProposed:0;WallThickness:508;CeilingHeight:12192;ExtendSurfaceDown:1;ExtendSurfaceDownLength:1524;Grid:0;ShowGrid3D:0;ShowTerrain3D:0;GridSize:1524;SnapGrid:1;SnapGridSize:127;MergeSnap:1;MergeSnapDist:127;DisplayValidation:0;HideDimensionLines:0;ManualUpdateAlgorithm:0;RoofIntersectLevels:1;AddExtLevel:0;LevelElevation:152400;RemoveLFBehindBlcok:1;RemoveLFBehindBlockCeiling:1;RemoveSFBehindBlock:1;RemoveSFUnderBlock:1;RemoveSFAboveBlock:1;AutoCalcRoofWaste:0;AutoCalcRoofWasteNote:0;AutoCalcRoofWasteRidgeHipCap:0;AutoCalcRoofWasteStarter:0;AutoCalcRoofWasteRakeStarter:0;AutoCalcRoofWasteValleys:0;Window:0;WindowType:1;WindowShape:0;DoorType:0;DoorStyle:0;WindowHeight:6096;WindowWidth:7620;WindowDistanceFromFloor:4572;WindowDisplayGrid:1;WindowIgnoreOpening:0;WindowDeductOpening:0;WindowUseFineTuneFeature:1;DoorHeight:10160;DoorWidth:3810;DoorDistanceFromFloor:0;DoorDouble:0;DoorIgnoreOpening:0;DoorDeductOpening:0;DoorAngle:20;DoorLeftHandSwing:0;DoorUseFineTuneFeature:1;MissingWallDeductOpening:0;MissingWallIgnoreOpening:0;StairWidth:4572;StairDesiredRiserHeight:953;StairDesiredTreadWidth:1397;StairDefaultWallType:0;StairDefaultCeilingType:0;StairShowLabel:0;MaxFillPieces:4;MinFillCut:3048;MinFillCutWidth:3048;RollLengthOverCut:381;SeamAllowanceOvercut:381;UseScrap:1;StairOvercut:127";
+    const winDeductFlag = openingDefaults.windowDeductArea > 0 ? "1" : "0";
+    const doorDeductFlag = openingDefaults.doorDeductArea > 0 ? "1" : "0";
+    const missDeductFlag = openingDefaults.missingWallDeductArea > 0 ? "1" : "0";
+
+    const docPrefs = `StartWithProposed:0;WallThickness:508;CeilingHeight:12192;ExtendSurfaceDown:1;ExtendSurfaceDownLength:1524;Grid:0;ShowGrid3D:0;ShowTerrain3D:0;GridSize:1524;SnapGrid:1;SnapGridSize:127;MergeSnap:1;MergeSnapDist:127;DisplayValidation:0;HideDimensionLines:0;ManualUpdateAlgorithm:0;RoofIntersectLevels:1;AddExtLevel:0;LevelElevation:152400;RemoveLFBehindBlcok:1;RemoveLFBehindBlockCeiling:1;RemoveSFBehindBlock:1;RemoveSFUnderBlock:1;RemoveSFAboveBlock:1;AutoCalcRoofWaste:0;AutoCalcRoofWasteNote:0;AutoCalcRoofWasteRidgeHipCap:0;AutoCalcRoofWasteStarter:0;AutoCalcRoofWasteRakeStarter:0;AutoCalcRoofWasteValleys:0;Window:0;WindowType:1;WindowShape:0;DoorType:0;DoorStyle:0;WindowHeight:6096;WindowWidth:7620;WindowDistanceFromFloor:4572;WindowDisplayGrid:1;WindowIgnoreOpening:0;WindowDeductOpening:${winDeductFlag};WindowUseFineTuneFeature:1;DoorHeight:10160;DoorWidth:3810;DoorDistanceFromFloor:0;DoorDouble:0;DoorIgnoreOpening:0;DoorDeductOpening:${doorDeductFlag};DoorAngle:20;DoorLeftHandSwing:0;DoorUseFineTuneFeature:1;MissingWallDeductOpening:${missDeductFlag};MissingWallIgnoreOpening:0;StairWidth:4572;StairDesiredRiserHeight:953;StairDesiredTreadWidth:1397;StairDefaultWallType:0;StairDefaultCeilingType:0;StairShowLabel:0;MaxFillPieces:4;MinFillCut:3048;MinFillCutWidth:3048;RollLengthOverCut:381;SeamAllowanceOvercut:381;UseScrap:1;StairOvercut:127`;
 
     return `<?xml version='1.0' encoding='UTF-8' ?><SKETCHDOCUMENT id="SKT${getNextId()}" exUuid="${docUuid}" prevReadOrder="0" dimCode="" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP0" grpType="1" parentKey="GRP1" grpDesc="" mainRoomID="0" lastDims="" isSelectedDoc="0" majorVersion="1" minorVersion="27" buildNum="3400" compassRotation="0.0000000" geoLocation="0" geoLocationZone="0" fromPrevLoss="0" useTransition="0" roofsExcludeUngroupedValleys="0" createdVersion="127" documentPrefs="${docPrefs}" isManualFlooring="0" isCustomGroupsDisabled="0" allowImgInspElevMode="0"><SKETCHSTRUCTURE structureType="0" id="SKT${getNextId()}" exUuid="${structUuid}" prevReadOrder="0" dimCode="" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="GRP0" grpType="1" parentKey="GRP0" grpDesc="" mainRoomID="0" lastDims="">${levelsXML}</SKETCHSTRUCTURE><COORDINATE3>${coordinates.join(' ')}</COORDINATE3></SKETCHDOCUMENT>`;
   }
@@ -2979,6 +3132,12 @@
       const violations = getAllCeilingViolations();
       if (violations.length > 0) {
         showExportWarningModal(violations);
+        return;
+      }
+      const isDeductUnset = (openingDefaults.doorDeductArea <= 0 && openingDefaults.windowDeductArea <= 0 && openingDefaults.missingWallDeductArea <= 0);
+      const hasAnyOpenings = wallMetadataList.some(m => (m.openings && m.openings.length > 0) || m.isInvisible);
+      if (isDeductUnset && hasAnyOpenings) {
+        showDeductWarningModal();
         return;
       }
     }
