@@ -1337,6 +1337,23 @@
     draw();
   }
 
+  // --- OPENING TYPE SWITCHER (Preserves dimensions & elevation offsets) ---
+  function changeOpeningType(metaId, opId, newType) {
+    const meta = wallMetadataList.find(m => m.id === metaId);
+    if (!meta || !meta.openings) return;
+    const op = meta.openings.find(o => o.id === opId);
+    if (!op) return;
+
+    op.isDoor = (newType === 'door');
+    op.isWindow = (newType === 'window');
+    op.isMissingWall = (newType === 'opening');
+    op.label = op.isDoor ? 'Door' : (op.isWindow ? 'Window' : 'Opening');
+
+    updateInspector();
+    updateSidebar();
+    draw();
+  }
+
   function updateInspector() {
     const noSel = document.getElementById('no-selection');
     const form = document.getElementById('selection-form');
@@ -1403,7 +1420,7 @@
       document.getElementById('calib-curr-len').innerText = formatFtIn(distFt);
       document.getElementById('calib-target-len').value = formatFtIn(distFt);
 
-      // Render Wall Openings with Active Global Deduct Status
+      // Render Wall Openings with Active Global Deduct Status and Type Selector
       const meta = findWallMeta(p1, p2);
       if (meta && meta.openings && meta.openings.length > 0) {
         openingsPanel.style.display = 'flex';
@@ -1412,21 +1429,32 @@
         meta.openings.forEach((op, oIdx) => {
           const wFt = op.widthFt || 3.0;
           const hFt = op.heightFt || (op.isDoor ? 6.6667 : 3.0);
+          const baseFt = Math.max(0, op.lowerElevationFt || 0);
           const areaSqFt = parseFloat((wFt * hFt).toFixed(1));
-          const opLabel = op.isDoor ? '🚪 Door' : (op.isWindow ? '🪟 Window' : '🧱 Missing Wall');
           
+          const currentTypeVal = op.isDoor ? 'door' : (op.isWindow ? 'window' : 'opening');
           const globalThreshold = op.isDoor ? openingDefaults.doorDeductArea : (op.isWindow ? openingDefaults.windowDeductArea : openingDefaults.missingWallDeductArea);
           const isDeducted = globalThreshold === 0 || areaSqFt > globalThreshold;
 
           const card = document.createElement('div');
           card.className = 'opening-card';
           card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; font-weight: 600;">
-              <span>${opLabel} #${oIdx + 1}</span>
-              <span style="color: var(--accent); font-family: monospace;">${formatFtIn(wFt)} × ${formatFtIn(hFt)} (${areaSqFt} SF)</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+              <select style="flex: 1; padding: 3px 6px; font-size: 0.75rem;" onchange="changeOpeningType('${meta.id}', '${op.id}', this.value)">
+                <option value="door" ${currentTypeVal === 'door' ? 'selected' : ''}>🚪 Door</option>
+                <option value="window" ${currentTypeVal === 'window' ? 'selected' : ''}>🪟 Window</option>
+                <option value="opening" ${currentTypeVal === 'opening' ? 'selected' : ''}>🧱 Wall Opening</option>
+              </select>
+              <span style="color: var(--accent); font-family: monospace; font-size: 0.72rem; white-space: nowrap;">
+                ${formatFtIn(wFt)} × ${formatFtIn(hFt)}
+              </span>
             </div>
-            <div style="font-size: 0.7rem; display: flex; justify-content: space-between; align-items: center; color: var(--text-muted);">
-              <span>Global Rule: <b>&gt; ${globalThreshold} SF</b></span>
+            <div style="font-size: 0.68rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+              <span>Base Elevation: <b style="color: #cbd5e1;">${formatFtIn(baseFt)}</b></span>
+              <span>Area: <b style="color: #cbd5e1;">${areaSqFt} SF</b></span>
+            </div>
+            <div style="font-size: 0.68rem; display: flex; justify-content: space-between; align-items: center; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.05); padding-top: 3px;">
+              <span>Rule: <b>&gt; ${globalThreshold} SF</b></span>
               <span style="font-weight: bold; color: ${isDeducted ? '#4ade80' : '#f59e0b'};">
                 ${isDeducted ? '✓ Deducted' : '✗ Not Deducted'}
               </span>
