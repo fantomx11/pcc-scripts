@@ -1,5 +1,5 @@
 (function() {
-    // Initialized outside of the main function to hold state and be accessible by other functions if needed.
+    // Initialized outside of the main function to hold state and be accessible by other functions if needed[cite: 1].
     let subjectPrefixGlobal = null;
     let appendCode = () => {
         console.error("appendCode not yet initialized.");
@@ -12,7 +12,486 @@
     };
 
     /**
-     * Parses a string for repeat sections and variables.
+     * Chrome DevTools-Style DOM Tree Inspector & Editor Component with Drag & Drop
+     */
+    class DOMTreeInspector {
+        constructor(container, options = {}) {
+            this.container = container;
+            this.doc = options.doc || document;
+            this.targetElement = options.targetElement || null;
+            this.onChange = options.onChange || (() => {});
+            this.isEditing = false;
+            this.collapsedNodes = new WeakSet();
+            this.voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+            this.draggedNode = null;
+            
+            this.init();
+        }
+
+        init() {
+            this.container.classList.add('devtools-dom-tree');
+            this.render();
+        }
+
+        setTarget(element) {
+            this.targetElement = element;
+            if (!this.isEditing) {
+                this.render();
+            }
+        }
+
+        render() {
+            if (this.isEditing || !this.targetElement) return;
+            this.container.innerHTML = '';
+
+            if (!this.targetElement.childNodes || this.targetElement.childNodes.length === 0) {
+                const emptyNotice = this.doc.createElement('div');
+                emptyNotice.className = 'dom-empty-notice';
+                emptyNotice.textContent = '<empty note content>';
+                this.container.appendChild(emptyNotice);
+                return;
+            }
+
+            Array.from(this.targetElement.childNodes).forEach(node => {
+                const nodeEl = this.buildNodeTree(node);
+                if (nodeEl) this.container.appendChild(nodeEl);
+            });
+        }
+
+        buildNodeTree(node) {
+            if (node.nodeType === 3) { // TEXT_NODE
+                const textContent = node.nodeValue;
+                if (!textContent || textContent.trim() === '') {
+                    if (!textContent || !textContent.includes('\n')) return null;
+                }
+
+                const textRow = this.doc.createElement('div');
+                textRow.className = 'dom-row dom-text-node';
+                textRow.draggable = true;
+                
+                const indentSpacer = this.doc.createElement('span');
+                indentSpacer.className = 'dom-arrow-spacer';
+                textRow.appendChild(indentSpacer);
+
+                const textSpan = this.doc.createElement('span');
+                textSpan.className = 'dom-text-content';
+                textSpan.textContent = `"${textContent}"`;
+                textSpan.title = "Double-click to edit text | Drag to move";
+                
+                textSpan.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    this.editInline(textSpan, textContent, (newVal) => {
+                        node.nodeValue = newVal;
+                        this.onChange();
+                        this.render();
+                    });
+                });
+
+                textRow.appendChild(textSpan);
+                this.setupDragAndDrop(textRow, node, false);
+                return textRow;
+            }
+
+            if (node.nodeType === 1) { // ELEMENT_NODE
+                const tagName = node.tagName.toLowerCase();
+                const isVoid = this.voidTags.has(tagName);
+                const hasChildren = node.childNodes.length > 0;
+                const isCollapsed = this.collapsedNodes.has(node);
+
+                const elemWrapper = this.doc.createElement('div');
+                elemWrapper.className = 'dom-elem-wrapper';
+
+                const tagRow = this.doc.createElement('div');
+                tagRow.className = 'dom-row dom-tag-row';
+                tagRow.draggable = true;
+
+                // Toggle arrow
+                const toggle = this.doc.createElement('span');
+                toggle.className = 'dom-arrow' + (hasChildren && !isVoid ? ' has-children' : '');
+                toggle.textContent = hasChildren && !isVoid ? (isCollapsed ? '▶' : '▼') : '';
+                tagRow.appendChild(toggle);
+
+                // Node line content container
+                const lineContent = this.doc.createElement('span');
+                lineContent.className = 'dom-line-content';
+
+                // Opening Tag start
+                const openTag = this.doc.createElement('span');
+                openTag.className = 'dom-tag-start';
+                openTag.innerHTML = `&lt;<span class="dom-tag-name">${tagName}</span>`;
+                lineContent.appendChild(openTag);
+
+                // Make tag name editable on double click
+                const tagNameSpan = openTag.querySelector('.dom-tag-name');
+                tagNameSpan.title = "Double-click to change tag name | Drag to move";
+                tagNameSpan.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    this.editInline(tagNameSpan, tagName, (newTagName) => {
+                        const sanitizedTag = newTagName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+                        if (sanitizedTag && sanitizedTag !== tagName) {
+                            try {
+                                const newElem = this.doc.createElement(sanitizedTag);
+                                Array.from(node.attributes).forEach(attr => newElem.setAttribute(attr.name, attr.value));
+                                while (node.firstChild) {
+                                    newElem.appendChild(node.firstChild);
+                                }
+                                node.parentNode.replaceChild(newElem, node);
+                                this.onChange();
+                                this.render();
+                            } catch (err) {
+                                console.error("Invalid tag name:", err);
+                                this.render();
+                            }
+                        } else {
+                            this.render();
+                        }
+                    });
+                });
+
+                // Attributes
+                Array.from(node.attributes || []).forEach(attr => {
+                    const attrSpan = this.doc.createElement('span');
+                    attrSpan.className = 'dom-attr-pair';
+                    attrSpan.innerHTML = ` <span class="dom-attr-name">${attr.name}</span>="<span class="dom-attr-val">${attr.value}</span>"`;
+                    attrSpan.title = 'Double-click to edit attribute (e.g. style="color:red")';
+                    
+                    attrSpan.addEventListener('dblclick', (e) => {
+                        e.stopPropagation();
+                        this.editInline(attrSpan, `${attr.name}="${attr.value}"`, (newVal) => {
+                            const match = newVal.trim().match(/^([a-zA-Z0-9_-]+)(?:=(?:"|')?(.*?)(?:"|')?)?$/);
+                            if (match) {
+                                if (match[1] !== attr.name) {
+                                    node.removeAttribute(attr.name);
+                                }
+                                node.setAttribute(match[1], match[2] !== undefined ? match[2] : '');
+                            } else if (!newVal.trim()) {
+                                node.removeAttribute(attr.name);
+                            }
+                            this.onChange();
+                            this.render();
+                        });
+                    });
+
+                    lineContent.appendChild(attrSpan);
+                });
+
+                // Tag closing bracket
+                const tagEnd = this.doc.createElement('span');
+                tagEnd.className = 'dom-tag-end';
+                tagEnd.textContent = isVoid ? ' />' : '>';
+                lineContent.appendChild(tagEnd);
+
+                // Quick Action buttons on hover
+                const actions = this.doc.createElement('span');
+                actions.className = 'dom-node-actions';
+                actions.innerHTML = `
+                    <span class="dom-action-btn" data-action="edit-html" title="Edit as HTML">HTML</span>
+                    <span class="dom-action-btn" data-action="add-attr" title="Add Attribute">+attr</span>
+                    <span class="dom-action-btn" data-action="delete" title="Delete Node">&times;</span>
+                `;
+                lineContent.appendChild(actions);
+
+                tagRow.appendChild(lineContent);
+                elemWrapper.appendChild(tagRow);
+
+                // Setup Drag & Drop on the element row
+                this.setupDragAndDrop(tagRow, node, !isVoid);
+
+                // Action Event Handlers
+                actions.querySelector('[data-action="edit-html"]').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.editAsHtml(elemWrapper, node);
+                });
+
+                actions.querySelector('[data-action="add-attr"]').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const attrPrompt = prompt('Enter attribute (e.g. style="color: red;" or class="my-class"):');
+                    if (attrPrompt) {
+                        const match = attrPrompt.trim().match(/^([a-zA-Z0-9_-]+)(?:=(?:"|')?(.*?)(?:"|')?)?$/);
+                        if (match && match[1]) {
+                            node.setAttribute(match[1], match[2] !== undefined ? match[2] : '');
+                            this.onChange();
+                            this.render();
+                        }
+                    }
+                });
+
+                actions.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    node.parentNode.removeChild(node);
+                    this.onChange();
+                    this.render();
+                });
+
+                // Children & Closing tag if not void
+                if (hasChildren && !isVoid) {
+                    const childrenContainer = this.doc.createElement('div');
+                    childrenContainer.className = 'dom-children-container';
+                    if (isCollapsed) {
+                        childrenContainer.style.display = 'none';
+                    }
+
+                    Array.from(node.childNodes).forEach(child => {
+                        const childTree = this.buildNodeTree(child);
+                        if (childTree) childrenContainer.appendChild(childTree);
+                    });
+
+                    elemWrapper.appendChild(childrenContainer);
+
+                    // Closing tag row
+                    const closeTagRow = this.doc.createElement('div');
+                    closeTagRow.className = 'dom-row dom-tag-close-row';
+                    if (isCollapsed) {
+                        closeTagRow.style.display = 'none';
+                    }
+
+                    const closeSpacer = this.doc.createElement('span');
+                    closeSpacer.className = 'dom-arrow-spacer';
+                    closeTagRow.appendChild(closeSpacer);
+
+                    const closeTagSpan = this.doc.createElement('span');
+                    closeTagSpan.className = 'dom-tag-close';
+                    closeTagSpan.innerHTML = `&lt;/<span class="dom-tag-name">${tagName}</span>&gt;`;
+                    closeTagRow.appendChild(closeTagSpan);
+
+                    elemWrapper.appendChild(closeTagRow);
+
+                    // Expand / Collapse action
+                    toggle.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const collapsed = childrenContainer.style.display === 'none';
+                        if (collapsed) {
+                            childrenContainer.style.display = 'block';
+                            closeTagRow.style.display = 'block';
+                            toggle.textContent = '▼';
+                            this.collapsedNodes.delete(node);
+                            const placeholder = tagRow.querySelector('.dom-collapsed-placeholder');
+                            if (placeholder) placeholder.remove();
+                        } else {
+                            childrenContainer.style.display = 'none';
+                            closeTagRow.style.display = 'none';
+                            toggle.textContent = '▶';
+                            this.collapsedNodes.add(node);
+                            const placeholder = this.doc.createElement('span');
+                            placeholder.className = 'dom-collapsed-placeholder';
+                            placeholder.innerHTML = `…&lt;/<span class="dom-tag-name">${tagName}</span>&gt;`;
+                            lineContent.insertBefore(placeholder, actions);
+                        }
+                    });
+                }
+
+                return elemWrapper;
+            }
+
+            return null;
+        }
+
+        setupDragAndDrop(rowEl, node, canHaveChildren) {
+            rowEl.addEventListener('dragstart', (e) => {
+                if (this.isEditing || e.target.closest('.dom-action-btn, input, textarea, .dom-arrow')) {
+                    e.preventDefault();
+                    return;
+                }
+                this.draggedNode = node;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', '');
+                rowEl.classList.add('dom-dragging');
+                e.stopPropagation();
+            });
+
+            rowEl.addEventListener('dragend', () => {
+                this.draggedNode = null;
+                this.doc.querySelectorAll('.dom-row').forEach(el => {
+                    el.classList.remove('dom-dragging', 'dom-drop-before', 'dom-drop-after', 'dom-drop-inside');
+                });
+            });
+
+            rowEl.addEventListener('dragover', (e) => {
+                if (!this.draggedNode || this.draggedNode === node) return;
+                // Prevent dropping a parent inside one of its own descendants
+                if (this.draggedNode.nodeType === 1 && this.draggedNode.contains(node)) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'move';
+
+                const rect = rowEl.getBoundingClientRect();
+                const relY = e.clientY - rect.top;
+                const height = rect.height;
+
+                rowEl.classList.remove('dom-drop-before', 'dom-drop-after', 'dom-drop-inside');
+
+                if (canHaveChildren && relY > height * 0.25 && relY < height * 0.75) {
+                    rowEl.classList.add('dom-drop-inside');
+                } else if (relY <= height * 0.5) {
+                    rowEl.classList.add('dom-drop-before');
+                } else {
+                    rowEl.classList.add('dom-drop-after');
+                }
+            });
+
+            rowEl.addEventListener('dragleave', () => {
+                rowEl.classList.remove('dom-drop-before', 'dom-drop-after', 'dom-drop-inside');
+            });
+
+            rowEl.addEventListener('drop', (e) => {
+                if (!this.draggedNode || this.draggedNode === node) return;
+                if (this.draggedNode.nodeType === 1 && this.draggedNode.contains(node)) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                const isBefore = rowEl.classList.contains('dom-drop-before');
+                const isAfter = rowEl.classList.contains('dom-drop-after');
+                const isInside = rowEl.classList.contains('dom-drop-inside');
+
+                rowEl.classList.remove('dom-drop-before', 'dom-drop-after', 'dom-drop-inside');
+
+                if (isInside && node.nodeType === 1) {
+                    node.appendChild(this.draggedNode);
+                } else if (isBefore && node.parentNode) {
+                    node.parentNode.insertBefore(this.draggedNode, node);
+                } else if (isAfter && node.parentNode) {
+                    node.parentNode.insertBefore(this.draggedNode, node.nextSibling);
+                }
+
+                this.draggedNode = null;
+                this.onChange();
+                this.render();
+            });
+        }
+
+        editInline(containerEl, initialValue, onCommit) {
+            this.isEditing = true;
+            const originalContent = containerEl.innerHTML;
+            const input = this.doc.createElement('input');
+            input.type = 'text';
+            input.className = 'dom-inline-input';
+            input.value = initialValue;
+
+            const commit = () => {
+                if (!this.isEditing) return;
+                this.isEditing = false;
+                const val = input.value;
+                onCommit(val);
+            };
+
+            const cancel = () => {
+                if (!this.isEditing) return;
+                this.isEditing = false;
+                containerEl.innerHTML = originalContent;
+                this.render();
+            };
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commit();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancel();
+                }
+            });
+
+            input.addEventListener('blur', () => {
+                commit();
+            });
+
+            containerEl.innerHTML = '';
+            containerEl.appendChild(input);
+            input.focus();
+            input.select();
+        }
+
+        editAsHtml(wrapperEl, node) {
+            this.isEditing = true;
+            const currentHtml = node.nodeType === 1 ? node.outerHTML : node.nodeValue;
+            
+            const editorDiv = this.doc.createElement('div');
+            editorDiv.className = 'dom-html-editor-container';
+
+            const textarea = this.doc.createElement('textarea');
+            textarea.className = 'dom-html-editor-textarea';
+            textarea.value = currentHtml;
+
+            const btnRow = this.doc.createElement('div');
+            btnRow.className = 'dom-html-editor-buttons';
+
+            const saveBtn = this.doc.createElement('span');
+            saveBtn.className = 'dom-btn dom-btn-save';
+            saveBtn.textContent = 'Save (Ctrl+Enter)';
+
+            const cancelBtn = this.doc.createElement('span');
+            cancelBtn.className = 'dom-btn dom-btn-cancel';
+            cancelBtn.textContent = 'Cancel (Esc)';
+
+            btnRow.appendChild(saveBtn);
+            btnRow.appendChild(cancelBtn);
+            editorDiv.appendChild(textarea);
+            editorDiv.appendChild(btnRow);
+
+            const parent = wrapperEl.parentNode;
+            parent.insertBefore(editorDiv, wrapperEl);
+            wrapperEl.style.display = 'none';
+
+            const commit = () => {
+                if (!this.isEditing) return;
+                this.isEditing = false;
+                const newHtml = textarea.value;
+                try {
+                    const tempDiv = this.doc.createElement('div');
+                    tempDiv.innerHTML = newHtml;
+                    const newNodes = Array.from(tempDiv.childNodes);
+                    if (newNodes.length > 0) {
+                        newNodes.forEach(newNode => {
+                            node.parentNode.insertBefore(newNode, node);
+                        });
+                        node.parentNode.removeChild(node);
+                    } else {
+                        node.parentNode.removeChild(node);
+                    }
+                } catch (err) {
+                    console.error("Failed to parse HTML:", err);
+                }
+                editorDiv.remove();
+                this.onChange();
+                this.render();
+            };
+
+            const cancel = () => {
+                if (!this.isEditing) return;
+                this.isEditing = false;
+                editorDiv.remove();
+                wrapperEl.style.display = '';
+                this.render();
+            };
+
+            saveBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                commit();
+            });
+
+            cancelBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                cancel();
+            });
+
+            textarea.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    commit();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancel();
+                }
+            });
+
+            textarea.focus();
+        }
+    }
+
+    /**
+     * Parses a string for repeat sections and variables[cite: 1].
      */
     function parseTemplateContent(templateString) {
         const variables = [];
@@ -55,7 +534,7 @@
     }
 
     /**
-     * Creates and displays the template filling dialog.
+     * Creates and displays the template filling dialog[cite: 1].
      */
     function showTemplateDialog(parsedTemplateBlocks, templateConfig) {
         const dialog = document.createElement("dialog");
@@ -67,7 +546,7 @@
             box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.4);
             max-width: 600px;
             width: 90%;
-            background-color: #ECECEC; /* Classic light gray background */
+            background-color: #ECECEC;
             font-family: Tahoma, Verdana, Segoe, sans-serif;
             font-size: 11px;
         `;
@@ -162,12 +641,10 @@
                 if (section.type === "repeat") {
                     sectionDiv.innerHTML = `<h3 style="font-weight: bold; font-size: 12px; margin-bottom: 8px;">${section.label} (Repeating)</h3>`;
 
-                    // Using a span instead of a button to prevent global event conflicts
                     const addButton = document.createElement("span"); 
                     addButton.textContent = "Add Item";
                     addButton.setAttribute("role", "button");
                     addButton.style.cssText = `
-                        /* Styled to look like a button */
                         display: inline-block;
                         background-color: #E0E0E0;
                         color: #000;
@@ -188,8 +665,8 @@
                     form.appendChild(sectionDiv);
 
                     addButton.addEventListener("click", ((event) => {
-                        event.stopPropagation(); // Prevent bubbling 
-                        event.preventDefault(); // Prevent default if role="button" is mistaken for a submit
+                        event.stopPropagation();
+                        event.preventDefault();
 
                         const itemDiv = document.createElement("div");
                         itemDiv.style.cssText = "padding: 6px; border: 1px solid #D0D0D0; background-color: #F8F8F8;";
@@ -272,11 +749,9 @@
             dialog.querySelector("div:first-child").appendChild(form);
         });
 
-        // Using a span instead of a button to prevent global event conflicts
         const insertButton = document.createElement("span"); 
         insertButton.setAttribute("role", "button");
         insertButton.style.cssText = `
-            /* Styled to look like a button */
             display: inline-block;
             background-color: #E0E0E0;
             color: #000;
@@ -302,7 +777,7 @@
 
         insertButton.addEventListener("click", (event) => {
             event.preventDefault();
-            event.stopPropagation(); // Prevent bubbling 
+            event.stopPropagation();
 
             var finalOutput = templateBlockGenerators.reduce((accumulator, generator) => accumulator + generator(), "");
 
@@ -321,7 +796,7 @@
         });
     }
 
-    // --- Template Definitions (unchanged) ---
+    // --- Template Definitions ---
     var templates = {
         "action-item": {
             text: "Action Item",
@@ -374,14 +849,14 @@
             code: "Updated invoice to reconcile with estimate. Emailed to: [Email recipients]."
         },
         "check-received": {
-          text: "Check Received",
-          subjectPrefix: "Check received",
-          code: "Received check [Check number]. [Other notes]"
+            text: "Check Received",
+            subjectPrefix: "Check received",
+            code: "Received check [Check number]. [Other notes]"
         }
     };
 
     /**
-     * Attempts to find and manipulate the host application's iframe/modal container.
+     * Attempts to find and manipulate the host application's iframe/modal container[cite: 1].
      */
     const setupHostEnvironment = function() {
         const wrapper = document.getElementById("RadWindowWrapper_ctl00_ContentPlaceHolder1_RadWindow_Common");
@@ -398,6 +873,8 @@
         wrapper.style.bottom = "2em";
         wrapper.style.right = "2em";
         wrapper.style.left = "2em";
+        wrapper.style.maxWidth = "calc(100vw - 4em)";
+        wrapper.style.boxSizing = "border-box";
 
         const table = wrapper.querySelector("table.rwTable");
         if (table) {
@@ -417,7 +894,9 @@
         style.textContent = `
             .rwTable {
                 height: 100% !important;
-                width: 100%;
+                width: 100% !important;
+                max-width: 100% !important;
+                table-layout: fixed !important;
                 border-collapse: collapse;
             }
         `;
@@ -440,6 +919,8 @@
         if (originalTextarea) {
             (function setupEditor(originalTextarea, doc, win) {
                 originalTextarea.id = "TemplateSource";
+
+                let domInspector = null;
 
                 const toast = doc.createElement("div");
                 toast.id = "char-limit-warning";
@@ -497,7 +978,6 @@
                 function updateCharCounter(textarea, counterElement, limit) {
                     const count = textarea.value.length;
                     
-                    // Only display the limit and apply color if LIMIT is a finite number
                     if (limit !== Infinity) {
                         counterElement.textContent = `Character Count: ${count} / ${limit}`;
                         
@@ -509,7 +989,6 @@
                             counterElement.style.fontWeight = 'normal';
                         }
                     } else {
-                        // Private note: Do not show a limit, and keep the color normal
                         counterElement.textContent = `Character Count: ${count}`;
                         counterElement.style.color = '#333';
                         counterElement.style.fontWeight = 'normal';
@@ -524,12 +1003,15 @@
                     if (sourceTextarea && editableContent && sourceTextarea.value !== editableContent.innerHTML) {
                         editableContent.innerHTML = sourceTextarea.value;
                     }
+                    if (domInspector) {
+                        domInspector.render();
+                    }
                     if (sourceTextarea && counter) {
                         updateCharCounter(sourceTextarea, counter);
                     }
                 };
 
-                const updateSourceFromEditor = function() {
+                const updateSourceFromEditor = function(skipDomRender = false) {
                     const sourceTextarea = doc.getElementById("TemplateSource");
                     const editableContent = doc.getElementById("editable-content");
                     const counter = doc.getElementById("char-counter");
@@ -542,43 +1024,38 @@
                     const visibilityInput = doc.querySelector('input[name="AddNotesUserControl$VisibilityControl$radCombo_ObjectOwnershipType"]');
                     const isPublic = visibilityInput && visibilityInput.value === "Public";
                     
-                    // Limit is 3700 for public notes, and Infinity for all others (no limit).
                     const LIMIT = isPublic ? 3700 : Infinity;
                     
                     if (sourceTextarea && editableContent) {
                         var cleanedHtml = cleanHtml([...editableContent.childNodes]);
-                        const currentLength = cleanedHtml.length; // Get length *after* cleaning                        
+                        const currentLength = cleanedHtml.length;
 
-                        // --- Limit Enforcement Logic ---
                         const isOverLimit = currentLength > LIMIT;
                         
                         if (isOverLimit) {
-                            // 1. Show persistent toast
                             if (toast) {
                                 toast.style.display = 'block';
                             }
-                            // 2. Disable submit buttons
                             if (submitButton1) submitButton1.disabled = true;
                             if (submitButton2) submitButton2.disabled = true;
-                            
                         } else {
-                            // 1. Hide persistent toast
                             if (toast) {
                                 toast.style.display = 'none';
                             }
-                            // 2. Enable submit buttons
                             if (submitButton1) submitButton1.disabled = false;
                             if (submitButton2) submitButton2.disabled = false;
                         }
                         
-                        // --- Sync ---
                         if (sourceTextarea.value !== cleanedHtml) {
                             sourceTextarea.value = cleanedHtml;
+                        }
+
+                        if (!skipDomRender && domInspector) {
+                            domInspector.render();
                         }
                     }
                     
                     if (sourceTextarea && counter) {
-                        // Pass the dynamic limit to the counter update function
                         updateCharCounter(sourceTextarea, counter, LIMIT); 
                     }
                 };
@@ -611,7 +1088,7 @@
                     return console.error("Original textarea is not contained in a standard table row/cell.");
                 }
 
-                // --- NEW CSS: Equal Width and Counter Styling ---
+                // --- NEW CSS: DevTools-style DOM Tree, Equal Width, Wrapping and Counter Styling ---
                 const customStyle = doc.createElement("style");
                 customStyle.textContent = `
                     /* Container for the Split View */
@@ -620,34 +1097,94 @@
                         height: 400px;
                         gap: 16px;
                         width: 100%;
+                        max-width: 100%;
+                        box-sizing: border-box;
                     }
                     #editable-wrapper, #source-wrapper {
                         display: flex;
                         flex-direction: column;
-                        flex-grow: 1;
+                        flex: 1 1 50%;
+                        width: 50%;
+                        max-width: 50%;
                         min-width: 0;
-                        /* Set flex-basis to ensure equal width */
-                        flex-basis: 50%;
-                    }
-                    /* Styling for the original textarea, now used as source */
-                    #TemplateSource {
+                        min-height: 0;
                         height: 100%;
-                        min-height: 400px;
-                        font-family: Consolas, monospace;
+                        box-sizing: border-box;
+                        overflow: hidden;
+                    }
+                    /* Inspector Header and Tabs */
+                    .inspector-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 4px;
+                        flex-shrink: 0;
+                    }
+                    .inspector-tabs {
+                        display: flex;
+                        gap: 2px;
+                    }
+                    .inspector-tab-btn {
+                        background-color: #E0E0E0;
+                        border: 1px outset #C0C0C0;
+                        cursor: pointer;
+                        padding: 1px 6px;
+                        font-size: 10px;
+                        font-weight: bold;
+                        color: #333;
+                        user-select: none;
+                    }
+                    .inspector-tab-btn.active {
+                        background-color: #FFFFFF;
+                        border-bottom: 1px solid #FFFFFF;
+                        color: #000;
+                    }
+                    #source-elements {
+                        display: flex;
+                        flex-direction: column;
+                        flex: 1 1 0;
+                        height: 100%;
+                        width: 100%;
+                        min-height: 0;
+                        min-width: 0;
+                        position: relative;
+                        overflow: hidden;
+                        box-sizing: border-box;
+                    }
+                    /* Styling for original textarea (Raw HTML view with word wrap) */
+                    #TemplateSource {
+                        flex: 1 1 0;
+                        height: 100%;
+                        min-height: 0;
+                        font-family: Consolas, Monaco, monospace;
                         font-size: 11px;
                         resize: none;
                         padding: 4px;
                         border: 1px inset #C0C0C0;
                         background-color: white;
+                        box-sizing: border-box;
+                        width: 100%;
+                        max-width: 100%;
+                        overflow-y: auto !important;
+                        overflow-x: hidden !important;
+                        white-space: pre-wrap !important;
+                        word-break: break-word !important;
+                        overflow-wrap: break-word !important;
                     }
-                    /* Custom Editor Styles (unchanged) */
+                    /* Custom Editor Styles */
                     #editor-container {
                         display: flex;
                         flex-direction: column;
+                        flex: 1 1 0;
                         height: 100%;
+                        min-height: 0;
+                        width: 100%;
+                        max-width: 100%;
                         border: 1px inset #C0C0C0;
                         border-radius: 0;
                         background-color: white;
+                        box-sizing: border-box;
+                        overflow: hidden;
                     }
                     #custom-toolbar {
                         flex-shrink: 0;
@@ -656,7 +1193,6 @@
                         background-color: #EBEBEB;
                         border-radius: 0;
                     }
-                    /* --- UPDATED: Use span instead of button to avoid global event conflicts --- */
                     #custom-toolbar .custom-cmd-btn {
                         background-color: #EBEBEB;
                         border: 1px outset #C0C0C0;
@@ -668,21 +1204,226 @@
                         margin: 0 1px;
                         border-radius: 0;
                         color: #000;
-                        display: inline-block; /* Treat as block/inline-block for spacing/padding */
-                        user-select: none; /* Prevent selection when clicking */
+                        display: inline-block;
+                        user-select: none;
                     }
                     #custom-toolbar .custom-cmd-btn:active {
                         border: 1px inset #C0C0C0;
                         background-color: #D0D0D0;
                     }
                     #editable-content {
-                        flex-grow: 1;
-                        overflow-y: auto;
+                        flex: 1 1 0;
+                        min-height: 0;
+                        overflow-y: auto !important;
+                        overflow-x: hidden;
                         padding: 4px;
-                        min-height: 350px;
                         outline: none;
                         font-family: Tahoma, Verdana, Segoe, sans-serif;
                         font-size: 11px;
+                        word-break: break-word;
+                        overflow-wrap: break-word;
+                        white-space: pre-wrap;
+                        box-sizing: border-box;
+                    }
+
+                    /* --- Chrome DevTools DOM Tree Inspector Styles --- */
+                    .devtools-dom-tree {
+                        flex: 1 1 0;
+                        width: 100%;
+                        height: 100%;
+                        min-height: 0;
+                        min-width: 0;
+                        overflow-y: auto !important;
+                        overflow-x: auto !important;
+                        padding: 4px;
+                        border: 1px inset #C0C0C0;
+                        background-color: #FFFFFF;
+                        font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+                        font-size: 11px;
+                        line-height: 1.45;
+                        color: #222222;
+                        box-sizing: border-box;
+                        display: block;
+                    }
+                    .dom-empty-notice {
+                        color: #888888;
+                        font-style: italic;
+                        padding: 8px;
+                    }
+                    .dom-elem-wrapper {
+                        display: block;
+                    }
+                    .dom-row {
+                        display: flex;
+                        align-items: flex-start;
+                        min-height: 18px;
+                        border-radius: 2px;
+                        padding: 0 2px;
+                        cursor: grab;
+                        position: relative;
+                        box-sizing: border-box;
+                        width: fit-content;
+                        min-width: 100%;
+                        white-space: nowrap;
+                    }
+                    /* Text Node Word Wrap */
+                    .dom-row.dom-text-node {
+                        white-space: normal !important;
+                        word-break: break-word !important;
+                        overflow-wrap: anywhere !important;
+                        width: 100%;
+                        min-width: 0;
+                    }
+                    .dom-text-content {
+                        color: #222222;
+                        cursor: text;
+                        white-space: normal !important;
+                        word-break: break-word !important;
+                        overflow-wrap: anywhere !important;
+                        flex: 1 1 auto;
+                        min-width: 0;
+                    }
+                    .dom-row:hover {
+                        background-color: #EBF3FD;
+                    }
+                    .dom-row.dom-dragging {
+                        opacity: 0.35;
+                        background-color: #ECECEC !important;
+                    }
+                    .dom-row.dom-drop-before {
+                        border-top: 2px solid #1a73e8 !important;
+                    }
+                    .dom-row.dom-drop-after {
+                        border-bottom: 2px solid #1a73e8 !important;
+                    }
+                    .dom-row.dom-drop-inside {
+                        background-color: #E8F0FE !important;
+                        outline: 1px dashed #1a73e8;
+                    }
+                    .dom-arrow {
+                        display: inline-block;
+                        width: 12px;
+                        font-size: 8px;
+                        color: #727272;
+                        cursor: pointer;
+                        text-align: center;
+                        user-select: none;
+                        flex-shrink: 0;
+                        margin-top: 2px;
+                    }
+                    .dom-arrow.has-children:hover {
+                        color: #000;
+                    }
+                    .dom-arrow-spacer {
+                        display: inline-block;
+                        width: 12px;
+                        flex-shrink: 0;
+                    }
+                    .dom-line-content {
+                        display: inline-flex;
+                        align-items: center;
+                        flex-grow: 1;
+                        white-space: nowrap;
+                    }
+                    .dom-tag-start, .dom-tag-close, .dom-tag-end {
+                        color: #888888;
+                    }
+                    .dom-tag-name {
+                        color: #881280; /* DevTools Tag Color */
+                        font-weight: bold;
+                        cursor: text;
+                    }
+                    .dom-attr-pair {
+                        cursor: text;
+                        margin-left: 2px;
+                    }
+                    .dom-attr-name {
+                        color: #994500; /* DevTools Attribute Key */
+                    }
+                    .dom-attr-val {
+                        color: #1a1aa6; /* DevTools Attribute Value */
+                    }
+                    .dom-collapsed-placeholder {
+                        color: #888888;
+                        margin-left: 2px;
+                    }
+                    .dom-children-container {
+                        padding-left: 12px;
+                        border-left: 1px dotted #D0D0D0;
+                        margin-left: 5px;
+                    }
+                    .dom-node-actions {
+                        display: none;
+                        margin-left: 8px;
+                        gap: 3px;
+                    }
+                    .dom-row:hover .dom-node-actions {
+                        display: inline-flex;
+                    }
+                    .dom-action-btn {
+                        font-size: 9px;
+                        padding: 0 3px;
+                        background: #E8E8E8;
+                        border: 1px solid #B0B0B0;
+                        border-radius: 2px;
+                        cursor: pointer;
+                        color: #333333;
+                        line-height: 1.2;
+                        user-select: none;
+                    }
+                    .dom-action-btn:hover {
+                        background: #D0D0D0;
+                        color: #000;
+                    }
+                    .dom-inline-input {
+                        font-family: inherit;
+                        font-size: inherit;
+                        border: 1px solid #1a73e8;
+                        outline: none;
+                        background: #ffffff;
+                        padding: 0 2px;
+                        margin: 0;
+                        color: inherit;
+                        min-height: 16px;
+                        width: 100%;
+                        box-sizing: border-box;
+                    }
+                    .dom-html-editor-container {
+                        padding: 4px;
+                        margin: 4px 0;
+                        background: #F8F8F8;
+                        border: 1px solid #7F9DB9;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .dom-html-editor-textarea {
+                        font-family: Consolas, Monaco, monospace;
+                        font-size: 11px;
+                        width: 100%;
+                        height: 90px;
+                        border: 1px solid #C0C0C0;
+                        box-sizing: border-box;
+                        padding: 4px;
+                    }
+                    .dom-html-editor-buttons {
+                        display: flex;
+                        gap: 6px;
+                    }
+                    .dom-btn {
+                        display: inline-block;
+                        padding: 2px 8px;
+                        border: 1px outset #C0C0C0;
+                        font-size: 10px;
+                        cursor: pointer;
+                        user-select: none;
+                        background-color: #E0E0E0;
+                        color: #000;
+                    }
+                    .dom-btn-save {
+                        font-weight: bold;
+                        background-color: #D4EDDA;
+                        border-color: #C3E6CB;
                     }
 
                     td {
@@ -698,6 +1439,7 @@
                         border: 1px solid #C0C0C0;
                         border-radius: 0;
                         box-shadow: 1px 1px 1px rgba(0,0,0,0.05);
+                        flex-shrink: 0;
                     }
                     #template-controls label {
                         font-size: 11px;
@@ -716,39 +1458,37 @@
                         background-repeat: no-repeat;
                         background-position: 0 -88px;
                     }
-                    /* Styling for the Character Counter */
                     #char-counter {
                         font-size: 10px;
                         margin-top: 4px;
                         text-align: right;
+                        flex-shrink: 0;
                     }
-
-                    /* Persistent Toast Notification */
                     #char-limit-warning {
-                        position: fixed; /* Fixed relative to the iframe window */
+                        position: fixed;
                         top: 20px;
                         left: 50%;
                         transform: translateX(-50%);
                         padding: 8px 15px;
-                        background-color: #A00000; /* Dark Red Background */
+                        background-color: #A00000;
                         color: white;
                         font-weight: bold;
                         border: 2px solid #FFCCCC;
                         border-radius: 4px;
-                        z-index: 10000; /* Ensure it is on top of everything */
+                        z-index: 10000;
                         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-                        display: none; /* Hidden by default */
+                        display: none;
                         font-size: 14px;
                         text-align: center;
                     }                    
                 `;
                 doc.head.appendChild(customStyle);
 
-                // --- NEW HTML: Replaced buttons with spans ---
+                // --- DOM & Visual Editor Split Layout ---
                 const newRow = doc.createElement("tr");
                 newRow.innerHTML = `
                     <td style="vertical-align: top; font-size: 11px; font-weight: bold; padding: 8px;">Template/Editor:</td>
-                    <td style="padding: 8px; width: 100%;">
+                    <td style="padding: 8px; width: 100%; max-width: 0; overflow: hidden; box-sizing: border-box;">
                         <div id="template-controls">
                             <label for="template-selector">Choose Template:</label>
                             <select id="template-selector"></select>
@@ -756,7 +1496,7 @@
 
                         <div class="editor-split-container">
                             <div id="editable-wrapper">
-                                <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">Formatted Note</label>
+                                <label style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px; flex-shrink: 0;">Formatted Note</label>
                                 <div id="editor-container">
                                     <div id="custom-toolbar">
                                         <span class="custom-cmd-btn" data-cmd="bold" title="Bold">B</span>
@@ -773,9 +1513,16 @@
                             </div>
 
                             <div id="source-wrapper">
-                                <label for="TemplateSource" style="display: block; font-size: 11px; font-weight: bold; margin-bottom: 4px;">HTML Source Code</label>
-                                <div id="source-elements" style="display: flex; flex-direction: column; height: 100%; width: 100%;">
+                                <div class="inspector-header">
+                                    <label id="inspector-title" style="font-size: 11px; font-weight: bold; margin: 0;">DOM Inspector (Elements)</label>
+                                    <div class="inspector-tabs">
+                                        <span id="tab-dom-tree" class="inspector-tab-btn active" title="DOM Tree Inspector">DOM Tree</span>
+                                        <span id="tab-raw-html" class="inspector-tab-btn" title="Raw HTML View">Raw HTML</span>
                                     </div>
+                                </div>
+                                <div id="source-elements">
+                                    <div id="dom-inspector-container"></div>
+                                </div>
                                 <div id="char-counter" style="font-size: 11px; margin-top: 4px; text-align: right;">Character Count: 0</div>
                             </div>
                         </div>
@@ -784,22 +1531,52 @@
 
                 originalRow.parentNode.replaceChild(newRow, originalRow);
 
-                // Attach the original textarea and the character counter
+                // Attach original textarea (used for form submission and Raw HTML view)
                 const sourceElementsDiv = newRow.querySelector("#source-elements");
                 const charCounterElement = newRow.querySelector("#char-counter");
+                const domContainer = newRow.querySelector("#dom-inspector-container");
                 sourceElementsDiv.appendChild(originalTextarea);
+                originalTextarea.style.display = "none";
 
+                const editableContentDiv = doc.getElementById("editable-content");
+
+                // Initialize the DevTools DOM Tree Inspector
+                domInspector = new DOMTreeInspector(domContainer, {
+                    doc: doc,
+                    targetElement: editableContentDiv,
+                    onChange: () => {
+                        updateSourceFromEditor(true);
+                    }
+                });
+
+                // Tab switching between DOM Tree and Raw HTML
+                const tabDomTree = newRow.querySelector("#tab-dom-tree");
+                const tabRawHtml = newRow.querySelector("#tab-raw-html");
+
+                tabDomTree.addEventListener("click", () => {
+                    tabDomTree.classList.add("active");
+                    tabRawHtml.classList.remove("active");
+                    domContainer.style.display = "block";
+                    originalTextarea.style.display = "none";
+                    updateEditorFromSource();
+                });
+
+                tabRawHtml.addEventListener("click", () => {
+                    tabRawHtml.classList.add("active");
+                    tabDomTree.classList.remove("active");
+                    domContainer.style.display = "none";
+                    originalTextarea.style.display = "block";
+                    updateSourceFromEditor();
+                });
 
                 const toolbar = doc.getElementById("custom-toolbar");
-                // *** UPDATED: Target the new .custom-cmd-btn spans ***
                 Array.from(toolbar.querySelectorAll(".custom-cmd-btn")).forEach((span) => { 
                     const command = span.getAttribute("data-cmd");
                     if (command) {
                         span.addEventListener("click", ((event) => {
-                            event.preventDefault(); // Stop default behavior
-                            event.stopPropagation(); // Stop event from bubbling up to host app 
+                            event.preventDefault();
+                            event.stopPropagation();
 
-                            // FIX: Ensure the visual editor has the latest source before acting on it.
                             updateEditorFromSource(); 
 
                             doc.execCommand(command, false, null);
@@ -809,24 +1586,19 @@
                     }
                 });
 
-                const editableContentDiv = doc.getElementById("editable-content");
                 updateEditorFromSource(); // Initial sync
 
                 if (visibilityInput) {
-                    // Use 'change' event to detect when the user selects a new visibility option
-                    visibilityInput.addEventListener("change", updateSourceFromEditor);
-                    
-                    // Also run it on load to check the initial state
+                    visibilityInput.addEventListener("change", () => updateSourceFromEditor());
                     updateSourceFromEditor();
                 }
 
                 // Add event listeners for synchronization and character counting
-                editableContentDiv.addEventListener("input", updateSourceFromEditor);
-                originalTextarea.addEventListener("input", updateEditorFromSource);
+                editableContentDiv.addEventListener("input", () => updateSourceFromEditor());
+                originalTextarea.addEventListener("input", () => updateEditorFromSource());
 
                 // Initial character count display
                 updateCharCounter(originalTextarea, charCounterElement);
-
 
                 const templateSelector = newRow.querySelector("#template-selector");
 
@@ -861,7 +1633,7 @@
     }
 
     /**
-     * Parses a raw template string into a series of default and optional blocks.
+     * Parses a raw template string into a series of default and optional blocks[cite: 1].
      */
     function parseTemplateIntoBlocks(rawTemplateString) {
         const blocks = [];
