@@ -2420,6 +2420,15 @@
     const floors = data.floors || [];
     const allRooms = data.rooms || [];
 
+    // Automatically set default export filename if a model name is provided in JSON
+    const modelName = data.name || json.data?.model?.name || json.model?.name || json.name;
+    if (modelName && typeof modelName === 'string' && modelName.trim()) {
+      const filenameInput = document.getElementById('template-filename');
+      if (filenameInput) {
+        filenameInput.value = modelName.trim();
+      }
+    }
+
     if (floors.length === 0 && allRooms.length === 0) {
       alert("No floor or room geometries found in this JSON structure.");
       return;
