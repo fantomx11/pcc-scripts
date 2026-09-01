@@ -240,7 +240,7 @@
 
                     // Closing tag row
                     const closeTagRow = this.doc.createElement('div');
-                    closeTagRow.className = 'dom-row dom-tag-close-row';
+                    closeTagRow.className = 'dom-tag-close-row';
                     if (isCollapsed) {
                         closeTagRow.style.display = 'none';
                     }
@@ -921,6 +921,7 @@
                 originalTextarea.id = "TemplateSource";
 
                 let domInspector = null;
+                const sanitizedRoot = doc.createElement("div");
 
                 const toast = doc.createElement("div");
                 toast.id = "char-limit-warning";
@@ -974,7 +975,7 @@
                     return htmlString;
                 }
 
-                // Helper to update the character counter's text and color
+                // Helper to update the character counter's text and color[cite: 1]
                 function updateCharCounter(textarea, counterElement, limit) {
                     const count = textarea.value.length;
                     
@@ -1003,7 +1004,11 @@
                     if (sourceTextarea && editableContent && sourceTextarea.value !== editableContent.innerHTML) {
                         editableContent.innerHTML = sourceTextarea.value;
                     }
+                    if (sourceTextarea) {
+                        sanitizedRoot.innerHTML = sourceTextarea.value;
+                    }
                     if (domInspector) {
+                        domInspector.setTarget(sanitizedRoot);
                         domInspector.render();
                     }
                     if (sourceTextarea && counter) {
@@ -1011,7 +1016,7 @@
                     }
                 };
 
-                const updateSourceFromEditor = function(skipDomRender = false) {
+                const updateSourceFromEditor = function(fromInspector = false) {
                     const sourceTextarea = doc.getElementById("TemplateSource");
                     const editableContent = doc.getElementById("editable-content");
                     const counter = doc.getElementById("char-counter");
@@ -1026,6 +1031,32 @@
                     
                     const LIMIT = isPublic ? 3700 : Infinity;
                     
+                    if (fromInspector) {
+                        const newHtml = sanitizedRoot.innerHTML;
+                        if (sourceTextarea && sourceTextarea.value !== newHtml) {
+                            sourceTextarea.value = newHtml;
+                        }
+                        if (editableContent && editableContent.innerHTML !== newHtml) {
+                            editableContent.innerHTML = newHtml;
+                        }
+
+                        const currentLength = newHtml.length;
+                        const isOverLimit = currentLength > LIMIT;
+                        if (isOverLimit) {
+                            if (toast) toast.style.display = 'block';
+                            if (submitButton1) submitButton1.disabled = true;
+                            if (submitButton2) submitButton2.disabled = true;
+                        } else {
+                            if (toast) toast.style.display = 'none';
+                            if (submitButton1) submitButton1.disabled = false;
+                            if (submitButton2) submitButton2.disabled = false;
+                        }
+                        if (sourceTextarea && counter) {
+                            updateCharCounter(sourceTextarea, counter, LIMIT);
+                        }
+                        return;
+                    }
+
                     if (sourceTextarea && editableContent) {
                         var cleanedHtml = cleanHtml([...editableContent.childNodes]);
                         const currentLength = cleanedHtml.length;
@@ -1033,15 +1064,11 @@
                         const isOverLimit = currentLength > LIMIT;
                         
                         if (isOverLimit) {
-                            if (toast) {
-                                toast.style.display = 'block';
-                            }
+                            if (toast) toast.style.display = 'block';
                             if (submitButton1) submitButton1.disabled = true;
                             if (submitButton2) submitButton2.disabled = true;
                         } else {
-                            if (toast) {
-                                toast.style.display = 'none';
-                            }
+                            if (toast) toast.style.display = 'none';
                             if (submitButton1) submitButton1.disabled = false;
                             if (submitButton2) submitButton2.disabled = false;
                         }
@@ -1050,7 +1077,9 @@
                             sourceTextarea.value = cleanedHtml;
                         }
 
-                        if (!skipDomRender && domInspector) {
+                        sanitizedRoot.innerHTML = cleanedHtml;
+                        if (domInspector) {
+                            domInspector.setTarget(sanitizedRoot);
                             domInspector.render();
                         }
                     }
@@ -1540,10 +1569,10 @@
 
                 const editableContentDiv = doc.getElementById("editable-content");
 
-                // Initialize the DevTools DOM Tree Inspector
+                // Initialize the DevTools DOM Tree Inspector bound to sanitizedRoot
                 domInspector = new DOMTreeInspector(domContainer, {
                     doc: doc,
-                    targetElement: editableContentDiv,
+                    targetElement: sanitizedRoot,
                     onChange: () => {
                         updateSourceFromEditor(true);
                     }
