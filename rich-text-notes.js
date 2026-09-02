@@ -775,20 +775,6 @@
             dialog.remove();
         }));
 
-        // Force HTML tags (<b>, <i>) instead of inline styles
-        try {
-            doc.execCommand("styleWithCSS", false, false);
-            doc.execCommand("defaultParagraphSeparator", false, "br");
-        } catch (e) {}
-
-        // Force Enter to insert <br> instead of <div> or <p>
-        editableContentDiv.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                doc.execCommand("insertLineBreak");
-            }
-        });
-
         insertButton.addEventListener("click", (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -1591,6 +1577,20 @@
                 originalTextarea.style.display = "none";
 
                 const editableContentDiv = doc.getElementById("editable-content");
+
+                // Force HTML tags (<b>, <i>) instead of inline styles
+                try {
+                    doc.execCommand("styleWithCSS", false, false);
+                    doc.execCommand("defaultParagraphSeparator", false, "br");
+                } catch (e) {}
+
+                // Force Enter to insert <br> instead of <div> or <p>
+                editableContentDiv.addEventListener("keydown", (e) => {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        doc.execCommand("insertLineBreak");
+                    }
+                });
 
                 // Initialize the DevTools DOM Tree Inspector bound to sanitizedRoot
                 domInspector = new DOMTreeInspector(domContainer, {
