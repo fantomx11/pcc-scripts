@@ -775,6 +775,20 @@
             dialog.remove();
         }));
 
+        // Force HTML tags (<b>, <i>) instead of inline styles
+        try {
+            doc.execCommand("styleWithCSS", false, false);
+            doc.execCommand("defaultParagraphSeparator", false, "br");
+        } catch (e) {}
+
+        // Force Enter to insert <br> instead of <div> or <p>
+        editableContentDiv.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                doc.execCommand("insertLineBreak");
+            }
+        });
+
         insertButton.addEventListener("click", (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -942,9 +956,11 @@
 
                 function cleanHtml(nodes) {
                     let htmlString = nodes.map(node => {
-                        var text = "";
-                        if (node.nodeType === 1) {
-                            if (node.nodeName === "DIV" || node.nodeName === "P" || node.nodeName.match(/^H[1-6]$/)) {
+                        let text = "";
+                        if (node.nodeType === 1) { // ELEMENT_NODE
+                            const tag = node.nodeName;
+
+                            if (tag === "DIV" || tag === "P" || tag.match(/^H[1-6]$/)) {
                                 if (!isPreviousSiblingBlock(node)) {
                                     text += "<br>";
                                 }
@@ -952,7 +968,13 @@
                                 if (!text.endsWith("<br>")) {
                                     text += "<br>";
                                 }
-                            } else if (node.nodeName === "TABLE" || node.nodeName === "UL" || node.nodeName === "OL") {
+                            } else if (tag === "STRONG") {
+                                text += "<b>" + cleanHtml([...node.childNodes]) + "</b>";
+                            } else if (tag === "EM") {
+                                text += "<i>" + cleanHtml([...node.childNodes]) + "</i>";
+                            } else if (tag === "B" || tag === "I" || tag === "U") {
+                                text += `<${tag.toLowerCase()}>` + cleanHtml([...node.childNodes]) + `</${tag.toLowerCase()}>`;
+                            } else if (tag === "TABLE" || tag === "UL" || tag === "OL") {
                                 if (!isPreviousSiblingBlock(node)) {
                                     text += "<br>";
                                 }
@@ -960,18 +982,20 @@
                                 if (!text.endsWith("<br>")) {
                                     text += "<br>";
                                 }
+                            } else if (tag === "BR") {
+                                text += "<br>";
                             } else {
                                 text += node.outerHTML;
                             }
-                        } else {
-                            text = node.textContent;
+                        } else if (node.nodeType === 3) { // TEXT_NODE
+                            // Convert literal source line breaks into <br> tags
+                            text = node.textContent.replace(/\r\n?|\n/g, "<br>");
                         }
                         return text;
                     }).join("");
 
-                    for (; htmlString.indexOf("<br><br><br>") !== -1;) {
-                        htmlString = htmlString.replace("<br><br><br>", "<br><br>");
-                    }
+                    // Collapse any excessive consecutive <br> tags down to a max of two
+                    htmlString = htmlString.replace(/(<br\s*\/?>){3,}/gi, "<br><br>");
                     return htmlString;
                 }
 
@@ -1251,7 +1275,6 @@
                         font-size: 11px;
                         word-break: break-word;
                         overflow-wrap: break-word;
-                        white-space: pre-wrap;
                         box-sizing: border-box;
                     }
 
