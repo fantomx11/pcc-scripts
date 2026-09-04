@@ -516,6 +516,27 @@
   </div>
 </div>
 
+<!-- Modal for Interior Window Confirmation before Export -->
+<div id="interior-window-modal" class="modal-backdrop">
+  <div class="modal-content" style="width: 540px; border-color: #38bdf8;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+        <span>🪟</span> Interior Window Confirmation
+      </h3>
+      <button class="btn btn-secondary btn-sm" onclick="closeInteriorWindowModal()">&times;</button>
+    </div>
+    <p style="font-size: 0.82rem; color: var(--text-muted);">
+      One or more windows are located on interior walls between rooms. Confirm that these are windows, or convert them to doors or wall openings:
+    </p>
+    <div id="interior-window-list" style="background: #090d16; border: 1px solid var(--panel-border); border-radius: 6px; padding: 10px; max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+      <button class="btn btn-secondary" onclick="closeInteriorWindowModal()">Review &amp; Edit</button>
+      <button class="btn btn-amber" onclick="proceedWithExportFromInteriorWindow()">Confirm as Window &amp; Export</button>
+    </div>
+  </div>
+</div>
+  
 <!-- Modal for Room Split Confirmation -->
 <div id="split-confirm-modal" class="modal-backdrop">
   <div class="modal-content" style="width: 460px;">
@@ -638,6 +659,7 @@
   };
 
   let pendingExportAfterDeduct = false;
+  let skipInteriorWindowCheck = false;
 
   let selectedShapeId = null;
   let selectedEdge = null; 
@@ -3171,6 +3193,14 @@
         showExportWarningModal(violations);
         return;
       }
+      if (!skipInteriorWindowCheck) {
+        const interiorWins = getInteriorWindowViolations();
+        if (interiorWins.length > 0) {
+          showInteriorWindowModal(interiorWins);
+          return;
+        }
+      }
+      skipInteriorWindowCheck = false;
       const isDeductUnset = (openingDefaults.doorDeductArea <= 0 && openingDefaults.windowDeductArea <= 0 && openingDefaults.missingWallDeductArea <= 0);
       const hasAnyOpenings = wallMetadataList.some(m => (m.openings && m.openings.length > 0) || m.isInvisible);
       if (isDeductUnset && hasAnyOpenings) {
@@ -3226,6 +3256,127 @@
     openExportModal(true);
   }
 
+function getInteriorWindowViolations() {
+    const violations = [];
+    const checkedPairs = new Set();
+
+    levels.forEach(lvl => {
+      const lvlRooms = shapes.filter(s => s.levelId === lvl.id && s.type === 'room');
+      if (lvlRooms.length < 2) return;
+
+      wallMetadataList.forEach(meta => {
+        if (!meta.openings || meta.openings.length === 0) return;
+
+        meta.openings.forEach(op => {
+          if (!op.isWindow) return;
+
+          const opKey = `${meta.id}_${op.id}`;
+          if (checkedPairs.has(opKey)) return;
+
+          const rc = op.relativeCenter !== undefined ? op.relativeCenter : 0.5;
+          const opPt = {
+            x: meta.p0.x + rc * (meta.p1.x - meta.p0.x),
+            y: meta.p0.y + rc * (meta.p1.y - meta.p0.y)
+          };
+
+          const touchingRooms = [];
+          lvlRooms.forEach(room => {
+            const n = room.points.length;
+            for (let i = 0; i < n; i++) {
+              const p1 = room.points[i];
+              const p2 = room.points[(i + 1) % n];
+              if (distToSegment(opPt, p1, p2) <= 0.35) {
+                if (!touchingRooms.some(r => r.id === room.id)) {
+                  touchingRooms.push(room);
+                }
+                break;
+              }
+            }
+          });
+
+          if (touchingRooms.length >= 2) {
+            checkedPairs.add(opKey);
+            violations.push({
+              metaId: meta.id,
+              opId: op.id,
+              op: op,
+              meta: meta,
+              levelId: lvl.id,
+              levelName: lvl.name,
+              rooms: touchingRooms
+            });
+          }
+        });
+      });
+    });
+
+    return violations;
+  }
+
+  function showInteriorWindowModal(violations) {
+    const listContainer = document.getElementById('interior-window-list');
+    listContainer.innerHTML = '';
+
+    violations.forEach(v => {
+      const item = document.createElement('div');
+      item.style.borderBottom = '1px solid #1e293b';
+      item.style.paddingBottom = '8px';
+      item.style.display = 'flex';
+      item.style.flexDirection = 'column';
+      item.style.gap = '6px';
+
+      const roomNames = v.rooms.map(r => r.name).join(' ↔ ');
+      const wFt = v.op.widthFt || 3.0;
+      const hFt = v.op.heightFt || 3.0;
+
+      item.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 600; color: #38bdf8; font-size: 0.8rem;">
+            ${v.levelName} &rsaquo; ${roomNames}
+          </span>
+          <span style="font-family: monospace; font-size: 0.72rem; color: #94a3b8;">
+            ${formatFtIn(wFt)} × ${formatFtIn(hFt)}
+          </span>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Convert to:</span>
+          <button class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 2px 8px;" onclick="convertInteriorWindow('${v.metaId}', '${v.opId}', 'door')">🚪 Door</button>
+          <button class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 2px 8px;" onclick="convertInteriorWindow('${v.metaId}', '${v.opId}', 'opening')">🧱 Opening</button>
+        </div>
+      `;
+      listContainer.appendChild(item);
+    });
+
+    document.getElementById('interior-window-modal').style.display = 'flex';
+  }
+
+  function convertInteriorWindow(metaId, opId, newType) {
+    changeOpeningType(metaId, opId, newType);
+    const remaining = getInteriorWindowViolations();
+    if (remaining.length === 0) {
+      document.getElementById('interior-window-modal').style.display = 'none';
+      openExportModal(false);
+    } else {
+      showInteriorWindowModal(remaining);
+    }
+  }
+
+  function closeInteriorWindowModal() {
+    document.getElementById('interior-window-modal').style.display = 'none';
+    const remaining = getInteriorWindowViolations();
+    if (remaining.length > 0) {
+      const first = remaining[0];
+      switchLevel(first.levelId);
+      if (first.rooms.length > 0) selectShape(first.rooms[0].id);
+    }
+  }
+
+  function proceedWithExportFromInteriorWindow() {
+    document.getElementById('interior-window-modal').style.display = 'none';
+    skipInteriorWindowCheck = true;
+    openExportModal(false);
+  }
+  
   function closeExportModal() {
     document.getElementById('export-modal').style.display = 'none';
   }
