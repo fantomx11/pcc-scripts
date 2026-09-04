@@ -122,7 +122,37 @@
                     <a class="btn" href="javascript:(async()=>{try{const m=window.location.pathname.match(/\/models\/([a-zA-Z0-9_-]+)/);if(!m){alert('Could not find a Matterport model ID in the current URL.');return;}const modelId=m[1];const query=`query GetRoomBounds($modelId: ID!) { model(id: $modelId) {name floors { id layer { id } edges(includeUsed: true) { id layer { id } type vertices { id layer { id } position { x y } } centerLineBias thickness openings { id width relativeCenter type height lowerElevation layer { id } label metadata { key value } } } } rooms { id layer { id } floor { id } classifications { id confidence label } boundary { edges { id } } holes { edges { id } } dimensionEstimates(units: metric) { area areaIndoor areaIndoorWithWalls width depth height units } ceiling(units: metric) { planes { measurements { bottom { x y z } height } } maxHeight minHeight } label keywords } } }`;const res=await fetch('https://my.matterport.com/api/mp/models/graph?operation=GetRoomBounds%27,{method:%27POST%27,headers:{%27content-type%27:%27application/json%27,%27accept%27:%27*/*%27},credentials:%27include%27,body:JSON.stringify({operationName:%27GetRoomBounds%27,variables:{modelId},query})});if(!res.ok)throw new Error(`HTTP ${res.status}`);const data=await res.json();const blob=new Blob([JSON.stringify(data,null,2)],{type:%27application/json%27});const a=document.createElement(%27a%27);a.href=URL.createObjectURL(blob);a.download=`${data.data.model.name}_room_bounds.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);}catch(err){console.error(err);alert(%27Error fetching room bounds: %27+err.message);}})();">Download Matterport Floorplans</a>
                 </div>
             </div>
-        </details><details>
+        </details>
+
+        <details>
+            <summary>Estimate Matcher</summary>
+            <div class="content">
+                <div class="instructions">
+                    <p class="description">This is a tool for converting an adjuster's estimate to an ESX. You will need to scrape the information from the PDF into a CSV file with at least these columns:</p>
+                    <ul>
+                        <li>Group</li>
+                        <li>Line number</li>
+                        <li>Description</li>
+                        <li>Quantity</li>
+                        <li>Unit</li>
+                        <li>Tax</li>
+                        <li>GCO&P</li>
+                        <li>RCV</li>
+                    </ul>
+                    <p class="description">Once you have this CSV file, it will ask you to map the lines to Xactimate Categories, and give the sales tax rate. Then it will let you download an ESX that you can import into Xactimate. If you need to merge it with an existing estimate, you will need to set a price list for the imported project, then you should be able to copy/paste.</p>
+                    <ol>
+                        <li>The matching tool is <a target="_blank" href="https://fantomx11.github.io/pcc-scripts/estimate-matcher.html">here</a></li>
+                        
+                        
+                    </ol>
+                </div>
+                <div class="btn-container">
+                    <a class="btn" href="javascript:(async()=>{try{const m=window.location.pathname.match(/\/models\/([a-zA-Z0-9_-]+)/);if(!m){alert('Could not find a Matterport model ID in the current URL.');return;}const modelId=m[1];const query=`query GetRoomBounds($modelId: ID!) { model(id: $modelId) {name floors { id layer { id } edges(includeUsed: true) { id layer { id } type vertices { id layer { id } position { x y } } centerLineBias thickness openings { id width relativeCenter type height lowerElevation layer { id } label metadata { key value } } } } rooms { id layer { id } floor { id } classifications { id confidence label } boundary { edges { id } } holes { edges { id } } dimensionEstimates(units: metric) { area areaIndoor areaIndoorWithWalls width depth height units } ceiling(units: metric) { planes { measurements { bottom { x y z } height } } maxHeight minHeight } label keywords } } }`;const res=await fetch('https://my.matterport.com/api/mp/models/graph?operation=GetRoomBounds%27,{method:%27POST%27,headers:{%27content-type%27:%27application/json%27,%27accept%27:%27*/*%27},credentials:%27include%27,body:JSON.stringify({operationName:%27GetRoomBounds%27,variables:{modelId},query})});if(!res.ok)throw new Error(`HTTP ${res.status}`);const data=await res.json();const blob=new Blob([JSON.stringify(data,null,2)],{type:%27application/json%27});const a=document.createElement(%27a%27);a.href=URL.createObjectURL(blob);a.download=`${data.data.model.name}_room_bounds.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href);}catch(err){console.error(err);alert(%27Error fetching room bounds: %27+err.message);}})();">Download Matterport Floorplans</a>
+                </div>
+            </div>
+        </details>
+
+        <details>
             <summary>Job Dashboard (Simplify Job List)</summary>
             <div class="content">
                 <div class="instructions">
