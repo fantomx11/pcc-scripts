@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Xactimate Estimate Rebuilder (OOP)</title>
+  <title>Xactimate Estimate Rebuilder (Unified OOP)</title>
   
   <!-- Required CDN Dependencies for In-Memory Compression & Cryptography -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -114,7 +114,7 @@
       box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
     }
 
-    /* Drop Zone with Event Shielding */
+    /* Bulletproof Drop Zone */
     .drop-zone {
       border: 2px dashed #0071e3;
       border-radius: 10px;
@@ -279,6 +279,26 @@
       font-weight: 600;
     }
 
+    .detection-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-left: 8px;
+    }
+
+    .badge-enriched {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    .badge-minimal {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
     .hidden {
       display: none;
     }
@@ -289,7 +309,7 @@
 <div class="container">
   <header>
     <h1>Xactimate Estimate Rebuilder</h1>
-    <p class="subtitle">OOP Architecture • Automated Material Tax Isolation • Native ESX Exporter</p>
+    <p class="subtitle">Unified Ingestion Engine • Auto-Enrichment • Native ESX Exporter</p>
   </header>
 
   <!-- Step 1: Configuration & File Upload -->
@@ -318,16 +338,16 @@
     <div class="drop-zone" id="csvDropZone">
       <div style="font-size: 36px; margin-bottom: 8px;">📄</div>
       <div style="font-size: 1.05rem; font-weight: 600;">Drag & Drop Adjuster CSV File Here</div>
-      <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">or click anywhere to browse local files</div>
+      <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Supports minimal PDF scrapes & native Xactimate exports</div>
       <input type="file" id="csvFileInput" accept=".csv,text/csv,text/plain" style="display:none;">
-      <div id="fileUploadStatus" style="margin-top:12px; color: var(--primary); font-weight: 600;"></div>
+      <div id="fileUploadStatus" style="margin-top:12px; font-weight: 600;"></div>
     </div>
   </div>
 
-  <!-- Step 2: Column Mapping (Fallback if CSV headers are atypical) -->
+  <!-- Step 2: Column Mapping (Shown only if required columns are ambiguous) -->
   <div class="card hidden" id="viewStep2">
-    <h2>2. Verify CSV Columns</h2>
-    <p style="font-size:0.9rem; color:var(--text-muted);">Confirm the detected column mapping for your CSV data:</p>
+    <h2>2. Verify Required CSV Columns</h2>
+    <p style="font-size:0.9rem; color:var(--text-muted);">Please verify the mapping for the core required columns:</p>
     <div class="grid-2" id="columnMappingGrid"></div>
     <br>
     <button class="btn" id="btnConfirmColumns">Confirm Columns & Continue</button>
@@ -335,14 +355,17 @@
 
   <!-- Step 3: Trade Category Mapping Queue -->
   <div class="card hidden" id="viewStep3">
-    <h2>3. Trade Category Mapping Queue</h2>
+    <h2>
+      3. Trade Category Mapping Queue
+      <span id="schemaBadge" class="detection-badge"></span>
+    </h2>
     
     <div class="progress-bar-container">
       <div class="progress-bar" id="progressBar"></div>
     </div>
 
     <div class="toolbar">
-      <input type="search" id="inputFilter" placeholder="Filter descriptions (e.g. Paint, Drywall, Vinyl)...">
+      <input type="search" id="inputFilter" placeholder="Filter descriptions (e.g. Paint, Drywall, Insulation)...">
       
       <div class="category-assign-box">
         <select id="selectCategory">
@@ -359,6 +382,7 @@
           <option value="HVC">HVC - Heat, Vent, & Air</option>
           <option value="RFG">RFG - Roofing</option>
           <option value="SDG">SDG - Siding</option>
+          <option value="INS">INS - Insulation</option>
           <option value="WTR">WTR - Water Extraction</option>
           <option value="CLN">CLN - Cleaning</option>
           <option value="DMO">DMO - General Demolition</option>
@@ -379,7 +403,7 @@
     <ul class="desc-list" id="listUnmapped"></ul>
 
     <div class="section-title" style="margin-top: 24px;">
-      <span>Mapped Descriptions (Moved to Bottom)</span>
+      <span>Mapped Descriptions (Sunk to Bottom)</span>
       <span id="labelMappedCount">0 items</span>
     </div>
     <ul class="desc-list" id="listMapped"></ul>
@@ -400,21 +424,38 @@
  */
 
 /**
- * Encapsulates an individual estimate line item and calculates labor/material splits.
+ * Encapsulates an estimate line item, utilizing enriched native figures if present,
+ * or back-calculating from the sales tax formula if minimal data is supplied.
  */
 class LineItem {
   constructor(data) {
     this.group = (data.group || "General").trim();
+    this.groupCode = (data.groupCode || "").trim();
     this.lineNum = parseInt(data.lineNum, 10) || 1;
     this.description = (data.description || "").trim();
     this.quantity = parseFloat(String(data.quantity).replace(/,/g, '')) || 0;
     this.unit = (data.unit || "EA").trim().toUpperCase();
     this.tax = parseFloat(String(data.tax).replace(/,/g, '')) || 0;
-    this.gcop = parseFloat(String(data.gcop).replace(/,/g, '')) || 0;
     this.rcv = parseFloat(String(data.rcv).replace(/,/g, '')) || 0;
-    this.category = "USR"; // Default trade code
+    
+    // Optional/Enriched Fields
+    this.rawGcop = data.gcop !== undefined && data.gcop !== null ? parseFloat(String(data.gcop).replace(/,/g, '')) : null;
+    this.rawItemAmount = data.itemAmount !== undefined && data.itemAmount !== null ? parseFloat(String(data.itemAmount).replace(/,/g, '')) : null;
+    this.rawUnitPrice = data.unitPrice !== undefined && data.unitPrice !== null ? parseFloat(String(data.unitPrice).replace(/,/g, '')) : null;
+    
+    this.category = (data.category || "").trim().toUpperCase();
+    this.selector = (data.selector || "MISC").trim().toUpperCase();
+    this.activity = this._normalizeActivity(data.activity);
+    
+    this.rawMaterial = data.material !== undefined && data.material !== null ? parseFloat(String(data.material).replace(/,/g, '')) : null;
+    this.rawWage = data.wage !== undefined && data.wage !== null ? parseFloat(String(data.wage).replace(/,/g, '')) : null;
+    this.rawBurden = data.burden !== undefined && data.burden !== null ? parseFloat(String(data.burden).replace(/,/g, '')) : null;
+    this.rawOverhead = data.overhead !== undefined && data.overhead !== null ? parseFloat(String(data.overhead).replace(/,/g, '')) : null;
+    this.rawEquipment = data.equipment !== undefined && data.equipment !== null ? parseFloat(String(data.equipment).replace(/,/g, '')) : 0;
+    this.rawMarket = data.market !== undefined && data.market !== null ? parseFloat(String(data.market).replace(/,/g, '')) : 0;
+    this.note = (data.note || "").trim();
 
-    // Derived splits
+    // Derived Financial Splits
     this.baseCost = 0;
     this.materialTotal = 0;
     this.laborTotal = 0;
@@ -423,30 +464,60 @@ class LineItem {
     this.unitPrice = 0;
   }
 
-  calculateFinancials(taxRateDecimal) {
-    this.baseCost = this.rcv - this.tax - this.gcop;
-    // Sales tax in this jurisdiction strictly applies to materials:
-    this.materialTotal = taxRateDecimal > 0 ? (this.tax / taxRateDecimal) : 0;
-    this.laborTotal = Math.max(0, this.baseCost - this.materialTotal);
+  _normalizeActivity(act) {
+    if (!act) return "+";
+    const clean = act.trim().toLowerCase();
+    if (clean === "replace" || clean === "+") return "+";
+    if (clean === "remove" || clean === "-") return "-";
+    if (clean.includes("detach") || clean === "&") return "&";
+    if (clean.includes("material")) return "M";
+    if (clean.includes("install")) return "I";
+    return "+";
+  }
 
-    if (this.quantity > 0) {
-      this.unitMaterial = this.materialTotal / this.quantity;
-      this.unitLabor = this.laborTotal / this.quantity;
-      this.unitPrice = this.baseCost / this.quantity;
+  calculateFinancials(taxRateDecimal) {
+    // 1. Resolve Base Cost
+    if (this.rawItemAmount !== null) {
+      this.baseCost = this.rawItemAmount;
+    } else if (this.rawGcop !== null) {
+      this.baseCost = this.rcv - this.tax - this.rawGcop;
+    } else if (this.rawUnitPrice !== null && this.quantity > 0) {
+      this.baseCost = this.quantity * this.rawUnitPrice;
     } else {
-      this.unitMaterial = 0;
-      this.unitLabor = 0;
-      this.unitPrice = 0;
+      this.baseCost = this.rcv - this.tax;
     }
+
+    // 2. Resolve Material Unit / Total Cost
+    if (this.rawMaterial !== null && !isNaN(this.rawMaterial)) {
+      this.unitMaterial = this.rawMaterial;
+      this.materialTotal = this.unitMaterial * this.quantity;
+    } else {
+      this.materialTotal = taxRateDecimal > 0 ? (this.tax / taxRateDecimal) : 0;
+      this.unitMaterial = this.quantity > 0 ? (this.materialTotal / this.quantity) : 0;
+    }
+
+    // 3. Resolve Labor Unit / Total Cost
+    if (this.rawWage !== null || this.rawOverhead !== null) {
+      this.unitLabor = (this.rawWage || 0) + (this.rawBurden || 0) + (this.rawOverhead || 0);
+      this.laborTotal = this.unitLabor * this.quantity;
+    } else {
+      this.laborTotal = Math.max(0, this.baseCost - this.materialTotal);
+      this.unitLabor = this.quantity > 0 ? (this.laborTotal / this.quantity) : 0;
+    }
+
+    this.unitPrice = this.quantity > 0 ? (this.baseCost / this.quantity) : (this.unitMaterial + this.unitLabor);
   }
 
   toSumItemXml(sumId, catId) {
     const escDesc = XactDocBuilder.escapeXml(this.description);
+    const selCode = XactDocBuilder.escapeXml(this.selector || "MISC");
+    const catCode = XactDocBuilder.escapeXml(this.category || "PNT");
+
     return `
-      <SUMITEM id="${sumId}" cat="${this.category}" catId="${catId}" sel="MISC" act="+" desc="${escDesc}" unit="${this.unit}" depMax="100" coverage="1" descMod="1" owner="SAM">
+      <SUMITEM id="${sumId}" cat="${catCode}" catId="${catId}" sel="${selCode}" act="${this.activity}" desc="${escDesc}" unit="${this.unit}" depMax="100" coverage="1" descMod="1" owner="SAM">
         <MIL_ITEM_INFOS><MIL_ITEM_INFO/><MIL_ITEM_INFO/></MIL_ITEM_INFOS>
         <SUM_ACTIVITIES>
-          <SUM_ACTIVITY act="+" labMarkup="${this.unitLabor.toFixed(4)}" matCS="${this.unitMaterial.toFixed(4)}" equ="0" mkt="0" phs="112">
+          <SUM_ACTIVITY act="${this.activity}" labMarkup="0" matCS="${this.unitMaterial.toFixed(4)}" equ="${this.rawEquipment.toFixed(4)}" mkt="${this.unitLabor.toFixed(4)}" phs="112">
             <SUM_ASSEMBLIES/>
           </SUM_ACTIVITY>
         </SUM_ACTIVITIES>
@@ -470,9 +541,10 @@ class EstimateModel {
   constructor() {
     this.projectId = "";
     this.customerName = "";
-    this.salesTaxRate = null; // Forced blank initially
+    this.salesTaxRate = null;
     this.items = [];
-    this.categoryMappings = new Map(); // description -> 3-letter category code
+    this.categoryMappings = new Map();
+    this.isEnrichedSource = false;
   }
 
   setProjectId(id) {
@@ -490,7 +562,6 @@ class EstimateModel {
 
   getFormattedFilename() {
     const cleanId = (this.projectId || "PROJECT").trim().toUpperCase().slice(0, 20);
-    // Replace all internal spaces in customer name with "~S"
     const formattedCustomer = (this.customerName || "CUSTOMER")
       .trim()
       .replace(/\s+/g, '~S');
@@ -499,6 +570,10 @@ class EstimateModel {
 
   addLineItem(item) {
     this.items.push(item);
+    // If the row comes with an existing category code, auto-register it
+    if (item.category && item.category.length === 3) {
+      this.categoryMappings.set(item.description, item.category);
+    }
   }
 
   recalculateAll() {
@@ -519,7 +594,7 @@ class EstimateModel {
   }
 
   isDescriptionMapped(desc) {
-    return this.categoryMappings.has(desc);
+    return this.categoryMappings.has(desc) && this.categoryMappings.get(desc).length === 3;
   }
 
   mapCategory(desc, categoryCode) {
@@ -528,7 +603,7 @@ class EstimateModel {
 
   isFullyMapped() {
     const unique = this.getUniqueDescriptions();
-    return unique.length > 0 && unique.every(desc => this.categoryMappings.has(desc));
+    return unique.length > 0 && unique.every(desc => this.isDescriptionMapped(desc));
   }
 
   hasValidSettings() {
@@ -542,17 +617,25 @@ class EstimateModel {
 
   getDistinctCategories() {
     const cats = new Set();
-    this.items.forEach(i => cats.add(i.category));
+    this.items.forEach(i => {
+      if (i.category) cats.add(i.category);
+    });
+    if (cats.size === 0) cats.add("PNT");
     return Array.from(cats);
   }
 
   getItemsByGroup() {
     const groups = new Map();
     this.items.forEach(item => {
-      if (!groups.has(item.group)) {
-        groups.set(item.group, []);
+      const key = item.group || "General";
+      if (!groups.has(key)) {
+        groups.set(key, {
+          description: key,
+          code: item.groupCode || key.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 15),
+          items: []
+        });
       }
-      groups.get(item.group).push(item);
+      groups.get(key).items.push(item);
     });
     return groups;
   }
@@ -562,14 +645,104 @@ class EstimateModel {
   }
 }
 
+class TaxRateDetector {
+  static detect(headers, rows, mapping) {
+    // 1. Exact Detection: Native Material and Quantity Columns
+    if (mapping.material && mapping.quantity && mapping.tax) {
+      const matIdx = headers.indexOf(mapping.material);
+      const qtyIdx = headers.indexOf(mapping.quantity);
+      const taxIdx = headers.indexOf(mapping.tax);
+
+      let totalMat = 0;
+      let totalTax = 0;
+      const lineData = [];
+
+      rows.forEach(r => {
+        const q = parseFloat(String(r[qtyIdx] || '0').replace(/,/g, '')) || 0;
+        const m = parseFloat(String(r[matIdx] || '0').replace(/,/g, '')) || 0;
+        const t = parseFloat(String(r[taxIdx] || '0').replace(/,/g, '')) || 0;
+        if (q > 0 && m > 0 && t > 0) {
+          totalMat += q * m;
+          totalTax += t;
+          lineData.push({ mat: q * m, tax: t });
+        }
+      });
+
+      if (totalMat > 0 && lineData.length > 0) {
+        const rawRate = (totalTax / totalMat) * 100;
+        
+        // Fine-tune across standard 3-decimal jurisdiction steps (±0.25%)
+        let bestRate = rawRate;
+        let minDiff = Infinity;
+        const startStep = Math.round((rawRate - 0.25) * 1000);
+        const endStep = Math.round((rawRate + 0.25) * 1000);
+
+        for (let s = startStep; s <= endStep; s++) {
+          const testRate = s / 1000;
+          let diff = 0;
+          for (let i = 0; i < lineData.length; i++) {
+            const expectedTax = Math.round(lineData[i].mat * (testRate / 100) * 100) / 100;
+            diff += Math.abs(expectedTax - lineData[i].tax);
+          }
+          if (diff < minDiff) {
+            minDiff = diff;
+            bestRate = testRate;
+            if (minDiff === 0) break; // Exact match on every line item
+          }
+        }
+        return { rate: bestRate, method: "Native Material Split" };
+      }
+    }
+
+    // 2. Inferred Detection: "Material Only" Line Items
+    if (mapping.description && mapping.tax && (mapping.unitPrice || mapping.itemAmount)) {
+      const descIdx = headers.indexOf(mapping.description);
+      const taxIdx = headers.indexOf(mapping.tax);
+      const qtyIdx = headers.indexOf(mapping.quantity);
+      const upIdx = mapping.unitPrice ? headers.indexOf(mapping.unitPrice) : -1;
+      const amtIdx = mapping.itemAmount ? headers.indexOf(mapping.itemAmount) : -1;
+      const actIdx = mapping.activity ? headers.indexOf(mapping.activity) : -1;
+
+      let totalBase = 0;
+      let totalTax = 0;
+
+      rows.forEach(r => {
+        const desc = (r[descIdx] || '').toLowerCase();
+        const act = actIdx !== -1 ? (r[actIdx] || '').toLowerCase() : '';
+        const isMatOnly = desc.includes('mat. only') || desc.includes('material only') || act === 'm';
+
+        if (isMatOnly) {
+          const q = qtyIdx !== -1 ? (parseFloat(String(r[qtyIdx] || '1').replace(/,/g, '')) || 1) : 1;
+          let base = 0;
+          if (amtIdx !== -1 && r[amtIdx]) base = parseFloat(String(r[amtIdx]).replace(/,/g, '')) || 0;
+          else if (upIdx !== -1 && r[upIdx]) base = q * (parseFloat(String(r[upIdx]).replace(/,/g, '')) || 0);
+
+          const t = parseFloat(String(r[taxIdx] || '0').replace(/,/g, '')) || 0;
+          if (base > 0 && t > 0) {
+            totalBase += base;
+            totalTax += t;
+          }
+        }
+      });
+
+      if (totalBase > 0) {
+        const rawRate = (totalTax / totalBase) * 100;
+        return { rate: parseFloat(rawRate.toFixed(3)), method: "Material-Only Line Items" };
+      }
+    }
+
+    return null;
+  }
+}
+
 /**
  * ============================================================================
- * CSV PARSER & COLUMN MAPPER
+ * CSV PARSER & UNIFIED COLUMN MAPPER
  * ============================================================================
  */
 
 /**
- * Standalone RFC-4180 compliant CSV parser that handles UTF-8 BOM, quoted commas, and newlines.
+ * Standalone RFC-4180 compliant CSV parser that strips BOM and handles nested commas.
  */
 class CsvParser {
   static parse(text) {
@@ -625,44 +798,82 @@ class CsvParser {
 }
 
 /**
- * Handles automated header recognition and manual column matching.
+ * Unified Column Mapper: Automatically discovers both minimal scraped columns
+ * and enriched native Xactimate fields.
  */
 class ColumnMapper {
-  static REQUIRED_KEYS = [
-    "Group", "Line Number", "Description", "Quantity", "Unit", "Tax", "GCO&P", "RCV"
-  ];
+  static detect(headers, sampleRows) {
+    const headerLower = headers.map(h => h.toLowerCase().trim());
 
-  static autoDetect(headers) {
-    const mapping = {};
-    let missingCount = 0;
+    const find = (aliases, requireNumeric = false) => {
+      for (const alias of aliases) {
+        for (let i = 0; i < headerLower.length; i++) {
+          const h = headerLower[i];
+          const cleanH = h.replace(/[^a-z0-9]/g, '');
+          const cleanAlias = alias.replace(/[^a-z0-9]/g, '');
 
-    this.REQUIRED_KEYS.forEach(req => {
-      const match = headers.find(h => {
-        const clean = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const target = req.toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (clean === target) return true;
-        if (req === "Group" && (clean === "room" || clean === "area" || clean === "location")) return true;
-        if (req === "Line Number" && (clean === "line" || clean === "item" || clean === "itemno")) return true;
-        if (req === "Quantity" && (clean === "qty" || clean === "calc")) return true;
-        if (req === "GCO&P" && (clean === "op" || clean === "gcop" || clean === "overhead")) return true;
-        return false;
-      });
-
-      if (match) {
-        mapping[req] = match;
-      } else {
-        mapping[req] = "";
-        missingCount++;
+          if (cleanH === cleanAlias) {
+            if (requireNumeric && sampleRows.length > 0) {
+              const vals = sampleRows.slice(0, 5).map(r => (r[i] || '').trim().toLowerCase());
+              if (vals.some(v => v === 'yes' || v === 'no')) continue;
+            }
+            return headers[i];
+          }
+        }
       }
-    });
+      return null;
+    };
 
-    return { mapping, isComplete: missingCount === 0 };
+    const mapping = {
+      // Core Required Fields
+      group: find(['group description', 'group', 'room', 'area', 'location']),
+      lineNum: find(['#', 'line number', 'line', 'item #', 'item no', 'item']),
+      description: find(['desc', 'description', 'item description']),
+      quantity: find(['qty', 'quantity', 'calc']),
+      unit: find(['unit', 'uom']),
+      tax: find(['sales tax', 'tax amt', 'tax amount', 'tax dollar'], true) || find(['tax'], true),
+      rcv: find(['rcv', 'replacement cost value', 'total']),
+
+      // Financial Resolution Fields (at least one is required)
+      gcop: find(['gco&p', 'gcop', 'o&p', 'op', 'overhead & profit']),
+      itemAmount: find(['item amount', 'base amount', 'total cost', 'amount']),
+      unitPrice: find(['unit cost', 'unit price', 'price']),
+
+      // Optional Enrichment Fields (auto-filled if present)
+      category: find(['cat', 'category', 'trade']),
+      selector: find(['sel', 'selector', 'code']),
+      activity: find(['activity', 'act', 'action']),
+      material: find(['material', 'mat', 'unit material']),
+      wage: find(["worker's wage", 'wage', 'labor wage']),
+      burden: find(['labor burden', 'burden']),
+      overhead: find(['labor overhead', 'labor o&h']),
+      equipment: find(['equipment', 'equip', 'equ']),
+      market: find(['market conditions', 'market', 'mkt']),
+      groupCode: find(['group code', 'room code']),
+      note: find(['note 1', 'note', 'line note', 'notes'])
+    };
+
+    // Check if minimal core requirements are satisfied
+    const hasCore = (
+      mapping.group &&
+      mapping.description &&
+      mapping.quantity &&
+      mapping.unit &&
+      mapping.tax &&
+      mapping.rcv
+    );
+
+    const hasFinancialBase = mapping.gcop || mapping.itemAmount || mapping.unitPrice;
+    const isComplete = Boolean(hasCore && hasFinancialBase);
+    const isEnriched = Boolean(mapping.category || mapping.material);
+
+    return { mapping, isComplete, isEnriched };
   }
 }
 
 /**
  * ============================================================================
- * XML BUILDER & ESX ENCRYPTION SERVICE
+ * XML BUILDER & ESX PACKAGER
  * ============================================================================
  */
 
@@ -701,11 +912,11 @@ class XactDocBuilder {
 
     const groups = estimateModel.getItemsByGroup();
 
-    groups.forEach((items, groupName) => {
+    groups.forEach(grpData => {
       const grpId = `GRP${grpIdSeq++}`;
       let itemsXml = '';
 
-      items.forEach(item => {
+      grpData.items.forEach(item => {
         const sumId = `SUM${sumIdSeq++}`;
         const itemId = `ITM${itemIdSeq++}`;
         const catId = catIdMap.get(item.category) || "828";
@@ -715,7 +926,7 @@ class XactDocBuilder {
       });
 
       groupHierarchyXml += `
-        <GROUP id="${grpId}" code="${grpId}" type="Room" desc="${this.escapeXml(groupName)}" isRoom="1" covID="-1">
+        <GROUP id="${grpId}" code="${this.escapeXml(grpData.code)}" type="Room" desc="${this.escapeXml(grpData.description)}" isRoom="1" covID="-1">
           <ITEMS>${itemsXml}</ITEMS>
         </GROUP>`;
     });
@@ -763,19 +974,19 @@ class XactDocBuilder {
 }
 
 /**
- * Encapsulates AES-256 ECB encryption and nested ESX ZIP container creation[cite: 2].
+ * Encapsulates AES-256 ECB encryption and nested ESX ZIP compression[cite: 2].
  */
 class EsxPackager {
   static KEY_STRING = "XpYm&$i($#cds#4,>.?z-+:;}[}}[71!";
 
   static async createEsx(xmlString) {
     if (typeof JSZip === "undefined" || typeof CryptoJS === "undefined") {
-      throw new Error("JSZip or CryptoJS failed to load. Ensure internet connectivity or check local CDN policies.");
+      throw new Error("JSZip or CryptoJS failed to load. Check your internet connection or CDN policies.");
     }
 
     const xmlBytes = new TextEncoder().encode(xmlString);
 
-    // 1. Create in-memory inner ZIP container containing XACTDOC.XML[cite: 2]
+    // 1. Inner ZIP archive containing XACTDOC.XML[cite: 2]
     const innerZip = new JSZip();
     innerZip.file("XACTDOC.XML", xmlBytes);
     const innerZipBytes = await innerZip.generateAsync({
@@ -784,10 +995,10 @@ class EsxPackager {
       compressionOptions: { level: 6 }
     });
 
-    // 2. AES-256 ECB Encrypt inner ZIP to produce XACTDOC.ZIPXML payload[cite: 2]
+    // 2. Encrypt inner ZIP to produce XACTDOC.ZIPXML payload[cite: 2]
     const encryptedPayload = this._encryptAES(innerZipBytes);
 
-    // 3. Package encrypted payload into master outer container archive (.esx)[cite: 2]
+    // 3. Master container archive (.esx)[cite: 2]
     const outerZip = new JSZip();
     outerZip.file("XACTDOC.ZIPXML", encryptedPayload);
     return await outerZip.generateAsync({ type: "blob" });
@@ -850,12 +1061,12 @@ class EsxPackager {
 
 /**
  * ============================================================================
- * VIEW COMPONENTS & CONTROLLER
+ * VIEW COMPONENTS & APP CONTROLLER
  * ============================================================================
  */
 
 /**
- * Manages the interactive batch category mapping queue with Shift+Click selection.
+ * Manages the interactive batch mapping queue with multi-select and auto-sinking.
  */
 class BatchQueueView {
   constructor(estimateModel, onChangeCallback) {
@@ -984,6 +1195,7 @@ class AppController {
     this.model = new EstimateModel();
     this.rawHeaders = [];
     this.rawRows = [];
+    this.currentMapping = {};
     this.queueView = null;
 
     this.bindGlobalShield();
@@ -1060,7 +1272,7 @@ class AppController {
       const code = (custom.value.trim() || select.value).toUpperCase();
 
       if (!code || code.length !== 3) {
-        alert("Please choose or enter a valid 3-letter category code (e.g. PNT, DRY).");
+        alert("Please select or type a valid 3-letter category code (e.g. PNT, DRY).");
         return;
       }
 
@@ -1083,16 +1295,47 @@ class AppController {
   }
 
   processCsvFile(file) {
-    document.getElementById("fileUploadStatus").textContent = `Loaded: ${file.name}`;
-    const reader = new FileReader();
+    const uploadStatus = document.getElementById("fileUploadStatus");
+    uploadStatus.textContent = `Processing: ${file.name}...`;
 
+    const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const { headers, dataRows } = CsvParser.parse(e.target.result);
         this.rawHeaders = headers;
         this.rawRows = dataRows;
 
-        const { mapping, isComplete } = ColumnMapper.autoDetect(headers);
+        const { mapping, isComplete, isEnriched } = ColumnMapper.detect(headers, dataRows);
+        this.currentMapping = mapping;
+        this.model.isEnrichedSource = isEnriched;
+
+        const detectedTax = TaxRateDetector.detect(headers, dataRows, mapping);
+        const taxInput = document.getElementById("inputTaxRate");
+
+        if (detectedTax) {
+          taxInput.value = detectedTax.rate.toFixed(3);
+          this.model.setTaxRate(detectedTax.rate);
+          document.getElementById("fileUploadStatus").innerHTML = 
+            `Loaded: ${file.name} (${dataRows.length} items) • <span style="color:var(--success)">Auto-detected Tax Rate: ${detectedTax.rate.toFixed(3)}% (${detectedTax.method})</span>`;
+        } else {
+          // Clear if previous file set it and manual entry is needed
+          taxInput.value = "";
+          this.model.setTaxRate(null);
+        }
+        this.updateExportState();
+
+        const badge = document.getElementById("schemaBadge");
+        if (isEnriched) {
+          badge.className = "detection-badge badge-enriched";
+          badge.textContent = "Native Xactimate Data Auto-Enriched";
+        } else {
+          badge.className = "detection-badge badge-minimal";
+          badge.textContent = "Standard PDF Scrape Mode";
+        }
+
+        uploadStatus.textContent = `Loaded: ${file.name} (${dataRows.length} line items)`;
+        uploadStatus.style.color = "var(--primary)";
+
         if (isComplete) {
           this.buildEstimateModel(mapping);
           this.showStep3();
@@ -1100,7 +1343,9 @@ class AppController {
           this.showStep2(mapping);
         }
       } catch (err) {
-        alert(`Error reading CSV: ${err.message}`);
+        alert(`CSV parse error: ${err.message}`);
+        uploadStatus.textContent = "Failed to load CSV.";
+        uploadStatus.style.color = "var(--error)";
       }
     };
 
@@ -1111,13 +1356,14 @@ class AppController {
     const grid = document.getElementById("columnMappingGrid");
     grid.innerHTML = "";
 
-    ColumnMapper.REQUIRED_KEYS.forEach(req => {
+    const coreKeys = ["group", "lineNum", "description", "quantity", "unit", "tax", "rcv"];
+    coreKeys.forEach(key => {
       const box = document.createElement("div");
       box.innerHTML = `
-        <label>${req}</label>
-        <select data-req="${req}">
-          <option value="">-- Select Column --</option>
-          ${this.rawHeaders.map(h => `<option value="${h}" ${h === mapping[req] ? 'selected' : ''}>${h}</option>`).join('')}
+        <label>${key.toUpperCase()}</label>
+        <select data-key="${key}">
+          <option value="">-- Choose Column --</option>
+          ${this.rawHeaders.map(h => `<option value="${h}" ${h === mapping[key] ? 'selected' : ''}>${h}</option>`).join('')}
         </select>
       `;
       grid.appendChild(box);
@@ -1127,12 +1373,11 @@ class AppController {
   }
 
   applyManualColumnMapping() {
-    const mapping = {};
     const selects = document.querySelectorAll("#columnMappingGrid select");
     let missing = false;
 
     selects.forEach(s => {
-      mapping[s.dataset.req] = s.value;
+      this.currentMapping[s.dataset.key] = s.value;
       if (!s.value) missing = true;
     });
 
@@ -1141,7 +1386,7 @@ class AppController {
       return;
     }
 
-    this.buildEstimateModel(mapping);
+    this.buildEstimateModel(this.currentMapping);
     document.getElementById("viewStep2").classList.add("hidden");
     this.showStep3();
   }
@@ -1156,26 +1401,57 @@ class AppController {
     this.model.setCustomerName(custName);
     this.model.setTaxRate(taxRate);
 
-    const groupIdx = this.rawHeaders.indexOf(mapping["Group"]);
-    const lineIdx = this.rawHeaders.indexOf(mapping["Line Number"]);
-    const descIdx = this.rawHeaders.indexOf(mapping["Description"]);
-    const qtyIdx = this.rawHeaders.indexOf(mapping["Quantity"]);
-    const unitIdx = this.rawHeaders.indexOf(mapping["Unit"]);
-    const taxIdx = this.rawHeaders.indexOf(mapping["Tax"]);
-    const gcopIdx = this.rawHeaders.indexOf(mapping["GCO&P"]);
-    const rcvIdx = this.rawHeaders.indexOf(mapping["RCV"]);
+    const getIdx = (colName) => colName ? this.rawHeaders.indexOf(colName) : -1;
 
-    this.rawRows.forEach((row) => {
+    const idx = {
+      group: getIdx(mapping.group),
+      groupCode: getIdx(mapping.groupCode),
+      lineNum: getIdx(mapping.lineNum),
+      description: getIdx(mapping.description),
+      quantity: getIdx(mapping.quantity),
+      unit: getIdx(mapping.unit),
+      tax: getIdx(mapping.tax),
+      rcv: getIdx(mapping.rcv),
+      gcop: getIdx(mapping.gcop),
+      itemAmount: getIdx(mapping.itemAmount),
+      unitPrice: getIdx(mapping.unitPrice),
+      category: getIdx(mapping.category),
+      selector: getIdx(mapping.selector),
+      activity: getIdx(mapping.activity),
+      material: getIdx(mapping.material),
+      wage: getIdx(mapping.wage),
+      burden: getIdx(mapping.burden),
+      overhead: getIdx(mapping.overhead),
+      equipment: getIdx(mapping.equipment),
+      market: getIdx(mapping.market),
+      note: getIdx(mapping.note)
+    };
+
+    this.rawRows.forEach((row, i) => {
       const item = new LineItem({
-        group: row[groupIdx],
-        lineNum: row[lineIdx],
-        description: row[descIdx],
-        quantity: row[qtyIdx],
-        unit: row[unitIdx],
-        tax: row[taxIdx],
-        gcop: row[gcopIdx],
-        rcv: row[rcvIdx]
+        group: idx.group !== -1 ? row[idx.group] : "General",
+        groupCode: idx.groupCode !== -1 ? row[idx.groupCode] : "",
+        lineNum: idx.lineNum !== -1 ? row[idx.lineNum] : (i + 1),
+        description: idx.description !== -1 ? row[idx.description] : "",
+        quantity: idx.quantity !== -1 ? row[idx.quantity] : 1,
+        unit: idx.unit !== -1 ? row[idx.unit] : "EA",
+        tax: idx.tax !== -1 ? row[idx.tax] : 0,
+        rcv: idx.rcv !== -1 ? row[idx.rcv] : 0,
+        gcop: idx.gcop !== -1 ? row[idx.gcop] : null,
+        itemAmount: idx.itemAmount !== -1 ? row[idx.itemAmount] : null,
+        unitPrice: idx.unitPrice !== -1 ? row[idx.unitPrice] : null,
+        category: idx.category !== -1 ? row[idx.category] : "",
+        selector: idx.selector !== -1 ? row[idx.selector] : "MISC",
+        activity: idx.activity !== -1 ? row[idx.activity] : "+",
+        material: idx.material !== -1 ? row[idx.material] : null,
+        wage: idx.wage !== -1 ? row[idx.wage] : null,
+        burden: idx.burden !== -1 ? row[idx.burden] : null,
+        overhead: idx.overhead !== -1 ? row[idx.overhead] : null,
+        equipment: idx.equipment !== -1 ? row[idx.equipment] : 0,
+        market: idx.market !== -1 ? row[idx.market] : 0,
+        note: idx.note !== -1 ? row[idx.note] : ""
       });
+
       this.model.addLineItem(item);
     });
 
@@ -1196,13 +1472,13 @@ class AppController {
     const status = document.getElementById("appStatus");
     if (!hasSettings) {
       status.style.color = "var(--text-muted)";
-      status.textContent = "Please fill in Project ID, Customer Name, and Material Tax Rate in Step 1 to enable export.";
+      status.textContent = "Fill in Project ID, Customer Name, and Material Tax Rate in Step 1 to enable export.";
     } else if (!isMapped) {
       status.style.color = "var(--text-muted)";
-      status.textContent = "Map all descriptions to trade categories above to enable export.";
+      status.textContent = "Map remaining descriptions to trade categories above to enable export.";
     } else {
       status.style.color = "var(--success)";
-      status.textContent = "Ready to export native ESX file.";
+      status.textContent = "Estimate is 100% mapped and ready to export.";
     }
   }
 
