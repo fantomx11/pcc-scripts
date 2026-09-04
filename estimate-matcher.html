@@ -412,7 +412,7 @@ class LineItem {
     this.tax = parseFloat(String(data.tax).replace(/,/g, '')) || 0;
     this.gcop = parseFloat(String(data.gcop).replace(/,/g, '')) || 0;
     this.rcv = parseFloat(String(data.rcv).replace(/,/g, '')) || 0;
-    this.category = "PNT"; // Default trade code
+    this.category = "USR"; // Default trade code
 
     // Derived splits
     this.baseCost = 0;
