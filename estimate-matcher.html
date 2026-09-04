@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xactimate Estimate Rebuilder (OOP)</title>
+  
+  <!-- Required CDN Dependencies for In-Memory Compression & Cryptography -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+
+  <style>
+    :root {
+      --primary: #0071e3;
+      --primary-hover: #005bb5;
+      --bg: #f5f5f7;
+      --card-bg: #ffffff;
+      --border: #d2d2d7;
+      --text: #1d1d1f;
+      --text-muted: #86868b;
+      --success: #34c759;
+      --highlight: #e8f2ff;
+      --error: #ff3b30;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1020px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 6px;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+      border: 1px solid var(--border);
+    }
+
+    .card h2 {
+      margin-top: 0;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .required-star {
+      color: var(--error);
+    }
+
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.95rem;
+      box-sizing: border-box;
+      background: #fafafa;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+    }
+
+    /* Drop Zone with Event Shielding */
+    .drop-zone {
+      border: 2px dashed #0071e3;
+      border-radius: 10px;
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      background: #fafbff;
+      transition: all 0.2s ease-in-out;
+      user-select: none;
+    }
+
+    .drop-zone.drag-over {
+      background-color: #eaf3ff;
+      border-color: #005bb5;
+      transform: scale(1.01);
+    }
+
+    .drop-zone * {
+      pointer-events: none;
+    }
+
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn:disabled {
+      background: var(--border);
+      cursor: not-allowed;
+    }
+
+    /* Batch Mapping Toolbar & Queue */
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+      background: #f9f9fb;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .toolbar input[type="search"] {
+      flex: 1;
+      min-width: 220px;
+    }
+
+    .category-assign-box {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .progress-bar-container {
+      height: 8px;
+      background: #e5e5ea;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--success);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .section-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin: 16px 0 8px 0;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .desc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 280px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: white;
+    }
+
+    .desc-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .desc-item:last-child {
+      border-bottom: none;
+    }
+
+    .desc-item:hover {
+      background: #fbfbfd;
+    }
+
+    .desc-item.selected {
+      background: var(--highlight);
+    }
+
+    .desc-item input[type="checkbox"] {
+      margin-right: 12px;
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    .desc-text {
+      flex: 1;
+      font-size: 0.95rem;
+    }
+
+    .cat-badge {
+      background: #e5e5ea;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-weight: bold;
+      font-size: 0.85rem;
+    }
+
+    .cat-badge.mapped {
+      background: #d1e7dd;
+      color: #0f5132;
+    }
+
+    .preview-box {
+      background: #f9f9fb;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+      font-family: monospace;
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+      word-break: break-all;
+    }
+
+    .status-msg {
+      margin-top: 14px;
+      font-weight: 600;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Xactimate Estimate Rebuilder</h1>
+    <p class="subtitle">OOP Architecture • Automated Material Tax Isolation • Native ESX Exporter</p>
+  </header>
+
+  <!-- Step 1: Configuration & File Upload -->
+  <div class="card" id="viewStep1">
+    <h2>1. Project Details & Estimate Upload</h2>
+    
+    <div class="grid-3" style="margin-bottom: 16px;">
+      <div>
+        <label for="inputProjectId">Project ID (Max 20 Caps) <span class="required-star">*</span></label>
+        <input type="text" id="inputProjectId" maxlength="20" placeholder="e.g. 260904_CLAIM" style="text-transform: uppercase;">
+      </div>
+      <div>
+        <label for="inputCustomerName">Customer Name <span class="required-star">*</span></label>
+        <input type="text" id="inputCustomerName" placeholder="e.g. John Doe">
+      </div>
+      <div>
+        <label for="inputTaxRate">Material Tax Rate (%) <span class="required-star">*</span></label>
+        <input type="number" id="inputTaxRate" step="0.001" placeholder="e.g. 8.917" value="">
+      </div>
+    </div>
+
+    <div class="preview-box">
+      <strong>Target ESX Filename: </strong><span id="labelFilenamePreview">PROJECT_ID Customer~SName.esx</span>
+    </div>
+
+    <div class="drop-zone" id="csvDropZone">
+      <div style="font-size: 36px; margin-bottom: 8px;">📄</div>
+      <div style="font-size: 1.05rem; font-weight: 600;">Drag & Drop Adjuster CSV File Here</div>
+      <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">or click anywhere to browse local files</div>
+      <input type="file" id="csvFileInput" accept=".csv,text/csv,text/plain" style="display:none;">
+      <div id="fileUploadStatus" style="margin-top:12px; color: var(--primary); font-weight: 600;"></div>
+    </div>
+  </div>
+
+  <!-- Step 2: Column Mapping (Fallback if CSV headers are atypical) -->
+  <div class="card hidden" id="viewStep2">
+    <h2>2. Verify CSV Columns</h2>
+    <p style="font-size:0.9rem; color:var(--text-muted);">Confirm the detected column mapping for your CSV data:</p>
+    <div class="grid-2" id="columnMappingGrid"></div>
+    <br>
+    <button class="btn" id="btnConfirmColumns">Confirm Columns & Continue</button>
+  </div>
+
+  <!-- Step 3: Trade Category Mapping Queue -->
+  <div class="card hidden" id="viewStep3">
+    <h2>3. Trade Category Mapping Queue</h2>
+    
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="toolbar">
+      <input type="search" id="inputFilter" placeholder="Filter descriptions (e.g. Paint, Drywall, Vinyl)...">
+      
+      <div class="category-assign-box">
+        <select id="selectCategory">
+          <option value="">-- Select Trade --</option>
+          <option value="PNT">PNT - Painting</option>
+          <option value="DRY">DRY - Drywall</option>
+          <option value="FCC">FCC - Floor Covering - Carpet</option>
+          <option value="FCW">FCW - Floor Covering - Wood / Lam</option>
+          <option value="FCV">FCV - Floor Covering - Vinyl</option>
+          <option value="FCT">FCT - Floor Covering - Ceramic Tile</option>
+          <option value="CAB">CAB - Cabinetry</option>
+          <option value="PLM">PLM - Plumbing</option>
+          <option value="ELE">ELE - Electrical</option>
+          <option value="HVC">HVC - Heat, Vent, & Air</option>
+          <option value="RFG">RFG - Roofing</option>
+          <option value="SDG">SDG - Siding</option>
+          <option value="WTR">WTR - Water Extraction</option>
+          <option value="CLN">CLN - Cleaning</option>
+          <option value="DMO">DMO - General Demolition</option>
+        </select>
+        <input type="text" id="inputCustomCategory" placeholder="Code" style="width:75px; text-transform:uppercase;" maxlength="3">
+        <button class="btn" id="btnApplyCategory">Apply to Selected</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 8px;">
+      <label><input type="checkbox" id="chkSelectAllUnmapped"> Select All Visible Unmapped Items</label>
+    </div>
+
+    <div class="section-title">
+      <span>Pending Unmapped Descriptions</span>
+      <span id="labelUnmappedCount">0 items</span>
+    </div>
+    <ul class="desc-list" id="listUnmapped"></ul>
+
+    <div class="section-title" style="margin-top: 24px;">
+      <span>Mapped Descriptions (Moved to Bottom)</span>
+      <span id="labelMappedCount">0 items</span>
+    </div>
+    <ul class="desc-list" id="listMapped"></ul>
+
+    <br>
+    <button class="btn" id="btnGenerateEsx" style="width: 100%; padding: 14px; font-size: 1.05rem;" disabled>
+      Generate & Download Native ESX File
+    </button>
+    <div id="appStatus" class="status-msg"></div>
+  </div>
+</div>
+
+<script>
+/**
+ * ============================================================================
+ * DOMAIN MODEL CLASSES (OOP)
+ * ============================================================================
+ */
+
+/**
+ * Encapsulates an individual estimate line item and calculates labor/material splits.
+ */
+class LineItem {
+  constructor(data) {
+    this.group = (data.group || "General").trim();
+    this.lineNum = parseInt(data.lineNum, 10) || 1;
+    this.description = (data.description || "").trim();
+    this.quantity = parseFloat(String(data.quantity).replace(/,/g, '')) || 0;
+    this.unit = (data.unit || "EA").trim().toUpperCase();
+    this.tax = parseFloat(String(data.tax).replace(/,/g, '')) || 0;
+    this.gcop = parseFloat(String(data.gcop).replace(/,/g, '')) || 0;
+    this.rcv = parseFloat(String(data.rcv).replace(/,/g, '')) || 0;
+    this.category = "PNT"; // Default trade code
+
+    // Derived splits
+    this.baseCost = 0;
+    this.materialTotal = 0;
+    this.laborTotal = 0;
+    this.unitMaterial = 0;
+    this.unitLabor = 0;
+    this.unitPrice = 0;
+  }
+
+  calculateFinancials(taxRateDecimal) {
+    this.baseCost = this.rcv - this.tax - this.gcop;
+    // Sales tax in this jurisdiction strictly applies to materials:
+    this.materialTotal = taxRateDecimal > 0 ? (this.tax / taxRateDecimal) : 0;
+    this.laborTotal = Math.max(0, this.baseCost - this.materialTotal);
+
+    if (this.quantity > 0) {
+      this.unitMaterial = this.materialTotal / this.quantity;
+      this.unitLabor = this.laborTotal / this.quantity;
+      this.unitPrice = this.baseCost / this.quantity;
+    } else {
+      this.unitMaterial = 0;
+      this.unitLabor = 0;
+      this.unitPrice = 0;
+    }
+  }
+
+  toSumItemXml(sumId, catId) {
+    const escDesc = XactDocBuilder.escapeXml(this.description);
+    return `
+      <SUMITEM id="${sumId}" cat="${this.category}" catId="${catId}" sel="MISC" act="+" desc="${escDesc}" unit="${this.unit}" depMax="100" coverage="1" descMod="1" owner="SAM">
+        <MIL_ITEM_INFOS><MIL_ITEM_INFO/><MIL_ITEM_INFO/></MIL_ITEM_INFOS>
+        <SUM_ACTIVITIES>
+          <SUM_ACTIVITY act="+" labMarkup="0" matCS="${this.unitMaterial.toFixed(4)}" equ="0" mkt="${this.unitLabor.toFixed(4)}" phs="112">
+            <SUM_ASSEMBLIES/>
+          </SUM_ACTIVITY>
+        </SUM_ACTIVITIES>
+        <HISTORY/>
+        <PCA_RECONS/>
+      </SUMITEM>`;
+  }
+
+  toItemXml(itemId, sumId) {
+    return `
+      <ITEM id="${itemId}" type="S" dateTimeStamp="${new Date().toISOString()}" addedByUser="SAM" user="SAM" owner="SAM">
+        <SUMMARY_REF sumRef="${sumId}" calc="${this.quantity}" qty="${this.quantity}" depType="P" recoverable="1" lineNum="${this.lineNum}"/>
+      </ITEM>`;
+  }
+}
+
+/**
+ * Domain aggregate holding line items, categories, and estimate metadata.
+ */
+class EstimateModel {
+  constructor() {
+    this.projectId = "";
+    this.customerName = "";
+    this.salesTaxRate = null; // Forced blank initially
+    this.items = [];
+    this.categoryMappings = new Map(); // description -> 3-letter category code
+  }
+
+  setProjectId(id) {
+    this.projectId = (id || "").trim().toUpperCase().slice(0, 20);
+  }
+
+  setCustomerName(name) {
+    this.customerName = (name || "").trim();
+  }
+
+  setTaxRate(rate) {
+    const parsed = parseFloat(String(rate).replace('%', '').trim());
+    this.salesTaxRate = isNaN(parsed) ? null : parsed;
+  }
+
+  getFormattedFilename() {
+    const cleanId = (this.projectId || "PROJECT").trim().toUpperCase().slice(0, 20);
+    // Replace all internal spaces in customer name with "~S"
+    const formattedCustomer = (this.customerName || "CUSTOMER")
+      .trim()
+      .replace(/\s+/g, '~S');
+    return `${cleanId} ${formattedCustomer}.esx`;
+  }
+
+  addLineItem(item) {
+    this.items.push(item);
+  }
+
+  recalculateAll() {
+    if (this.salesTaxRate === null || this.salesTaxRate <= 0) {
+      throw new Error("A valid material sales tax rate greater than 0% is required.");
+    }
+    const taxRateDecimal = this.salesTaxRate / 100;
+    this.items.forEach(item => {
+      if (this.categoryMappings.has(item.description)) {
+        item.category = this.categoryMappings.get(item.description);
+      }
+      item.calculateFinancials(taxRateDecimal);
+    });
+  }
+
+  getUniqueDescriptions() {
+    return Array.from(new Set(this.items.map(i => i.description)));
+  }
+
+  isDescriptionMapped(desc) {
+    return this.categoryMappings.has(desc);
+  }
+
+  mapCategory(desc, categoryCode) {
+    this.categoryMappings.set(desc, categoryCode.toUpperCase());
+  }
+
+  isFullyMapped() {
+    const unique = this.getUniqueDescriptions();
+    return unique.length > 0 && unique.every(desc => this.categoryMappings.has(desc));
+  }
+
+  hasValidSettings() {
+    return (
+      this.projectId.length > 0 &&
+      this.customerName.length > 0 &&
+      this.salesTaxRate !== null &&
+      this.salesTaxRate > 0
+    );
+  }
+
+  getDistinctCategories() {
+    const cats = new Set();
+    this.items.forEach(i => cats.add(i.category));
+    return Array.from(cats);
+  }
+
+  getItemsByGroup() {
+    const groups = new Map();
+    this.items.forEach(item => {
+      if (!groups.has(item.group)) {
+        groups.set(item.group, []);
+      }
+      groups.get(item.group).push(item);
+    });
+    return groups;
+  }
+
+  getTotalRcv() {
+    return this.items.reduce((acc, i) => acc + i.rcv, 0);
+  }
+}
+
+/**
+ * ============================================================================
+ * CSV PARSER & COLUMN MAPPER
+ * ============================================================================
+ */
+
+/**
+ * Standalone RFC-4180 compliant CSV parser that handles UTF-8 BOM, quoted commas, and newlines.
+ */
+class CsvParser {
+  static parse(text) {
+    const cleanText = text.replace(/^\uFEFF/, '');
+    
+    const rows = [];
+    let currentRow = [];
+    let currentVal = '';
+    let inQuotes = false;
+    let i = 0;
+
+    while (i < cleanText.length) {
+      const char = cleanText[i];
+      if (char === '"') {
+        if (inQuotes && i + 1 < cleanText.length && cleanText[i + 1] === '"') {
+          currentVal += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        currentRow.push(currentVal.trim());
+        currentVal = '';
+      } else if ((char === '\r' || char === '\n') && !inQuotes) {
+        if (char === '\r' && i + 1 < cleanText.length && cleanText[i + 1] === '\n') {
+          i++;
+        }
+        currentRow.push(currentVal.trim());
+        if (currentRow.some(c => c.length > 0)) {
+          rows.push(currentRow);
+        }
+        currentRow = [];
+        currentVal = '';
+      } else {
+        currentVal += char;
+      }
+      i++;
+    }
+
+    if (currentVal.length > 0 || currentRow.length > 0) {
+      currentRow.push(currentVal.trim());
+      if (currentRow.some(c => c.length > 0)) {
+        rows.push(currentRow);
+      }
+    }
+
+    if (rows.length === 0) throw new Error("The uploaded CSV file is empty.");
+
+    const headers = rows[0].map(h => h.trim());
+    const dataRows = rows.slice(1);
+    return { headers, dataRows };
+  }
+}
+
+/**
+ * Handles automated header recognition and manual column matching.
+ */
+class ColumnMapper {
+  static REQUIRED_KEYS = [
+    "Group", "Line Number", "Description", "Quantity", "Unit", "Tax", "GCO&P", "RCV"
+  ];
+
+  static autoDetect(headers) {
+    const mapping = {};
+    let missingCount = 0;
+
+    this.REQUIRED_KEYS.forEach(req => {
+      const match = headers.find(h => {
+        const clean = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const target = req.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (clean === target) return true;
+        if (req === "Group" && (clean === "room" || clean === "area" || clean === "location")) return true;
+        if (req === "Line Number" && (clean === "line" || clean === "item" || clean === "itemno")) return true;
+        if (req === "Quantity" && (clean === "qty" || clean === "calc")) return true;
+        if (req === "GCO&P" && (clean === "op" || clean === "gcop" || clean === "overhead")) return true;
+        return false;
+      });
+
+      if (match) {
+        mapping[req] = match;
+      } else {
+        mapping[req] = "";
+        missingCount++;
+      }
+    });
+
+    return { mapping, isComplete: missingCount === 0 };
+  }
+}
+
+/**
+ * ============================================================================
+ * XML BUILDER & ESX ENCRYPTION SERVICE
+ * ============================================================================
+ */
+
+class XactDocBuilder {
+  static escapeXml(unsafe) {
+    return String(unsafe).replace(/[<>&'"]/g, c => {
+      switch (c) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '\'': return '&apos;';
+        case '"': return '&quot;';
+      }
+    });
+  }
+
+  static buildXml(estimateModel) {
+    estimateModel.recalculateAll();
+
+    const distinctCategories = estimateModel.getDistinctCategories();
+    const catIdMap = new Map();
+    let catIdSeq = 800;
+
+    let categoriesXml = '';
+    distinctCategories.forEach(code => {
+      const id = String(catIdSeq++);
+      catIdMap.set(code, id);
+      categoriesXml += `<CATEGORY catId="${id}" code="${code}" desc="${code}" labDist="50" matDist="50" noPrefix="1" cv="0" />`;
+    });
+
+    let sumItemsXml = '';
+    let groupHierarchyXml = '';
+    let sumIdSeq = 100;
+    let itemIdSeq = 2000;
+    let grpIdSeq = 400;
+
+    const groups = estimateModel.getItemsByGroup();
+
+    groups.forEach((items, groupName) => {
+      const grpId = `GRP${grpIdSeq++}`;
+      let itemsXml = '';
+
+      items.forEach(item => {
+        const sumId = `SUM${sumIdSeq++}`;
+        const itemId = `ITM${itemIdSeq++}`;
+        const catId = catIdMap.get(item.category) || "828";
+
+        sumItemsXml += item.toSumItemXml(sumId, catId);
+        itemsXml += item.toItemXml(itemId, sumId);
+      });
+
+      groupHierarchyXml += `
+        <GROUP id="${grpId}" code="${grpId}" type="Room" desc="${this.escapeXml(groupName)}" isRoom="1" covID="-1">
+          <ITEMS>${itemsXml}</ITEMS>
+        </GROUP>`;
+    });
+
+    const grandTotal = estimateModel.getTotalRcv().toFixed(2);
+    const taxRateStr = estimateModel.salesTaxRate.toFixed(3);
+    const projectIdEsc = this.escapeXml(estimateModel.projectId);
+    const customerEsc = this.escapeXml(estimateModel.customerName);
+
+    return `<?xml version='1.0' encoding='UTF-8' ?>
+<XACTDOC lastCalcGrandTotal="${grandTotal}" totalLineItems="${estimateModel.items.length}">
+  <PROJECT_INFO name="${projectIdEsc}" created="${new Date().toISOString()}"/>
+  <EMBEDDED_PL culture="EN-US">
+    <SUMITEMS>${sumItemsXml}</SUMITEMS>
+    <CATEGORIES>${categoriesXml}</CATEGORIES>
+  </EMBEDDED_PL>
+  <GROUP id="GRP1">
+    <GROUP id="GRP350" code="SOURCE__TEM" type="Non_Room" desc="Root" isRoom="0" covID="-1">
+      <GROUP id="GRP351" code="MAIN_LEVEL" type="Non_Room" desc="Main Level" isRoom="0" covID="-1">
+        ${groupHierarchyXml}
+      </GROUP>
+    </GROUP>
+  </GROUP>
+  <PARAMS taxJurisdiction="${taxRateStr}%">
+    <SALESTAXES>
+      <SALES_TAX type="Material Sales Tax" base="MATERIAL" rate="${taxRateStr}"/>
+    </SALESTAXES>
+  </PARAMS>
+  <CONTACTS>
+    <CONTACT type="Client" id="CNT1">
+      <NAME>${customerEsc}</NAME>
+    </CONTACT>
+  </CONTACTS>
+  <ADM dateEntered="${new Date().toISOString()}">
+    <COVERAGE_LOSS solTotalClaim="${grandTotal}" solTotalLoss="${grandTotal}">
+      <COVERAGES>
+        <COVERAGE id="COV1">
+          <LOSS_DATA rcl="${grandTotal}" acvLoss="${grandTotal}" acvClaim="${grandTotal}" rcvClaim="${grandTotal}" adjLossAmt="${grandTotal}"/>
+        </COVERAGE>
+      </COVERAGES>
+    </COVERAGE_LOSS>
+  </ADM>
+</XACTDOC>`;
+  }
+}
+
+/**
+ * Encapsulates AES-256 ECB encryption and nested ESX ZIP container creation[cite: 2].
+ */
+class EsxPackager {
+  static KEY_STRING = "XpYm&$i($#cds#4,>.?z-+:;}[}}[71!";
+
+  static async createEsx(xmlString) {
+    if (typeof JSZip === "undefined" || typeof CryptoJS === "undefined") {
+      throw new Error("JSZip or CryptoJS failed to load. Ensure internet connectivity or check local CDN policies.");
+    }
+
+    const xmlBytes = new TextEncoder().encode(xmlString);
+
+    // 1. Create in-memory inner ZIP container containing XACTDOC.XML[cite: 2]
+    const innerZip = new JSZip();
+    innerZip.file("XACTDOC.XML", xmlBytes);
+    const innerZipBytes = await innerZip.generateAsync({
+      type: "uint8array",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 }
+    });
+
+    // 2. AES-256 ECB Encrypt inner ZIP to produce XACTDOC.ZIPXML payload[cite: 2]
+    const encryptedPayload = this._encryptAES(innerZipBytes);
+
+    // 3. Package encrypted payload into master outer container archive (.esx)[cite: 2]
+    const outerZip = new JSZip();
+    outerZip.file("XACTDOC.ZIPXML", encryptedPayload);
+    return await outerZip.generateAsync({ type: "blob" });
+  }
+
+  static _encryptAES(plainBytes) {
+    const L = plainBytes.length;
+    const paddedLength = Math.ceil((L + 4) / 16) * 16;
+    const num = paddedLength - L - 4;
+
+    const paddedBytes = new Uint8Array(paddedLength);
+    paddedBytes.set(plainBytes, 0);
+
+    const keyWordArray = CryptoJS.enc.Latin1.parse(this.KEY_STRING);
+    const paddedWordArray = this._uint8ArrayToWordArray(paddedBytes);
+
+    const encrypted = CryptoJS.AES.encrypt(paddedWordArray, keyWordArray, {
+      mode: CryptoJS.mode.ECB,
+      padding: CryptoJS.pad.NoPadding
+    });
+
+    const ciphertextBytes = this._wordArrayToUint8Array(encrypted.ciphertext);
+    const result = new Uint8Array(4 + ciphertextBytes.length);
+    result[0] = 0x00;
+    result[1] = 0x00;
+    result[2] = 0x00;
+    result[3] = num;
+    result.set(ciphertextBytes, 4);
+
+    return result;
+  }
+
+  static _uint8ArrayToWordArray(u8Array) {
+    const words = [];
+    for (let i = 0; i < u8Array.length; i += 4) {
+      words.push(
+        ((u8Array[i] || 0) << 24) |
+        ((u8Array[i + 1] || 0) << 16) |
+        ((u8Array[i + 2] || 0) << 8) |
+        ((u8Array[i + 3] || 0))
+      );
+    }
+    return CryptoJS.lib.WordArray.create(words, u8Array.length);
+  }
+
+  static _wordArrayToUint8Array(wordArray) {
+    const len = wordArray.sigBytes;
+    const u8 = new Uint8Array(len);
+    let offset = 0;
+    for (let i = 0; i < wordArray.words.length && offset < len; i++) {
+      const word = wordArray.words[i];
+      u8[offset++] = (word >> 24) & 0xff;
+      if (offset < len) u8[offset++] = (word >> 16) & 0xff;
+      if (offset < len) u8[offset++] = (word >> 8) & 0xff;
+      if (offset < len) u8[offset++] = word & 0xff;
+    }
+    return u8;
+  }
+}
+
+/**
+ * ============================================================================
+ * VIEW COMPONENTS & CONTROLLER
+ * ============================================================================
+ */
+
+/**
+ * Manages the interactive batch category mapping queue with Shift+Click selection.
+ */
+class BatchQueueView {
+  constructor(estimateModel, onChangeCallback) {
+    this.model = estimateModel;
+    this.onChange = onChangeCallback;
+    this.selectedDescriptions = new Set();
+    this.lastClickedIndex = null;
+    this.filterText = "";
+
+    this.listUnmapped = document.getElementById("listUnmapped");
+    this.listMapped = document.getElementById("listMapped");
+    this.labelUnmappedCount = document.getElementById("labelUnmappedCount");
+    this.labelMappedCount = document.getElementById("labelMappedCount");
+    this.progressBar = document.getElementById("progressBar");
+    this.chkSelectAll = document.getElementById("chkSelectAllUnmapped");
+  }
+
+  setFilter(text) {
+    this.filterText = (text || "").toLowerCase();
+    this.render();
+  }
+
+  applyCategoryToSelected(catCode) {
+    if (!catCode) return;
+    this.selectedDescriptions.forEach(desc => {
+      this.model.mapCategory(desc, catCode);
+    });
+    this.selectedDescriptions.clear();
+    this.chkSelectAll.checked = false;
+    this.render();
+    this.onChange();
+  }
+
+  selectAllVisibleUnmapped(isChecked) {
+    const unmapped = this.model.getUniqueDescriptions().filter(d => !this.model.isDescriptionMapped(d));
+    const visible = unmapped.filter(d => d.toLowerCase().includes(this.filterText));
+
+    visible.forEach(d => {
+      if (isChecked) this.selectedDescriptions.add(d);
+      else this.selectedDescriptions.delete(d);
+    });
+    this.render();
+  }
+
+  render() {
+    this.listUnmapped.innerHTML = "";
+    this.listMapped.innerHTML = "";
+
+    const allDescriptions = this.model.getUniqueDescriptions();
+    const unmapped = [];
+    const mapped = [];
+
+    allDescriptions.forEach(d => {
+      if (this.model.isDescriptionMapped(d)) mapped.push(d);
+      else unmapped.push(d);
+    });
+
+    const visibleUnmapped = unmapped.filter(d => d.toLowerCase().includes(this.filterText));
+    const visibleMapped = mapped.filter(d => d.toLowerCase().includes(this.filterText));
+
+    visibleUnmapped.forEach((desc, idx) => {
+      const li = this._createItemElement(desc, false, idx, visibleUnmapped);
+      this.listUnmapped.appendChild(li);
+    });
+
+    visibleMapped.forEach(desc => {
+      const li = this._createItemElement(desc, true);
+      this.listMapped.appendChild(li);
+    });
+
+    this.labelUnmappedCount.textContent = `${unmapped.length} items`;
+    this.labelMappedCount.textContent = `${mapped.length} items`;
+
+    const total = allDescriptions.length;
+    const progress = total > 0 ? (mapped.length / total) * 100 : 0;
+    this.progressBar.style.width = `${progress}%`;
+  }
+
+  _createItemElement(desc, isMapped, index = null, listContext = null) {
+    const li = document.createElement("li");
+    li.className = "desc-item";
+    const isChecked = this.selectedDescriptions.has(desc);
+    if (isChecked) li.classList.add("selected");
+
+    const badge = isMapped 
+      ? `<span class="cat-badge mapped">${this.model.categoryMappings.get(desc)}</span>`
+      : `<span class="cat-badge">UNMAPPED</span>`;
+
+    li.innerHTML = `
+      <input type="checkbox" ${isChecked ? "checked" : ""}>
+      <span class="desc-text">${XactDocBuilder.escapeXml(desc)}</span>
+      ${badge}
+    `;
+
+    const cb = li.querySelector('input[type="checkbox"]');
+
+    li.addEventListener("click", (e) => {
+      if (e.target !== cb) {
+        cb.checked = !cb.checked;
+      }
+
+      if (e.shiftKey && this.lastClickedIndex !== null && listContext) {
+        const start = Math.min(this.lastClickedIndex, index);
+        const end = Math.max(this.lastClickedIndex, index);
+        for (let i = start; i <= end; i++) {
+          this.selectedDescriptions.add(listContext[i]);
+        }
+      } else {
+        if (cb.checked) this.selectedDescriptions.add(desc);
+        else this.selectedDescriptions.delete(desc);
+        if (index !== null) this.lastClickedIndex = index;
+      }
+
+      this.render();
+    });
+
+    return li;
+  }
+}
+
+/**
+ * Main application coordinator.
+ */
+class AppController {
+  constructor() {
+    this.model = new EstimateModel();
+    this.rawHeaders = [];
+    this.rawRows = [];
+    this.queueView = null;
+
+    this.bindGlobalShield();
+    this.bindInputs();
+  }
+
+  bindGlobalShield() {
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(name => {
+      window.addEventListener(name, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }, false);
+    });
+  }
+
+  bindInputs() {
+    const dropZone = document.getElementById("csvDropZone");
+    const fileInput = document.getElementById("csvFileInput");
+    const inputProjId = document.getElementById("inputProjectId");
+    const inputCust = document.getElementById("inputCustomerName");
+    const inputTax = document.getElementById("inputTaxRate");
+
+    const updatePreview = () => {
+      inputProjId.value = inputProjId.value.toUpperCase().slice(0, 20);
+      this.model.setProjectId(inputProjId.value);
+      this.model.setCustomerName(inputCust.value);
+      this.model.setTaxRate(inputTax.value);
+
+      document.getElementById("labelFilenamePreview").textContent = this.model.getFormattedFilename();
+      this.updateExportState();
+    };
+
+    inputProjId.addEventListener("input", updatePreview);
+    inputCust.addEventListener("input", updatePreview);
+    inputTax.addEventListener("input", updatePreview);
+
+    dropZone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => {
+      if (e.target.files.length > 0) this.processCsvFile(e.target.files[0]);
+    });
+
+    ['dragenter', 'dragover'].forEach(name => {
+      dropZone.addEventListener(name, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add("drag-over");
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(name => {
+      dropZone.addEventListener(name, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove("drag-over");
+      });
+    });
+
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        this.processCsvFile(files[0]);
+      }
+    });
+
+    document.getElementById("btnConfirmColumns").addEventListener("click", () => {
+      this.applyManualColumnMapping();
+    });
+
+    document.getElementById("btnApplyCategory").addEventListener("click", () => {
+      const select = document.getElementById("selectCategory");
+      const custom = document.getElementById("inputCustomCategory");
+      const code = (custom.value.trim() || select.value).toUpperCase();
+
+      if (!code || code.length !== 3) {
+        alert("Please choose or enter a valid 3-letter category code (e.g. PNT, DRY).");
+        return;
+      }
+
+      this.queueView.applyCategoryToSelected(code);
+      select.value = "";
+      custom.value = "";
+    });
+
+    document.getElementById("inputFilter").addEventListener("input", (e) => {
+      this.queueView.setFilter(e.target.value);
+    });
+
+    document.getElementById("chkSelectAllUnmapped").addEventListener("change", (e) => {
+      this.queueView.selectAllVisibleUnmapped(e.target.checked);
+    });
+
+    document.getElementById("btnGenerateEsx").addEventListener("click", () => {
+      this.exportEsx();
+    });
+  }
+
+  processCsvFile(file) {
+    document.getElementById("fileUploadStatus").textContent = `Loaded: ${file.name}`;
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const { headers, dataRows } = CsvParser.parse(e.target.result);
+        this.rawHeaders = headers;
+        this.rawRows = dataRows;
+
+        const { mapping, isComplete } = ColumnMapper.autoDetect(headers);
+        if (isComplete) {
+          this.buildEstimateModel(mapping);
+          this.showStep3();
+        } else {
+          this.showStep2(mapping);
+        }
+      } catch (err) {
+        alert(`Error reading CSV: ${err.message}`);
+      }
+    };
+
+    reader.readAsText(file, "UTF-8");
+  }
+
+  showStep2(mapping) {
+    const grid = document.getElementById("columnMappingGrid");
+    grid.innerHTML = "";
+
+    ColumnMapper.REQUIRED_KEYS.forEach(req => {
+      const box = document.createElement("div");
+      box.innerHTML = `
+        <label>${req}</label>
+        <select data-req="${req}">
+          <option value="">-- Select Column --</option>
+          ${this.rawHeaders.map(h => `<option value="${h}" ${h === mapping[req] ? 'selected' : ''}>${h}</option>`).join('')}
+        </select>
+      `;
+      grid.appendChild(box);
+    });
+
+    document.getElementById("viewStep2").classList.remove("hidden");
+  }
+
+  applyManualColumnMapping() {
+    const mapping = {};
+    const selects = document.querySelectorAll("#columnMappingGrid select");
+    let missing = false;
+
+    selects.forEach(s => {
+      mapping[s.dataset.req] = s.value;
+      if (!s.value) missing = true;
+    });
+
+    if (missing) {
+      alert("Please map all required columns before proceeding.");
+      return;
+    }
+
+    this.buildEstimateModel(mapping);
+    document.getElementById("viewStep2").classList.add("hidden");
+    this.showStep3();
+  }
+
+  buildEstimateModel(mapping) {
+    const projId = document.getElementById("inputProjectId").value;
+    const custName = document.getElementById("inputCustomerName").value;
+    const taxRate = document.getElementById("inputTaxRate").value;
+
+    this.model = new EstimateModel();
+    this.model.setProjectId(projId);
+    this.model.setCustomerName(custName);
+    this.model.setTaxRate(taxRate);
+
+    const groupIdx = this.rawHeaders.indexOf(mapping["Group"]);
+    const lineIdx = this.rawHeaders.indexOf(mapping["Line Number"]);
+    const descIdx = this.rawHeaders.indexOf(mapping["Description"]);
+    const qtyIdx = this.rawHeaders.indexOf(mapping["Quantity"]);
+    const unitIdx = this.rawHeaders.indexOf(mapping["Unit"]);
+    const taxIdx = this.rawHeaders.indexOf(mapping["Tax"]);
+    const gcopIdx = this.rawHeaders.indexOf(mapping["GCO&P"]);
+    const rcvIdx = this.rawHeaders.indexOf(mapping["RCV"]);
+
+    this.rawRows.forEach((row) => {
+      const item = new LineItem({
+        group: row[groupIdx],
+        lineNum: row[lineIdx],
+        description: row[descIdx],
+        quantity: row[qtyIdx],
+        unit: row[unitIdx],
+        tax: row[taxIdx],
+        gcop: row[gcopIdx],
+        rcv: row[rcvIdx]
+      });
+      this.model.addLineItem(item);
+    });
+
+    this.queueView = new BatchQueueView(this.model, () => this.updateExportState());
+  }
+
+  showStep3() {
+    document.getElementById("viewStep3").classList.remove("hidden");
+    this.queueView.render();
+    this.updateExportState();
+  }
+
+  updateExportState() {
+    const isMapped = this.model.isFullyMapped();
+    const hasSettings = this.model.hasValidSettings();
+    document.getElementById("btnGenerateEsx").disabled = !(isMapped && hasSettings);
+
+    const status = document.getElementById("appStatus");
+    if (!hasSettings) {
+      status.style.color = "var(--text-muted)";
+      status.textContent = "Please fill in Project ID, Customer Name, and Material Tax Rate in Step 1 to enable export.";
+    } else if (!isMapped) {
+      status.style.color = "var(--text-muted)";
+      status.textContent = "Map all descriptions to trade categories above to enable export.";
+    } else {
+      status.style.color = "var(--success)";
+      status.textContent = "Ready to export native ESX file.";
+    }
+  }
+
+  async exportEsx() {
+    const status = document.getElementById("appStatus");
+
+    if (this.model.salesTaxRate === null || this.model.salesTaxRate <= 0) {
+      alert("Please enter a valid Material Sales Tax Rate in Step 1 before exporting.");
+      document.getElementById("inputTaxRate").focus();
+      return;
+    }
+
+    if (!this.model.projectId) {
+      alert("Please provide a Project ID (up to 20 characters in all caps).");
+      document.getElementById("inputProjectId").focus();
+      return;
+    }
+
+    if (!this.model.customerName) {
+      alert("Please provide the Customer Name.");
+      document.getElementById("inputCustomerName").focus();
+      return;
+    }
+
+    status.style.color = "black";
+    status.textContent = "Rebuilding XACTDOC.XML and applying exact material tax splits...";
+
+    try {
+      const xmlString = XactDocBuilder.buildXml(this.model);
+      status.textContent = "Compressing & encrypting inner archive via AES-256...";
+
+      const esxBlob = await EsxPackager.createEsx(xmlString);
+      const filename = this.model.getFormattedFilename();
+
+      const downloadUrl = URL.createObjectURL(esxBlob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+
+      status.style.color = "var(--success)";
+      status.textContent = `Success! Downloaded: ${filename}`;
+    } catch (err) {
+      console.error(err);
+      status.style.color = "var(--error)";
+      status.textContent = `Export error: ${err.message}`;
+    }
+  }
+}
+
+// Instantiate Application on DOM Ready
+window.addEventListener("DOMContentLoaded", () => {
+  new AppController();
+});
+</script>
+</body>
+</html>
