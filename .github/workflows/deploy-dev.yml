@@ -17,33 +17,32 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1. Pull production assets first to establish the base root site
       - name: Checkout Main (Production Base)
         uses: actions/checkout@v4
         with:
           ref: main
           path: staging
 
-      # 2. Pull development branch modifications into an isolated workspace path
       - name: Checkout Dev Branch
         uses: actions/checkout@v4
         with:
           ref: dev
           path: dev_code
 
-      # 3. Nest the development files inside the production root folder layout
-      - name: Nest Dev Preview Environment
-        run: |
-          mkdir -p staging/dev
-          # Overwrite the /dev directory block inside staging with fresh dev branch modules
-          cp -r dev_code/classes dev_code/modules dev_code/styles dev_code/components dev_code/*.js dev_code/*.html staging/dev/
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      # 4. Upload the combined target folder to the web server
+      - name: Build and Nest Dev Environment
+        run: |
+          cd dev_code
+          npm ci
+          node build.mjs
+          mkdir -p ../staging/dev
+          cp -r dist/* ../staging/dev/
+
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './staging'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
