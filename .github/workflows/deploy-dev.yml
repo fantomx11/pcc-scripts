@@ -17,28 +17,47 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1. Pull production assets first to establish the base root site
       - name: Checkout Main (Production Base)
         uses: actions/checkout@v4
         with:
           ref: main
-          path: staging
+          path: main_code
 
-      # 2. Pull development branch modifications into an isolated workspace path
       - name: Checkout Dev Branch
         uses: actions/checkout@v4
         with:
           ref: dev
           path: dev_code
 
-      # 3. Nest the development files inside the production root folder layout
-      - name: Nest Dev Preview Environment
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build Environments into Staging
         run: |
           mkdir -p staging/dev
-          # Overwrite the /dev directory block inside staging with fresh dev branch modules
-          cp -r dev_code/classes dev_code/modules dev_code/styles dev_code/components dev_code/*.js dev_code/*.html staging/dev/
 
-      # 4. Upload the combined target folder to the web server
+          # 1. Populate production root (auto-detects legacy vs Vite)
+          cd main_code
+          if [ -f package.json ]; then
+            echo "Building Vite production base..."
+            npm ci
+            node build.mjs
+            cp -r dist/* ../staging/
+          else
+            echo "Copying legacy production base..."
+            cp -r * ../staging/
+          fi
+          cd ..
+
+          # 2. Build Dev bundle into /dev
+          cd dev_code
+          npm ci
+          node build.mjs
+          cp -r dist/* ../staging/dev/
+          cd ..
+
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:

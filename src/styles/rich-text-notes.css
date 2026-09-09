@@ -1,0 +1,437 @@
+/* Container for the Split View */
+.editor-split-container {
+  display: flex;
+  height: 400px;
+  gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#editable-wrapper,
+#source-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 50%;
+  width: 50%;
+  max-width: 50%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Inspector Header and Tabs */
+.inspector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+}
+
+.inspector-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.inspector-tab-btn {
+  background-color: #e0e0e0;
+  border: 1px outset #c0c0c0;
+  cursor: pointer;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: bold;
+  color: #333;
+  user-select: none;
+}
+
+.inspector-tab-btn.active {
+  background-color: #ffffff;
+  border-bottom: 1px solid #ffffff;
+  color: #000;
+}
+
+#source-elements {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Styling for original textarea (Raw HTML view with word wrap) */
+#TemplateSource {
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 11px;
+  resize: none;
+  padding: 4px;
+  border: 1px inset #c0c0c0;
+  background-color: white;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+/* Custom Editor Styles */
+#editor-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  border: 1px inset #c0c0c0;
+  border-radius: 0;
+  background-color: white;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#custom-toolbar {
+  flex-shrink: 0;
+  border-bottom: 1px solid #c0c0c0;
+  padding: 2px;
+  background-color: #ebebeb;
+  border-radius: 0;
+}
+
+#custom-toolbar .custom-cmd-btn {
+  background-color: #ebebeb;
+  border: 1px outset #c0c0c0;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-weight: bold;
+  font-size: 11px;
+  line-height: 1.2;
+  margin: 0 1px;
+  border-radius: 0;
+  color: #000;
+  display: inline-block;
+  user-select: none;
+}
+
+#custom-toolbar .custom-cmd-btn:active {
+  border: 1px inset #c0c0c0;
+  background-color: #d0d0d0;
+}
+
+#editable-content {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  padding: 4px;
+  outline: none;
+  font-family: Tahoma, Verdana, Segoe, sans-serif;
+  font-size: 11px;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
+}
+
+/* Chrome DevTools DOM Tree Inspector Styles */
+.devtools-dom-tree {
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  padding: 4px;
+  border: 1px inset #c0c0c0;
+  background-color: #ffffff;
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #222222;
+  box-sizing: border-box;
+  display: block;
+}
+
+.dom-empty-notice {
+  color: #888888;
+  font-style: italic;
+  padding: 8px;
+}
+
+.dom-elem-wrapper {
+  display: block;
+}
+
+.dom-row {
+  display: flex;
+  align-items: flex-start;
+  min-height: 18px;
+  border-radius: 2px;
+  padding: 0 2px;
+  cursor: grab;
+  position: relative;
+  box-sizing: border-box;
+  width: fit-content;
+  min-width: 100%;
+  white-space: nowrap;
+}
+
+.dom-row.dom-text-node {
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  width: 100%;
+  min-width: 0;
+}
+
+.dom-text-content {
+  color: #222222;
+  cursor: text;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dom-row:hover {
+  background-color: #ebf3fd;
+}
+
+.dom-row.dom-dragging {
+  opacity: 0.35;
+  background-color: #ececec !important;
+}
+
+.dom-row.dom-drop-before {
+  border-top: 2px solid #1a73e8 !important;
+}
+
+.dom-row.dom-drop-after {
+  border-bottom: 2px solid #1a73e8 !important;
+}
+
+.dom-row.dom-drop-inside {
+  background-color: #e8f0fe !important;
+  outline: 1px dashed #1a73e8;
+}
+
+.dom-arrow {
+  display: inline-block;
+  width: 12px;
+  font-size: 8px;
+  color: #727272;
+  cursor: pointer;
+  text-align: center;
+  user-select: none;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.dom-arrow.has-children:hover {
+  color: #000;
+}
+
+.dom-arrow-spacer {
+  display: inline-block;
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.dom-line-content {
+  display: inline-flex;
+  align-items: center;
+  flex-grow: 1;
+  white-space: nowrap;
+}
+
+.dom-tag-start,
+.dom-tag-close,
+.dom-tag-end {
+  color: #888888;
+}
+
+.dom-tag-name {
+  color: #881280;
+  font-weight: bold;
+  cursor: text;
+}
+
+.dom-attr-pair {
+  cursor: text;
+  margin-left: 2px;
+}
+
+.dom-attr-name {
+  color: #994500;
+}
+
+.dom-attr-val {
+  color: #1a1aa6;
+}
+
+.dom-collapsed-placeholder {
+  color: #888888;
+  margin-left: 2px;
+}
+
+.dom-children-container {
+  padding-left: 12px;
+  border-left: 1px dotted #d0d0d0;
+  margin-left: 5px;
+}
+
+.dom-node-actions {
+  display: none;
+  margin-left: 8px;
+  gap: 3px;
+}
+
+.dom-row:hover .dom-node-actions {
+  display: inline-flex;
+}
+
+.dom-action-btn {
+  font-size: 9px;
+  padding: 0 3px;
+  background: #e8e8e8;
+  border: 1px solid #b0b0b0;
+  border-radius: 2px;
+  cursor: pointer;
+  color: #333333;
+  line-height: 1.2;
+  user-select: none;
+}
+
+.dom-action-btn:hover {
+  background: #d0d0d0;
+  color: #000;
+}
+
+.dom-inline-input {
+  font-family: inherit;
+  font-size: inherit;
+  border: 1px solid #1a73e8;
+  outline: none;
+  background: #ffffff;
+  padding: 0 2px;
+  margin: 0;
+  color: inherit;
+  min-height: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dom-html-editor-container {
+  padding: 4px;
+  margin: 4px 0;
+  background: #f8f8f8;
+  border: 1px solid #7f9db9;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dom-html-editor-textarea {
+  font-family: Consolas, Monaco, monospace;
+  font-size: 11px;
+  width: 100%;
+  height: 90px;
+  border: 1px solid #c0c0c0;
+  box-sizing: border-box;
+  padding: 4px;
+}
+
+.dom-html-editor-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.dom-btn {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px outset #c0c0c0;
+  font-size: 10px;
+  cursor: pointer;
+  user-select: none;
+  background-color: #e0e0e0;
+  color: #000;
+}
+
+.dom-btn-save {
+  font-weight: bold;
+  background-color: #d4edda;
+  border-color: #c3e6cb;
+}
+
+td {
+  height: 1px;
+}
+
+#template-controls {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 4px;
+  background-color: #f0f0f0;
+  border: 1px solid #c0c0c0;
+  border-radius: 0;
+  box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+}
+
+#template-controls label {
+  font-size: 11px;
+  font-weight: bold;
+  color: #333;
+  margin-right: 10px;
+}
+
+#template-selector {
+  padding: 2px 20px 2px 2px;
+  border: 1px solid #7f9db9;
+  border-radius: 0;
+  width: 256px;
+  font-size: 11px;
+  height: 20px;
+  background-repeat: no-repeat;
+  background-position: 0 -88px;
+}
+
+#char-counter {
+  font-size: 10px;
+  margin-top: 4px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+#char-limit-warning {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 15px;
+  background-color: #a00000;
+  color: white;
+  font-weight: bold;
+  border: 2px solid #ffcccc;
+  border-radius: 4px;
+  z-index: 10000;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  display: none;
+  font-size: 14px;
+  text-align: center;
+}
