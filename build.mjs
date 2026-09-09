@@ -101,7 +101,7 @@ if (fs.existsSync(sketchHtml)) {
   });
 }
 
-const simplifyEntry = fs.existsSync(path.resolve(srcDir, 'simplify-job-list.tsx'));
+const simplifyEntry = path.resolve(srcDir, 'simplify-job-list.tsx');
 await build({
   configFile: false,
   plugins: [cssInjectedByJsPlugin()],
