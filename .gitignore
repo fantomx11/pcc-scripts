@@ -1,1 +1,23 @@
+# Dependencies
+node_modules/
+
+# Production build artifacts
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS artifacts
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# Local environment / overrides
+*.local
 overrides
