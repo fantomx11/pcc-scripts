@@ -21,11 +21,39 @@ for (const dir of copyDirs) {
   }
 }
 
+const buildFiles = {
+  'sketch-generator.html': {
+    builder: buildHtml,
+  },
+  'estimate-matcher.html':  {
+    builder: buildHtml,
+  },
+
+  'simplify-job-list.tsx': {
+    builder: buildIIFE,
+    name: "SimplifyJobList",
+    fileName: () => 'simplify-job-list.js'
+  },
+  'wo-to-calendar.tsx': {
+    builder: buildIIFE,
+    name: 'WorkOrderCalendar',
+    fileName: () => 'wo-to-calendar.js',
+  },
+  'estimate-kanban.tsx': {
+    builder: buildIIFE,
+    name: 'EstimateKanban',
+    fileName: () => 'estimate-kanban.js',
+  },
+  'rich-text-notes.ts': {
+    builder: buildIIFE,
+    name: 'RichTextNotes',
+    fileName: () => 'rich-text-notes.js',
+  },  
+};
+
 const migratedFiles = [
   'build.mjs',
-  'sketch-generator.html',
-  'estimate-matcher.html',
-  'simplify-job-list.js'
+  ...Object.keys(buildFiles).map((f) => f.replace(/\.tsx$/, '.js')),
 ];
 
 const topLevelFiles = fs.readdirSync(rootDir);
@@ -62,29 +90,41 @@ if (sharedTsFiles.length > 0) {
   });
 }
 
-const kanbanEntry = path.resolve(srcDir, 'estimate-kanban.tsx');
-await build({
-  configFile: false,
-  plugins: [cssInjectedByJsPlugin()],
-  esbuild: {
-    jsx: 'automatic',
-    jsxImportSource: 'preact',
-  },
-  build: {
-    emptyOutDir: false,
-    outDir: distDir,
-    lib: {
-      entry: path.resolve(rootDir, kanbanEntry),
-      name: 'EstimateKanban',
-      formats: ['iife'],
-      fileName: () => 'estimate-kanban.js',
-    },
-  },
-});
+async function buildIIFE(name, schema) {
+  const entry = path.resolve(srcDir, name);
+  if (!fs.existsSync(entry)) {
+    console.warn(`Skipping ${name}: file not found at ${entry}`);
+    return;
+  }
 
-const sketchHtml = path.resolve(srcDir, 'sketch-generator.html');
-if (fs.existsSync(sketchHtml)) {
-  console.log('Bundling sketch-generator.html...');
+  await build({
+    configFile: false,
+    plugins: [cssInjectedByJsPlugin()],
+    esbuild: {
+      jsx: 'automatic',
+      jsxImportSource: 'preact',
+    },
+    build: {
+      emptyOutDir: false,
+      outDir: distDir,
+      lib: {
+        entry: path.resolve(rootDir, entry),
+        name: schema.name,
+        formats: ['iife'],
+        fileName: schamea.fileName,
+      },
+    },
+  });
+}
+
+async function buildHtml(name, schema) {
+  const entry = path.resolve(srcDir, name);
+  if (!fs.existsSync(entry)) {
+    console.warn(`Skipping ${name}: file not found at ${entry}`);
+    return;
+  }
+
+  const chunkName = name.replace(/\.html$/, '');
   await build({
     configFile: false,
     root: srcDir,
@@ -94,50 +134,16 @@ if (fs.existsSync(sketchHtml)) {
       outDir: distDir,
       rollupOptions: {
         input: {
-          sketch: sketchHtml,
+          [chunkName]: entry,
         },
       },
     },
   });
 }
 
-const simplifyEntry = path.resolve(srcDir, 'simplify-job-list.tsx');
-await build({
-  configFile: false,
-  plugins: [cssInjectedByJsPlugin()],
-  esbuild: {
-    jsx: 'automatic',
-    jsxImportSource: 'preact',
-  },
-  build: {
-    emptyOutDir: false,
-    outDir: distDir,
-    lib: {
-      entry: path.resolve(rootDir, simplifyEntry),
-      name: 'SimplifyJobList',
-      formats: ['iife'],
-      fileName: () => 'simplify-job-list.js',
-    },
-  },
-});
-
-const matcherHtml = path.resolve(srcDir, 'estimate-matcher.html');
-if (fs.existsSync(matcherHtml)) {
-  console.log('Bundling ts/estimate-matcher.html...');
-  await build({
-    configFile: false,
-    root: srcDir, // Vite root set to ts/ so HTML outputs to dist/estimate-matcher.html
-    base: './',  // Relative asset URLs (./assets/...) for subpath hosting
-    build: {
-      emptyOutDir: false,
-      outDir: distDir,
-      rollupOptions: {
-        input: {
-          'estimate-matcher': matcherHtml,
-        },
-      },
-    },
-  });
+for [name, schema] of Object.entries(buildFiles) {
+  console.log(`Building: ${name}`);
+  await schema.builder(name, schema);
 }
 
 console.log('Build completed successfully. Output ready in ./dist');

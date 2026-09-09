@@ -1,7 +1,7 @@
 import { render } from 'preact';
 
 // Bundled and injected directly into the bookmarklet IIFE
-import '../styles/simplify-job-list.css';
+import './styles/simplify-job-list.css';
 
 import { Scraper } from './classes/Scraper';
 import { parseCurrency, copyTextToClipboard } from './modules/lib';

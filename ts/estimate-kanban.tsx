@@ -2,7 +2,7 @@ import { render } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 
 // 1. Direct CSS import (Inlined into the JS bundle by Vite plugin)
-import '../styles/estimate-kanban.css';
+import './styles/estimate-kanban.css';
 
 // 2. Data Models & Utilities
 import { Estimate, type EstimateData } from './classes/Estimate';

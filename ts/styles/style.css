@@ -1,0 +1,290 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #f4f4f4;
+    color: #333;
+    text-align: center; /* Center the content */
+}
+
+.container {
+    max-width: 900px; /* Slightly smaller container for the index page */
+    margin: 50px auto; /* More margin top/bottom */
+    background-color: #fff;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+h1 {
+    color: #0056b3;
+    margin-bottom: 30px;
+}
+
+ul {
+    list-style: none; /* Remove bullet points */
+    padding: 0;
+}
+
+li {
+    margin-bottom: 15px;
+}
+
+a {
+    display: block; /* Make the whole list item clickable area */
+    padding: 12px 20px;
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 1.1em;
+    transition: background-color 0.3s ease;
+}
+
+a:hover {
+    background-color: #0056b3;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+textarea {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box; /* Include padding in width */
+    font-family: monospace;
+    font-size: 0.9em;
+    min-height: 250px;
+}
+
+button {
+    display: block;
+    flex-grow: 1;
+    padding: 12px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+button:hover {
+    background-color: #0056b3;
+}
+
+/* Style for modal dialogs */
+.modal {
+    border: 1px solid #ced4da;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    background-color: #fff;
+    text-align: left;
+    max-width: 600px;
+    width: 90%; /* Keep width as a percentage of parent */
+    max-height: 90vh; /* Limits height to 90% of viewport height */
+    overflow-y: auto; /* Adds scrollbar if content overflows vertically */
+
+    /* NEW CENTERING PROPERTIES */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto; /* This is the key for vertical and horizontal centering */
+    
+    z-index: 1000;
+}
+
+.modal::backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal h2 {
+    text-align: center;
+    color: #007bff;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+#rulesList li {
+    padding: 10px;
+    border-bottom: 1px dashed #eee;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#rulesList li:last-child {
+    border-bottom: none;
+}
+
+#rulesList li:hover {
+    background-color: #f0f0f0;
+}
+
+    
+.button-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
+}
+
+/* Style for the fixed help icon */
+#helpIcon {
+    position: fixed;
+    top: 20px; /* Adjust as needed */
+    left: 20px; /* Adjust as needed */
+    z-index: 1001; /* Ensure it's above other content and modals' backdrop */
+    width: 40px;
+    height: 40px;
+    border-radius: 50%; /* Makes it a circle */
+    background-color: #007bff; /* Primary blue color */
+    color: white;
+    display: flex; /* Use flexbox for easy centering of '?' */
+    justify-content: center; /* Center horizontally */
+    align-items: center; /* Center vertically */
+    font-size: 1.5em;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Subtle shadow */
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+#helpIcon:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+    transform: scale(1.05); /* Slightly enlarge on hover */
+}
+
+.close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: #aaa;
+    width: auto; /* Override general button width */
+    padding: 5px;
+}
+.close-button:hover {
+    color: #333;
+    background-color: transparent; /* Ensure no background change on hover */
+}
+
+.infoModalText { text-align: left;}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Styles for data tables to match site theme */
+.data-table {
+    width: 100%;
+    border-collapse: collapse; /* Collapse borders for a cleaner look */
+    margin-top: 20px;
+    margin-bottom: 20px;
+    background-color: #fff; /* White background for the table */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); /* Subtle shadow similar to container */
+    border-radius: 8px; /* Rounded corners for the table */
+    overflow: hidden; /* Ensures rounded corners apply to internal elements */
+}
+
+.data-table th,
+.data-table td {
+    padding: 12px 15px; /* Ample padding for readability */
+    text-align: left; /* Align text to the left */
+    border-bottom: 1px solid #e9ecef; /* Light border at the bottom of each row */
+}
+
+.data-table th {
+    background-color: #007bff; /* Primary blue for headers */
+    color: white; /* White text for headers */
+    font-weight: bold;
+    text-transform: uppercase; /* Uppercase text for headers */
+    font-size: 0.9em;
+}
+
+.data-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa; /* Light grey for even rows for stripe effect */
+}
+
+.data-table tbody tr:hover {
+    background-color: #e2f0ff; /* Light blue on hover for interactivity */
+    cursor: default;
+}
+
+.data-table td.row-label {
+    font-weight: bold; /* Make the size categories stand out */
+}
+
+/* Styles for the Help Menu */
+#helpMenu {
+    position: fixed;
+    top: 70px; /* Position below the helpIcon (adjust if helpIcon size/position changes) */
+    left: 20px; /* Align with the helpIcon's left edge */
+    z-index: 1000; /* Ensure it's below the helpIcon (z-index: 1001), but above other content */
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    overflow: hidden; /* Crucial for the max-height transition */
+    max-height: 0; /* Initially hidden (collapsed) */
+    opacity: 0; /* Initially invisible */
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+    min-width: 180px; /* Ensure enough width for content */
+    padding: 0; /* Remove default padding when collapsed */
+    list-style: none; /* Remove default list bullets */
+    margin: 0; /* Remove default list margin */
+}
+
+#helpMenu.active {
+    max-height: 200px; /* Expand to show content (adjust if menu content grows) */
+    opacity: 1;
+    padding: 10px 0; /* Add padding when active */
+}
+
+#helpMenu a,
+#helpMenu button { /* Style for links and potential buttons within the menu */
+    display: block;
+    width: 100%; /* Make them fill the menu width */
+    padding: 10px 15px;
+    color: #333;
+    text-decoration: none;
+    font-size: 0.95em;
+    background: none; /* Remove default button background */
+    border: none; /* Remove default button border */
+    text-align: left; /* Align text to the left */
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#helpMenu a:hover,
+#helpMenu button:hover {
+    background-color: #f0f0f0;
+}
+
+#helpMenu hr {
+    border: none;
+    border-top: 1px solid #eee;
+    margin: 5px 0;
+}

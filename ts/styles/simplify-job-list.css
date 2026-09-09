@@ -1,0 +1,130 @@
+.flag-critical {
+  background-color: #f8d7da !important;
+}
+
+.flag-warning {
+  background-color: #fff3cd !important;
+}
+
+.selected-row {
+  background-color: #d1e7ff !important;
+  font-weight: bold !important;
+}
+
+.copy-button-cell {
+  width: 50px;
+  text-align: right;
+}
+
+.main {
+  position: fixed;
+  inset: 2em;
+  padding: 20px;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  font-family: Arial;
+  z-index: 9999;
+}
+
+.controls {
+  position: fixed;
+  top: 2em;
+  right: 2em;
+  z-index: 10000;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.group-by-list {
+  background: #f5f5f5;
+  padding: 5px 10px;
+  border-Radius: 5px;
+  font-Size: 12px;
+  box-Shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 10px;
+  overflow-x: auto
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  gap: 20px;
+  overflow: hidden
+}
+
+.lists-wrapper {
+  display: flex;
+  gap: 20px;
+  flex: 2;
+  overflow: hidden;
+}
+
+.details {
+  flex: 1;
+  overflow-y: auto;
+  background: #f5f5f5;
+  padding: 15px;
+  border-radius: 5px;
+}
+
+/* --- New Dashboard Styles --- */
+
+.copy-button {
+  cursor: pointer;
+  padding: 2px 6px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: small;
+}
+
+.table-cell {
+  padding: 8px 4px;
+}
+
+.wrapper-style {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dashboard-tab-button {
+  padding: 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.dashboard-tab-button.active {
+  border-bottom: 2px solid #2196f3;
+}
+
+.pane-style {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  width: 100%;
+}
+
+.dash-list,
+.xact-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.dash-table,
+.xact-table {
+  width: 100%;
+}
+
+.row-style {
+  cursor: pointer;
+}
