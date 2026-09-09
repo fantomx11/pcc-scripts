@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
-          path: staging
+          path: main_code
 
       - name: Checkout Dev Branch
         uses: actions/checkout@v4
@@ -34,15 +34,35 @@ jobs:
         with:
           node-version: 20
 
-      - name: Build and Nest Dev Environment
+      - name: Build Environments into Staging
         run: |
+          mkdir -p staging/dev
+
+          # 1. Populate production root (auto-detects legacy vs Vite)
+          cd main_code
+          if [ -f package.json ]; then
+            echo "Building Vite production base..."
+            npm ci
+            node build.mjs
+            cp -r dist/* ../staging/
+          else
+            echo "Copying legacy production base..."
+            cp -r * ../staging/
+          fi
+          cd ..
+
+          # 2. Build Dev bundle into /dev
           cd dev_code
           npm ci
           node build.mjs
-          mkdir -p ../staging/dev
           cp -r dist/* ../staging/dev/
+          cd ..
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './staging'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

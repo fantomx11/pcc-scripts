@@ -25,7 +25,11 @@ for (const dir of copyDirs) {
 // Stage top-level legacy scripts and HTML utilities
 const topLevelFiles = fs.readdirSync(rootDir);
 for (const file of topLevelFiles) {
-  if ((file.endsWith('.js') || file.endsWith('.html')) && file !== 'build.mjs') {
+  if (
+    (file.endsWith('.js') || file.endsWith('.html')) &&
+    file !== 'build.mjs' &&
+    file !== 'sketch-generator.html'
+  ) {
     fs.copyFileSync(path.resolve(rootDir, file), path.resolve(distDir, file));
   }
 }
@@ -87,5 +91,23 @@ await build({
     },
   },
 });
+
+const sketchHtml = path.resolve(rootDir, 'sketch-generator.html');
+if (fs.existsSync(sketchHtml)) {
+  console.log('Bundling sketch-generator.html...');
+  await build({
+    configFile: false,
+    root: rootDir,
+    build: {
+      emptyOutDir: false,
+      outDir: distDir,
+      rollupOptions: {
+        input: {
+          sketch: sketchHtml,
+        },
+      },
+    },
+  });
+}
 
 console.log('Build completed successfully. Output ready in ./dist');

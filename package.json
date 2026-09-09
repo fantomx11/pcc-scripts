@@ -7,9 +7,11 @@
     "build": "node build.mjs"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "preact": "^10.23.1"
   },
   "devDependencies": {
+    "@types/jszip": "^3.4.1",
     "esbuild": "^0.23.1",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
