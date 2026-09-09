@@ -49,27 +49,20 @@ function findFiles(dir, ext) {
   return results;
 }
 
-const sharedTsFiles = findFiles(path.resolve(tsDir, 'classes'), '.ts');
+const sharedTsFiles = findFiles(path.resolve(srcDir, 'classes'), '.ts');
 
 if (sharedTsFiles.length > 0) {
   console.log(`Compiling ${sharedTsFiles.length} shared TypeScript files for legacy compatibility...`);
   await esbuild.build({
     entryPoints: sharedTsFiles,
     outdir: distDir,
-    outbase: tsDir, // ts/classes/Job.ts becomes dist/classes/Job.js
+    outbase: srcDir, // ts/classes/Job.ts becomes dist/classes/Job.js
     format: 'esm',
     target: 'es2022',
   });
 }
 
-const kanbanEntry = fs.existsSync(path.resolve(tsDir, 'estimate-kanban.tsx'))
-  ? './ts/estimate-kanban.tsx'
-  : fs.existsSync(path.resolve(rootDir, 'estimate-kanban.tsx'))
-  ? './estimate-kanban.tsx'
-  : './estimate-kanban.js';
-
-console.log(`Bundling estimate-kanban using entry: ${kanbanEntry}...`);
-
+const kanbanEntry = path.resolve(srcDir, 'estimate-kanban.tsx');
 await build({
   configFile: false,
   plugins: [cssInjectedByJsPlugin()],
@@ -89,12 +82,12 @@ await build({
   },
 });
 
-const sketchHtml = path.resolve(rootDir, 'sketch-generator.html');
+const sketchHtml = path.resolve(srcDir, 'sketch-generator.html');
 if (fs.existsSync(sketchHtml)) {
   console.log('Bundling sketch-generator.html...');
   await build({
     configFile: false,
-    root: rootDir,
+    root: srcDir,
     base: './',
     build: {
       emptyOutDir: false,
@@ -108,12 +101,7 @@ if (fs.existsSync(sketchHtml)) {
   });
 }
 
-const simplifyEntry = fs.existsSync(path.resolve(tsDir, 'simplify-job-list.tsx'))
-  ? './ts/simplify-job-list.tsx'
-  : './simplify-job-list.js';
-
-console.log(`Bundling simplify-job-list using entry: ${simplifyEntry}...`);
-
+const simplifyEntry = fs.existsSync(path.resolve(srcDir, 'simplify-job-list.tsx'));
 await build({
   configFile: false,
   plugins: [cssInjectedByJsPlugin()],
@@ -133,12 +121,12 @@ await build({
   },
 });
 
-const matcherHtml = path.resolve(tsDir, 'estimate-matcher.html');
+const matcherHtml = path.resolve(srcDir, 'estimate-matcher.html');
 if (fs.existsSync(matcherHtml)) {
   console.log('Bundling ts/estimate-matcher.html...');
   await build({
     configFile: false,
-    root: tsDir, // Vite root set to ts/ so HTML outputs to dist/estimate-matcher.html
+    root: srcDir, // Vite root set to ts/ so HTML outputs to dist/estimate-matcher.html
     base: './',  // Relative asset URLs (./assets/...) for subpath hosting
     build: {
       emptyOutDir: false,
