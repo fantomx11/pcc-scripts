@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const rootDir = process.cwd();
 const distDir = path.resolve(rootDir, 'dist');
-const srcDir = path.resolve(rootDir, 'ts');
+const srcDir = path.resolve(rootDir, 'src');
 
 if (fs.existsSync(distDir)) {
   fs.rmSync(distDir, { recursive: true, force: true });
