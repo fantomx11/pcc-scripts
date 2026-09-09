@@ -47,9 +47,7 @@ function findFiles(dir, ext) {
 
 // Find all shared TS files (excluding root bookmarklet entry points like estimate-kanban)
 const tsDir = path.resolve(rootDir, 'ts');
-const sharedTsFiles = findFiles(tsDir, '.ts').filter(
-  file => !file.endsWith('estimate-kanban.ts') && !file.endsWith('.d.ts')
-);
+const sharedTsFiles = findFiles(path.resolve(tsDir, 'classes'), '.ts');
 
 if (sharedTsFiles.length > 0) {
   console.log(`Compiling ${sharedTsFiles.length} shared TypeScript files for legacy compatibility...`);

@@ -1,8 +1,3 @@
-import { h } from 'preact';
-import htm from 'htm';
-
-export const html = htm.bind(h);
-
 export const isDate = (d?: string | Date | number | null): boolean => {
   if (!d || d === 'null') return false;
   return !isNaN(new Date(d).getTime());
@@ -63,7 +58,7 @@ export function camelToCapitalCase(str?: string): string {
 export function parsePercentage(input?: string | number | null, toDecimal = true): number {
   if (input === null || input === undefined) return NaN;
   if (typeof input === 'number') return toDecimal ? input / 100 : input;
-  const cleaned = input.trim().replace('%', '');
+  const cleaned = String(input).trim().replace('%', '');
   const value = parseFloat(cleaned);
   if (isNaN(value)) return NaN;
   return toDecimal ? value / 100 : value;
