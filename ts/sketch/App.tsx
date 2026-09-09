@@ -5,7 +5,7 @@ import { SketchViewer } from './viewer';
 import { Header } from './components/Header';
 import { CanvasView } from './components/CanvasView';
 import { Sidebar } from './components/Sidebar';
-import { Modals } from './components/Modals';
+import { Modals } from './components/modals';
 
 export function App() {
   const viewerRef = useRef<SketchViewer | null>(null);

@@ -98,6 +98,7 @@ if (fs.existsSync(sketchHtml)) {
   await build({
     configFile: false,
     root: rootDir,
+    base: './',
     build: {
       emptyOutDir: false,
       outDir: distDir,

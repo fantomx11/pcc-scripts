@@ -5,6 +5,38 @@ import { importJsonModel } from '../../importers/jsonImporter';
 import { importSvgString } from '../../importers/svgImporter';
 import { Modal } from './Modal';
 
+export function processImportText(raw: string, opts: Record<string, any> = {}): void {
+  const trimmed = raw.trim();
+  if (!trimmed) return;
+
+  const isJson = trimmed.startsWith('{') || trimmed.startsWith('[');
+  const fullOpts = {
+    scaleUnits: true,
+    filterVoids: true,
+    targetMode: 'current_level',
+    currentLevelId: store.currentLevelId,
+    levels: store.levels,
+    shapes: store.shapes,
+    wallMetadataList: store.wallMetadataList,
+    getNextId: store.getNextId,
+    getNextLevelId: store.getNextLevelId,
+    ...opts,
+  };
+
+  const res = isJson
+    ? importJsonModel(JSON.parse(trimmed), fullOpts)
+    : importSvgString(trimmed, fullOpts);
+
+  store.shapes = res.shapes;
+  store.levels = res.levels;
+  store.currentLevelId = res.currentLevelId;
+  store.wallMetadataList = res.wallMetadata;
+  if (res.modelName) store.filename = res.modelName;
+  if (res.shapes.length > 0) store.selectShape(res.shapes[0].id);
+  store.activeModal = null;
+  store.notify();
+}
+
 export function ImportModal({ onRedraw }: { onRedraw: () => void }) {
   const [importText, setImportText] = useState('');
   const [targetMode, setTargetMode] = useState<'new_level' | 'current_level' | 'append_current'>('current_level');
