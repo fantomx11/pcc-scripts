@@ -13,15 +13,17 @@ if (fs.existsSync(distDir)) {
 }
 fs.mkdirSync(distDir, { recursive: true });
 
-const copyDirs = ['classes', 'modules', 'styles', 'components', 'src'];
-for (const dir of copyDirs) {
-  const srcPath = path.resolve(rootDir, dir);
-  if (fs.existsSync(srcPath)) {
-    fs.cpSync(srcPath, path.resolve(distDir, dir), { recursive: true });
-  }
-}
-
 const buildFiles = {
+  'compliance.html': {
+    builder: justCopy
+  },
+  'index.html': {
+    builder: justCopy
+  },
+  'estimate-discrepancy-filter.js': {
+    builder: justCopy
+  },
+
   'sketch-generator.html': {
     builder: buildHtml,
   },
@@ -50,45 +52,6 @@ const buildFiles = {
     fileName: () => 'rich-text-notes.js',
   },  
 };
-
-const migratedFiles = [
-  'build.mjs',
-  ...Object.keys(buildFiles).map((f) => f.replace(/\.tsx$/, '.js')),
-];
-
-const topLevelFiles = fs.readdirSync(rootDir);
-for (const file of topLevelFiles) {
-  if ((file.endsWith('.js') || file.endsWith('.html')) && migratedFiles.indexOf(file) === -1) {
-    fs.copyFileSync(path.resolve(rootDir, file), path.resolve(distDir, file));
-  }
-}
-
-function findFiles(dir, ext) {
-  if (!fs.existsSync(dir)) return [];
-  const results = [];
-  for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
-    const fullPath = path.resolve(dir, item.name);
-    if (item.isDirectory()) {
-      results.push(...findFiles(fullPath, ext));
-    } else if (item.name.endsWith(ext)) {
-      results.push(fullPath);
-    }
-  }
-  return results;
-}
-
-const sharedTsFiles = findFiles(path.resolve(srcDir, 'classes'), '.ts');
-
-if (sharedTsFiles.length > 0) {
-  console.log(`Compiling ${sharedTsFiles.length} shared TypeScript files for legacy compatibility...`);
-  await esbuild.build({
-    entryPoints: sharedTsFiles,
-    outdir: distDir,
-    outbase: srcDir, // ts/classes/Job.ts becomes dist/classes/Job.js
-    format: 'esm',
-    target: 'es2022',
-  });
-}
 
 async function buildIIFE(name, schema) {
   const entry = path.resolve(srcDir, name);
@@ -139,6 +102,29 @@ async function buildHtml(name, schema) {
       },
     },
   });
+}
+
+async function justCopy(name, schema) {
+  // Check ts/ directory first, then fallback to rootDir
+  let srcPath = path.resolve(srcDir, name);
+  if (!fs.existsSync(srcPath)) {
+    srcPath = path.resolve(rootDir, name);
+  }
+
+  if (!fs.existsSync(srcPath)) {
+    console.warn(`Skipping ${name}: file not found in ${srcDir} or ${rootDir}`);
+    return;
+  }
+
+  // Support schema.fileName as a function, string, or default to the source name
+  const destName = typeof schema?.fileName === 'function'
+    ? schema.fileName()
+    : (schema?.fileName || name);
+
+  const destPath = path.resolve(distDir, destName);
+
+  fs.mkdirSync(path.dirname(destPath), { recursive: true });
+  fs.copyFileSync(srcPath, destPath);
 }
 
 for [name, schema] of Object.entries(buildFiles) {
