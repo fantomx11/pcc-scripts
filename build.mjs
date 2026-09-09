@@ -6,14 +6,13 @@ import path from 'node:path';
 
 const rootDir = process.cwd();
 const distDir = path.resolve(rootDir, 'dist');
+const srcDir = path.resolve(rootDir, 'ts');
 
-// 1. Clean dist directory
 if (fs.existsSync(distDir)) {
   fs.rmSync(distDir, { recursive: true, force: true });
 }
 fs.mkdirSync(distDir, { recursive: true });
 
-// 2. Stage legacy folders so unconverted scripts and companion files still exist
 const copyDirs = ['classes', 'modules', 'styles', 'components', 'src'];
 for (const dir of copyDirs) {
   const srcPath = path.resolve(rootDir, dir);
@@ -22,19 +21,20 @@ for (const dir of copyDirs) {
   }
 }
 
-// Stage top-level legacy scripts and HTML utilities
+const migratedFiles = [
+  'build.mjs',
+  'sketch-generator.html',
+  'estimate-matcher.html',
+  'simplify-job-list.js'
+];
+
 const topLevelFiles = fs.readdirSync(rootDir);
 for (const file of topLevelFiles) {
-  if (
-    (file.endsWith('.js') || file.endsWith('.html')) &&
-    file !== 'build.mjs' &&
-    file !== 'sketch-generator.html'
-  ) {
+  if ((file.endsWith('.js') || file.endsWith('.html')) && migratedFiles.indexOf(file) === -1) {
     fs.copyFileSync(path.resolve(rootDir, file), path.resolve(distDir, file));
   }
 }
 
-// 3. Compile converted shared TypeScript files from ts/ into dist/
 function findFiles(dir, ext) {
   if (!fs.existsSync(dir)) return [];
   const results = [];
@@ -49,8 +49,6 @@ function findFiles(dir, ext) {
   return results;
 }
 
-// Find all shared TS files (excluding root bookmarklet entry points like estimate-kanban)
-const tsDir = path.resolve(rootDir, 'ts');
 const sharedTsFiles = findFiles(path.resolve(tsDir, 'classes'), '.ts');
 
 if (sharedTsFiles.length > 0) {
@@ -64,7 +62,6 @@ if (sharedTsFiles.length > 0) {
   });
 }
 
-// 4. Bundle estimate-kanban into a single standalone IIFE
 const kanbanEntry = fs.existsSync(path.resolve(tsDir, 'estimate-kanban.tsx'))
   ? './ts/estimate-kanban.tsx'
   : fs.existsSync(path.resolve(rootDir, 'estimate-kanban.tsx'))
@@ -105,6 +102,50 @@ if (fs.existsSync(sketchHtml)) {
       rollupOptions: {
         input: {
           sketch: sketchHtml,
+        },
+      },
+    },
+  });
+}
+
+const simplifyEntry = fs.existsSync(path.resolve(tsDir, 'simplify-job-list.tsx'))
+  ? './ts/simplify-job-list.tsx'
+  : './simplify-job-list.js';
+
+console.log(`Bundling simplify-job-list using entry: ${simplifyEntry}...`);
+
+await build({
+  configFile: false,
+  plugins: [cssInjectedByJsPlugin()],
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'preact',
+  },
+  build: {
+    emptyOutDir: false,
+    outDir: distDir,
+    lib: {
+      entry: path.resolve(rootDir, simplifyEntry),
+      name: 'SimplifyJobList',
+      formats: ['iife'],
+      fileName: () => 'simplify-job-list.js',
+    },
+  },
+});
+
+const matcherHtml = path.resolve(tsDir, 'estimate-matcher.html');
+if (fs.existsSync(matcherHtml)) {
+  console.log('Bundling ts/estimate-matcher.html...');
+  await build({
+    configFile: false,
+    root: tsDir, // Vite root set to ts/ so HTML outputs to dist/estimate-matcher.html
+    base: './',  // Relative asset URLs (./assets/...) for subpath hosting
+    build: {
+      emptyOutDir: false,
+      outDir: distDir,
+      rollupOptions: {
+        input: {
+          'estimate-matcher': matcherHtml,
         },
       },
     },
