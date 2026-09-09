@@ -74,7 +74,7 @@ async function buildIIFE(name, schema) {
         entry: path.resolve(rootDir, entry),
         name: schema.name,
         formats: ['iife'],
-        fileName: schamea.fileName,
+        fileName: schema.fileName,
       },
     },
   });
@@ -127,7 +127,7 @@ async function justCopy(name, schema) {
   fs.copyFileSync(srcPath, destPath);
 }
 
-for [name, schema] of Object.entries(buildFiles) {
+for (const [name, schema] of Object.entries(buildFiles)) {
   console.log(`Building: ${name}`);
   await schema.builder(name, schema);
 }
