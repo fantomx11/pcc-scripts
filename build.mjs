@@ -25,7 +25,7 @@ const buildFiles = {
   },
 
   'sketch-generator.html': {
-    builder: buildHtml,
+    builder: justCopy,
   },
   'estimate-matcher.html':  {
     builder: buildHtml,
