@@ -305,7 +305,7 @@ export class Shape {
     this.dimCode = init.dimCode ?? Shape.sanitizeDimCode(this.name);
     this.isDimCodeManual = init.isDimCodeManual ?? false;
     this.ceilingHeightFt = init.ceilingHeightFt ?? 8.0;
-    this.points = (init.points ?? []).map(p => (p instanceof Point ? p : new Point(p.x, p.y)));
+    this.points = (init.points ?? []).map(p => (p instanceof Point ? p : new Point((p as Point).x, (p as Point).y)));
     this.stubWalls = (init.stubWalls ?? []).map(sw => (sw instanceof StubWall ? sw : new StubWall(sw)));
   }
 
