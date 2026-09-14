@@ -28,8 +28,13 @@ const buildFiles = {
     builder: justCopy,
   },
   'estimate-matcher.html':  {
+    builder: justCopy,
+  },
+
+  'estimate-matcher2.html':  {
     builder: buildHtml,
   },
+
 
   'simplify-job-list.tsx': {
     builder: buildIIFE,
