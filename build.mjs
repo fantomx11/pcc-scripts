@@ -23,11 +23,14 @@ const buildFiles = {
   'estimate-discrepancy-filter.js': {
     builder: justCopy
   },
-
   'sketch-generator.html': {
     builder: justCopy,
   },
-  'estimate-matcher.html':  {
+
+  'sketch-generator2.html': {
+    builder: buildHtml,
+  },
+  'estimate-matcher.html': {
     builder: buildHtml,
   },
 
@@ -50,7 +53,7 @@ const buildFiles = {
     builder: buildIIFE,
     name: 'RichTextNotes',
     fileName: () => 'rich-text-notes.js',
-  },  
+  },
 };
 
 async function buildIIFE(name, schema) {

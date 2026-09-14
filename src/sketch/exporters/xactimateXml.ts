@@ -6,8 +6,7 @@ const SQ_UNITS_PER_SQ_FT = 2322576; // Exact Xactimate square units per sq ft (1
 const ELEV_FLOOR = 152400;  // 100 ft baseline
 const DEFAULT_CEIL_HEIGHT = 12192; // 8ft
 
-
-function generateXML(shapes: Shape[], levels: Level[]) {
+export function generateXML(shapes: Shape[], levels: Level[]) {
   const docUuid = generateExUuid();
   const structUuid = generateExUuid();
 
