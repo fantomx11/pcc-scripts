@@ -1,226 +1,85 @@
-import { Shape, Level, WallMeta, OpeningDefaults, Point } from '../types';
-
-interface CanonicalPoint {
-  id: number;
-  x: number;
-  y: number;
-  botIndex: number;
-  topIndex: number;
-  vertexId: number;
-  connectedWallIds: number[];
-}
-
-function getPolygonSignedArea(pts: { x: number; y: number }[]): number {
-  let a = 0.0;
-  for (let i = 0; i < pts.length; i++) {
-    const p1 = pts[i];
-    const p2 = pts[(i + 1) % pts.length];
-    a += p1.x * p2.y - p2.x * p1.y;
-  }
-  return a / 2.0;
-}
-
-// --- Geometric & Conversion Helpers ---
+import { ensureWindingOrder, generateExUuid, getNextId, snapToInch } from "../geometry";
+import { Level, Shape } from "../types";
 
 const UNITS_PER_FT = 1524;
-const SQ_UNITS_PER_SQ_FT = 2322576;
-const ELEV_FLOOR = 152400; // 100 ft baseline
-const DEFAULT_CEIL_HEIGHT = 12192; // 8 ft
-const BASE_ANCHOR_X = -105918;
-const BASE_ANCHOR_Y = 20701;
+const SQ_UNITS_PER_SQ_FT = 2322576; // Exact Xactimate square units per sq ft (1524 * 1524)
+const ELEV_FLOOR = 152400;  // 100 ft baseline
+const DEFAULT_CEIL_HEIGHT = 12192; // 8ft
 
-function generateExUuid(): string {
-  return 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
 
-function sanitizeDimCode(val: string): string {
-  if (!val) return '';
-  return val.toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_').substring(0, 10);
-}
-
-function snapToInch(valFt: number): number {
-  return Math.round(valFt * 12) / 12;
-}
-
-function ensureWindingOrder(pts: Point[], targetClockwise = true): Point[] {
-  const area = getPolygonSignedArea(pts);
-  const isClockwise = area < 0;
-  if ((targetClockwise && !isClockwise) || (!targetClockwise && isClockwise)) {
-    return pts.slice().reverse();
-  }
-  return pts.slice();
-}
-
-function getCentroid(pts: Point[]): Point {
-  let x = 0;
-  let y = 0;
-  pts.forEach((p) => {
-    x += p.x;
-    y += p.y;
-  });
-  return { x: x / (pts.length || 1), y: y / (pts.length || 1) };
-}
-
-function isPointInsidePoly(pt: Point, poly: Point[]): boolean {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const xi = poly[i].x;
-    const yi = poly[i].y;
-    const xj = poly[j].x;
-    const yj = poly[j].y;
-    const intersect = yi > pt.y !== yj > pt.y && pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi;
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
-
-function isPointOnSegment(p: Point, a: Point, b: Point, tol = 0.25): boolean {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const l2 = dx * dx + dy * dy;
-  if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y) < tol;
-  const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2;
-  if (t >= -0.05 && t <= 1.05) {
-    const projX = a.x + t * dx;
-    const projY = a.y + t * dy;
-    return Math.hypot(p.x - projX, p.y - projY) < tol;
-  }
-  return false;
-}
-
-function isSubSegment(p1: Point, p2: Point, a: Point, b: Point, tol = 0.25): boolean {
-  return isPointOnSegment(p1, a, b, tol) && isPointOnSegment(p2, a, b, tol);
-}
-
-function findWallMeta(pA: Point, pB: Point, wallMetadataList: WallMeta[], tol = 0.35): WallMeta | null {
-  for (const meta of wallMetadataList) {
-    const d1 = Math.hypot(meta.p0.x - pA.x, meta.p0.y - pA.y) + Math.hypot(meta.p1.x - pB.x, meta.p1.y - pB.y);
-    const d2 = Math.hypot(meta.p0.x - pB.x, meta.p0.y - pB.y) + Math.hypot(meta.p1.x - pA.x, meta.p1.y - pA.y);
-    if (Math.min(d1, d2) < tol) return meta;
-  }
-  for (const meta of wallMetadataList) {
-    if (isSubSegment(pA, pB, meta.p0, meta.p1, tol)) {
-      return meta;
-    }
-  }
-  return null;
-}
-
-interface CanonicalPoint {
-  id: number;
-  x: number;
-  y: number;
-  botIndex: number;
-  topIndex: number;
-  vertexId: number;
-  connectedWallIds: number[];
-}
-
-interface EdgeData {
-  id: number;
-  isStub: boolean;
-  roomIDs: number[];
-  cpA: CanonicalPoint;
-  cpB: CanonicalPoint;
-  dimCode: string;
-  meta: WallMeta | null;
-}
-
-// --- Primary Generator Function ---
-
-export function generateXML(
-  shapes: Shape[],
-  levels: Level[],
-  wallMetadataList: WallMeta[],
-  openingDefaults: OpeningDefaults
-): string {
-  if (!shapes || shapes.length === 0) {
-    return '';
-  }
-
-  let idSeed = 3000;
-  const getNextId = () => idSeed++;
-
+function generateXML(shapes: Shape[], levels: Level[]) {
   const docUuid = generateExUuid();
   const structUuid = generateExUuid();
 
-  // Determine sketch vertical midpoint to flip coordinate system (Xactimate Y-inversion)
-  let minY = Infinity;
-  let maxY = -Infinity;
-  shapes.forEach((s) => {
-    s.points.forEach((p) => {
-      minY = Math.min(minY, p.y);
-      maxY = Math.max(maxY, p.y);
+  if (shapes.length === 0) {
+    alert("No elements in diagram to export.");
+    return "";
+  }
+
+  let minY = Infinity, maxY = -Infinity;
+  shapes.forEach(s => {
+    s.points.forEach(p => {
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
     });
-    (s.stubWalls || []).forEach((sw) => {
-      minY = Math.min(minY, sw.p0.y, sw.p1.y);
-      maxY = Math.max(maxY, sw.p0.y, sw.p1.y);
+    (s.stubWalls || []).forEach(sw => {
+      minY = Math.min(minY, sw.p0.y, sw.p1.y); maxY = Math.max(maxY, sw.p0.y, sw.p1.y);
     });
   });
   const cy = (minY + maxY) / 2;
 
-  const coordinates: string[] = ['0 0 0', '-97129.6 25527 0', '-102679.5 33210.5 0', '-84645.5 33337.5 0'];
+  const coordinates = ["0 0 0", "-97129.6 25527 0", "-102679.5 33210.5 0", "-84645.5 33337.5 0"];
+  const BASE_ANCHOR_X = -105918;
+  const BASE_ANCHOR_Y = 20701;
 
   let levelsXML = '';
   let globalRoomCount = 0;
 
   levels.forEach((lvl, lIdx) => {
     const levelUuid = generateExUuid();
-    const lvlShapes = shapes.filter((s) => s.levelId === lvl.id);
-    const lvlFloorElevation = ELEV_FLOOR + lIdx * DEFAULT_CEIL_HEIGHT;
+    const lvlShapes = shapes.filter(s => s.levelId === lvl.id);
+    const lvlFloorElevation = ELEV_FLOOR + (lIdx * DEFAULT_CEIL_HEIGHT);
     const levelKey = `GRP${21 + lIdx}`;
 
     if (lvlShapes.length === 0) return;
 
-    const lvlRooms = lvlShapes
-      .filter((s) => s.type === 'room')
-      .map((room) => {
-        const xactPts = room.points.map((p) => ({
-          x: p.x,
-          y: snapToInch(2 * cy - p.y),
-        }));
-        const xactStubs = (room.stubWalls || []).map((sw) => ({
-          ...sw,
-          p0: { x: sw.p0.x, y: snapToInch(2 * cy - sw.p0.y) },
-          p1: { x: sw.p1.x, y: snapToInch(2 * cy - sw.p1.y) },
-        }));
-        return {
-          ...room,
-          points: ensureWindingOrder(xactPts, true),
-          stubWalls: xactStubs,
-        };
-      });
-
-    const lvlLines = lvlShapes
-      .filter((s) => s.type === 'line')
-      .map((line) => ({
-        ...line,
-        points: line.points.map((p) => ({
-          x: p.x,
-          y: snapToInch(2 * cy - p.y),
-        })),
+    const lvlRooms = lvlShapes.filter(s => s.type === 'room').map(room => {
+      const xactPts = room.points.map(p => ({
+        x: p.x,
+        y: snapToInch(2 * cy - p.y)
       }));
+      const xactStubs = (room.stubWalls || []).map(sw => ({
+        ...sw,
+        p0: { x: sw.p0.x, y: snapToInch(2 * cy - sw.p0.y) },
+        p1: { x: sw.p1.x, y: snapToInch(2 * cy - sw.p1.y) }
+      }));
+      return {
+        ...room,
+        points: ensureWindingOrder(xactPts, true),
+        stubWalls: xactStubs
+      };
+    });
 
-    const lvlSectors = lvlShapes
-      .filter((s) => s.type === 'area' || s.type === 'block')
-      .map((sec) => {
-        const xactPts = sec.points.map((p) => ({
-          x: p.x,
-          y: snapToInch(2 * cy - p.y),
-        }));
-        return {
-          ...sec,
-          points: ensureWindingOrder(xactPts, true),
-        };
-      });
+    const lvlLines = lvlShapes.filter(s => s.type === 'line').map(line => ({
+      ...line,
+      points: line.points.map(p => ({
+        x: p.x,
+        y: snapToInch(2 * cy - p.y)
+      }))
+    }));
 
-    const canonicalPoints: CanonicalPoint[] = [];
+    const lvlSectors = lvlShapes.filter(s => s.type === 'area' || s.type === 'block').map(sec => {
+      const xactPts = sec.points.map(p => ({
+        x: p.x,
+        y: snapToInch(2 * cy - p.y)
+      }));
+      return {
+        ...sec,
+        points: ensureWindingOrder(xactPts, true)
+      };
+    });
 
-    function getCanonicalPoint(p: Point, roomCeilFt = 8.0, tol = 0.08): CanonicalPoint {
+    const canonicalPoints: any[] = [];
+    function getCanonicalPoint(p, roomCeilFt = 8.0, tol = 0.08) {
       for (let i = 0; i < canonicalPoints.length; i++) {
         const cp = canonicalPoints[i];
         if (Math.hypot(cp.x - p.x, cp.y - p.y) <= tol) return cp;
@@ -235,24 +94,24 @@ export function generateXML(
       const topIdx = coordinates.length;
       coordinates.push(`${xu} ${yu} ${lvlCeilElevation}`);
 
-      const cp: CanonicalPoint = {
+      const cp = {
         id: canonicalPoints.length,
         x: p.x,
         y: p.y,
         botIndex: botIdx,
         topIndex: topIdx,
         vertexId: getNextId(),
-        connectedWallIds: [],
+        connectedWallIds: []
       };
       canonicalPoints.push(cp);
       return cp;
     }
 
-    const edgesMap = new Map<string, EdgeData>();
-    const roomEdgeLists = new Map<number, number[]>();
+    const edgesMap = new Map();
+    const roomEdgeLists = new Map();
 
-    lvlRooms.forEach((room) => {
-      const wallIdsForRoom: number[] = [];
+    lvlRooms.forEach(room => {
+      const wallIdsForRoom = [];
       const n = room.points.length;
       const roomCeil = room.ceilingHeightFt || 8.0;
 
@@ -264,11 +123,11 @@ export function generateXML(
 
         if (cpA.id === cpB.id) continue;
 
-        const edgeKey = `${Math.min(cpA.id, cpB.id)}_${Math.max(cpA.id, cpB.id)}`;
+        const edgeKey = Math.min(cpA.id, cpB.id) + "_" + Math.max(cpA.id, cpB.id);
 
         const origP1 = { x: p1.x, y: snapToInch(2 * cy - p1.y) };
         const origP2 = { x: p2.x, y: snapToInch(2 * cy - p2.y) };
-        const meta = findWallMeta(origP1, origP2, wallMetadataList);
+        const meta = findWallMeta(origP1, origP2);
 
         if (!edgesMap.has(edgeKey)) {
           const wId = getNextId();
@@ -276,21 +135,21 @@ export function generateXML(
             id: wId,
             isStub: false,
             roomIDs: [room.id],
-            cpA,
-            cpB,
+            cpA: cpA,
+            cpB: cpB,
             dimCode: `W${edgesMap.size || ''}`,
-            meta,
+            meta: meta
           });
           wallIdsForRoom.push(wId);
         } else {
-          const edgeData = edgesMap.get(edgeKey)!;
+          const edgeData = edgesMap.get(edgeKey);
           if (!edgeData.roomIDs.includes(room.id)) edgeData.roomIDs.push(room.id);
           if (!edgeData.meta && meta) edgeData.meta = meta;
           wallIdsForRoom.push(edgeData.id);
         }
       }
 
-      (room.stubWalls || []).forEach((sw) => {
+      (room.stubWalls || []).forEach(sw => {
         const cpA = getCanonicalPoint(sw.p0, roomCeil);
         const cpB = getCanonicalPoint(sw.p1, roomCeil);
         if (cpA.id === cpB.id) return;
@@ -301,10 +160,10 @@ export function generateXML(
           id: wId,
           isStub: true,
           roomIDs: [room.id, room.id],
-          cpA,
-          cpB,
+          cpA: cpA,
+          cpB: cpB,
           dimCode: `W${edgesMap.size || ''}`,
-          meta: sw.meta || null,
+          meta: sw.meta
         });
         wallIdsForRoom.push(wId);
       });
@@ -312,7 +171,7 @@ export function generateXML(
       roomEdgeLists.set(room.id, wallIdsForRoom);
     });
 
-    edgesMap.forEach((edge) => {
+    edgesMap.forEach(edge => {
       if (!edge.cpA.connectedWallIds.includes(edge.id)) edge.cpA.connectedWallIds.push(edge.id);
       if (!edge.cpB.connectedWallIds.includes(edge.id)) edge.cpB.connectedWallIds.push(edge.id);
     });
@@ -325,11 +184,11 @@ export function generateXML(
       const roomCeilFt = (room.ceilingHeightFt || 8.0).toFixed(7);
 
       let linesXML = '';
-      lvlLines.forEach((line) => {
+      lvlLines.forEach(line => {
         const center = getCentroid(line.points);
         if (isPointInsidePoly(center, room.points) || lvlRooms.length === 1) {
-          const ptIndices: number[] = [];
-          line.points.forEach((lp) => {
+          const ptIndices = [];
+          line.points.forEach(lp => {
             const lxu = BASE_ANCHOR_X + Math.round(lp.x * UNITS_PER_FT);
             const lyu = BASE_ANCHOR_Y + Math.round(lp.y * UNITS_PER_FT);
             ptIndices.push(coordinates.length);
@@ -345,7 +204,6 @@ export function generateXML(
 
     let wallsXML = '';
     let openCount = 0;
-
     edgesMap.forEach((edge) => {
       let roomIDsStr = '';
       let wallFlags = '385875968';
@@ -366,7 +224,7 @@ export function generateXML(
 
       const meta = edge.meta;
       const isInvisible = meta && meta.isInvisible;
-      const wallThickness = isInvisible ? '0.0000000' : meta && meta.thicknessUnits ? `${meta.thicknessUnits}.0000000` : '508.0000000';
+      const wallThickness = isInvisible ? "0.0000000" : (meta && meta.thicknessUnits ? `${meta.thicknessUnits}.0000000` : "508.0000000");
 
       let wallOpeningsXML = '';
 
@@ -383,7 +241,7 @@ export function generateXML(
         const xuB = BASE_ANCHOR_X + Math.round(edge.cpB.x * UNITS_PER_FT);
         const yuB = BASE_ANCHOR_Y + Math.round(edge.cpB.y * UNITS_PER_FT);
 
-        meta.openings.forEach((op) => {
+        meta.openings.forEach(op => {
           openCount++;
           const rc = op.relativeCenter !== undefined ? op.relativeCenter : 0.5;
 
@@ -409,7 +267,7 @@ export function generateXML(
             tCenter = ((cXactX - edge.cpA.x) * segDx + (cXactY - edge.cpA.y) * segDy) / segL2;
           }
 
-          const dt = wFt / 2 / wallLenFt;
+          const dt = (wFt / 2) / wallLenFt;
           const t1 = Math.max(0, tCenter - dt);
           const t2 = Math.min(1, tCenter + dt);
 
@@ -428,6 +286,7 @@ export function generateXML(
           const i3 = coordinates.length; coordinates.push(`${opX2} ${opY2} ${zTop}`);
           const i4 = coordinates.length; coordinates.push(`${opX1} ${opY1} ${zTop}`);
 
+          // Strict global threshold conversion: Sq Ft * 2,322,576
           let deductValSqFt = 0.0;
           if (op.isDoor) {
             deductValSqFt = openingDefaults.doorDeductArea;
@@ -441,9 +300,9 @@ export function generateXML(
           if (op.isWindow) {
             wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="4" dimCode="WINDOW${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="552" type="1" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="0" windowType="1" windowAHt="${Math.round(heightUnits / 2)}.0000000" windowBHt="${heightUnits}.0000000" defWindowDeductOpeningArea="${deductStr}" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="5" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Window]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
           } else if (op.isDoor) {
-            const isDoubleDoor = wFt >= 3.999;
-            const doubleDoorVal = isDoubleDoor ? '1' : '0';
-            const doorFlags = isDoubleDoor ? '312' : '56';
+            const isDoubleDoor = (wFt >= 3.999);
+            const doubleDoorVal = isDoubleDoor ? "1" : "0";
+            const doorFlags = isDoubleDoor ? "312" : "56";
 
             wallOpeningsXML += `<SKETCHWALLOPENING id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="6" dimCode="DOOR${openCount}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" coordIndex="${i1} ${i2} ${i3} ${i4}" baseHeight="${baseUnits}.0000000" flags="${doorFlags}" type="2" newShape="0" shape="0" color="-657956" textureID="0" openingPos="0" doubleDoorManuallySet="${doubleDoorVal}" doorType="0" doorStyle="0" doorAngle="20" defWindowDeductOpeningArea="${deductStr}" wireFaceMarkedReplace="0" wireFaceUserMarkedReplace="0" isContainmentBarrier="0" woTrim="1"><SKETCHLABEL id="SKT${getNextId()}" exUuid="${generateExUuid()}" prevReadOrder="7" color="-16777216" fontFace="Tahoma" fontSize="12" fontStyle="0" angle="0.0000000" namePosition="0" posInit="0" justify="1" flags="1" multiline="0" roofAnnotation="0" geomniItemAnnotation="0" labelType="2"><SKETCHCDATACHILD><![CDATA[Door]]></SKETCHCDATACHILD></SKETCHLABEL></SKETCHWALLOPENING>`;
           } else {
@@ -456,7 +315,7 @@ export function generateXML(
     });
 
     let verticesXML = '';
-    canonicalPoints.forEach((cp) => {
+    canonicalPoints.forEach(cp => {
       if (cp.connectedWallIds.length > 0) {
         verticesXML += `<SKETCHLEVELVERTEX id="SKT${cp.vertexId}" exUuid="${generateExUuid()}" prevReadOrder="36" vertex="${cp.botIndex}" wallIDs="${cp.connectedWallIds.join(' ')}"/>`;
       }
@@ -468,9 +327,9 @@ export function generateXML(
     lvlSectors.forEach((sec, sIdx) => {
       const isBlock = sec.type === 'block';
       const n = sec.points.length;
-      const ptIndices: number[] = [];
-      const swIds: number[] = [];
-      const svIds: number[] = [];
+      const ptIndices = [];
+      const swIds = [];
+      const svIds = [];
 
       for (let i = 0; i < n; i++) {
         const pt = sec.points[i];
@@ -484,7 +343,7 @@ export function generateXML(
 
       const center = getCentroid(sec.points);
       let containRoomId = lvlRooms.length > 0 ? lvlRooms[0].id : 0;
-      lvlRooms.forEach((r) => {
+      lvlRooms.forEach(r => {
         if (isPointInsidePoly(center, r.points)) containRoomId = r.id;
       });
 
@@ -507,9 +366,9 @@ export function generateXML(
     levelsXML += `<SKETCHLEVEL id="SKT${103 + lIdx}" exUuid="${levelUuid}" prevReadOrder="3" name="${lvl.name}" dimCode="${lvlDimCode}" abbrevNum="0" dimLineItem="0" dimFixedWidth="0" dimPIMaterial="" dimPIAdditionalData="" dimPIItemCode="" dimPIDisplayName="" dimPIType="" dimScripterData="" dimCustGrpName="" dimCustGrpId="0" piElementType="" piElementViewType="" dimdialogCode="0" key="${levelKey}" grpType="11" parentKey="GRP1" grpDesc="${lvl.name}" mainRoomID="0" lastDims="" levelNumber="${lvl.levelNumber}" floorElevation="${lvlFloorElevation}.0000000" copyExisting="1" aerialRoofsCreated="0" piImported="0" riImported="0" importID="0" importSource="" isExteriorLevel="0" hideLevelMeasurements="0" wireFaceGroupMode="0" levelLocked="0">${roomsXML}${wallsXML}${verticesXML}${sectorWallsXML}${sectorsXML}</SKETCHLEVEL>`;
   });
 
-  const winDeductFlag = openingDefaults.windowDeductArea > 0 ? '1' : '0';
-  const doorDeductFlag = openingDefaults.doorDeductArea > 0 ? '1' : '0';
-  const missDeductFlag = openingDefaults.missingWallDeductArea > 0 ? '1' : '0';
+  const winDeductFlag = openingDefaults.windowDeductArea > 0 ? "1" : "0";
+  const doorDeductFlag = openingDefaults.doorDeductArea > 0 ? "1" : "0";
+  const missDeductFlag = openingDefaults.missingWallDeductArea > 0 ? "1" : "0";
 
   const docPrefs = `StartWithProposed:0;WallThickness:508;CeilingHeight:12192;ExtendSurfaceDown:1;ExtendSurfaceDownLength:1524;Grid:0;ShowGrid3D:0;ShowTerrain3D:0;GridSize:1524;SnapGrid:1;SnapGridSize:127;MergeSnap:1;MergeSnapDist:127;DisplayValidation:0;HideDimensionLines:0;ManualUpdateAlgorithm:0;RoofIntersectLevels:1;AddExtLevel:0;LevelElevation:152400;RemoveLFBehindBlcok:1;RemoveLFBehindBlockCeiling:1;RemoveSFBehindBlock:1;RemoveSFUnderBlock:1;RemoveSFAboveBlock:1;AutoCalcRoofWaste:0;AutoCalcRoofWasteNote:0;AutoCalcRoofWasteRidgeHipCap:0;AutoCalcRoofWasteStarter:0;AutoCalcRoofWasteRakeStarter:0;AutoCalcRoofWasteValleys:0;Window:0;WindowType:1;WindowShape:0;DoorType:0;DoorStyle:0;WindowHeight:6096;WindowWidth:7620;WindowDistanceFromFloor:4572;WindowDisplayGrid:1;WindowIgnoreOpening:0;WindowDeductOpening:${winDeductFlag};WindowUseFineTuneFeature:1;DoorHeight:10160;DoorWidth:3810;DoorDistanceFromFloor:0;DoorDouble:0;DoorIgnoreOpening:0;DoorDeductOpening:${doorDeductFlag};DoorAngle:20;DoorLeftHandSwing:0;DoorUseFineTuneFeature:1;MissingWallDeductOpening:${missDeductFlag};MissingWallIgnoreOpening:0;StairWidth:4572;StairDesiredRiserHeight:953;StairDesiredTreadWidth:1397;StairDefaultWallType:0;StairDefaultCeilingType:0;StairShowLabel:0;MaxFillPieces:4;MinFillCut:3048;MinFillCutWidth:3048;RollLengthOverCut:381;SeamAllowanceOvercut:381;UseScrap:1;StairOvercut:127`;
 

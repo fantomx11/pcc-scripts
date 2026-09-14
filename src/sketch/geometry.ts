@@ -13,6 +13,9 @@ export function generateExUuid(): string {
   });
 }
 
+let idSeed = 3000;
+export const getNextId = () => idSeed++;
+
 export function sanitizeDimCode(val?: string): string {
   if (!val) return '';
   return val
@@ -130,4 +133,18 @@ export function isPointInsidePoly(pt: Point, poly: Point[]): boolean {
     if (intersect) inside = !inside;
   }
   return inside;
+}
+
+export function findWallMeta(pA, pB, tol = 0.35) {
+  for (const meta of wallMetadataList) {
+    const d1 = Math.hypot(meta.p0.x - pA.x, meta.p0.y - pA.y) + Math.hypot(meta.p1.x - pB.x, meta.p1.y - pB.y);
+    const d2 = Math.hypot(meta.p0.x - pB.x, meta.p0.y - pB.y) + Math.hypot(meta.p1.x - pA.x, meta.p1.y - pA.y);
+    if (Math.min(d1, d2) < tol) return meta;
+  }
+  for (const meta of wallMetadataList) {
+    if (isSubSegment(pA, pB, meta.p0, meta.p1, tol)) {
+      return meta;
+    }
+  }
+  return null;
 }
