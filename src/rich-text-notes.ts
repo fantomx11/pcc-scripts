@@ -136,7 +136,10 @@ import stylesheetText from './styles/rich-text-notes.css?inline';
         })
         .join('');
 
-      htmlString = htmlString.replace(/(<br\s*\/?>){3,}/gi, '<br><br>');
+      htmlString = htmlString.replace(/(<br\s*\/?>){3,}/gi, '<br><br>')
+                             .replace(/^(?:\s*<br\s*\/?>)+/gi, '')
+                             .replace(/(?:\s*<br\s*\/?>)+$/gi, '')
+                             .trim();
       return htmlString;
     }
 
