@@ -1,7 +1,7 @@
 import { DOMTreeInspector } from './rich-text-notes/DOMTreeInspector';
 import { parseTemplateIntoBlocks, showTemplateDialog, templates } from './rich-text-notes/templates';
 import { HostEnvironment } from './rich-text-notes/types';
-import stylesheetText from './styles/rich-text-notes.css?inline';
+import stylesheetText from './styles/rich-text-notes.css';
 
 (function initRichTextNotes(): void {
   let subjectPrefixGlobal: string | null = null;
@@ -329,22 +329,21 @@ import stylesheetText from './styles/rich-text-notes.css?inline';
     editableContentDiv.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' || e.shiftKey) return;
 
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) return;
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
 
-        const range = selection.getRangeAt(0);
-        const node = range.commonAncestorContainer;
-        const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
-        const currentLi = element?.closest('li');
+      const range = selection.getRangeAt(0);
+      const node = range.commonAncestorContainer;
+      const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
+      const currentLi = element?.closest('li');
 
-        e.preventDefault();
+      e.preventDefault();
 
-        if (currentLi) {
-          handleListEnter(range, currentLi);
-        } else {
-          handleDefaultBreakEnter(range);
-        }
-      });
+      if (currentLi) {
+        handleListEnter(range, currentLi);
+      } else {
+        handleDefaultBreakEnter(range);
+      }
     });
 
     function handleListEnter(range: Range, currentLi: HTMLElement): void {
