@@ -327,11 +327,110 @@ import stylesheetText from './styles/rich-text-notes.css?inline';
     }
 
     editableContentDiv.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
+      if (e.key !== 'Enter' || e.shiftKey) return;
+
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+
+        const range = selection.getRangeAt(0);
+        const node = range.commonAncestorContainer;
+        const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
+        const currentLi = element?.closest('li');
+
         e.preventDefault();
-        doc.execCommand('insertLineBreak');
-      }
+
+        if (currentLi) {
+          handleListEnter(range, currentLi);
+        } else {
+          handleDefaultBreakEnter(range);
+        }
+      });
     });
+
+    function handleListEnter(range: Range, currentLi: HTMLElement): void {
+      range.deleteContents();
+
+      const newLi = document.createElement('li');
+
+      // Split content at the cursor and move trailing nodes to the new list item
+      const trailingRange = range.cloneRange();
+      trailingRange.selectNodeContents(currentLi);
+      trailingRange.setStart(range.endContainer, range.endOffset);
+      const trailingContent = trailingRange.extractContents();
+      newLi.appendChild(trailingContent);
+
+      // Ensure both items have height if empty
+      if (!newLi.hasChildNodes() || !newLi.textContent?.trim()) {
+        newLi.innerHTML = '<br>';
+      }
+      if (!currentLi.hasChildNodes() || !currentLi.textContent?.trim()) {
+        currentLi.innerHTML = '<br>';
+      }
+
+      currentLi.after(newLi);
+
+      // Position cursor at the beginning of the new list item
+      const nextRange = document.createRange();
+      const sel = window.getSelection();
+      nextRange.setStart(newLi, 0);
+      nextRange.collapse(true);
+      sel?.removeAllRanges();
+      sel?.addRange(nextRange);
+    }
+
+    function handleDefaultBreakEnter(range: Range): void {
+      range.deleteContents();
+
+      const br = document.createElement('br');
+      range.insertNode(br);
+
+      // Advance cursor past the new line break
+      const nextRange = document.createRange();
+      nextRange.setStartAfter(br);
+      nextRange.collapse(true);
+
+      // Browser rendering fix: a trailing <br> inside an empty block or at the end
+      // will visually collapse unless followed by a trailing helper <br>
+      const parent = br.parentNode;
+      if (parent && (!br.nextSibling || (br.nextSibling.nodeType === Node.TEXT_NODE && !br.nextSibling.textContent))) {
+        const ghostBr = document.createElement('br');
+        parent.appendChild(ghostBr);
+      }
+
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(nextRange);
+    }
+
+    editableContentDiv.addEventListener('blur', () => {
+      truncateBreakElements(editableContentDiv);
+    });    
+
+    function truncateBreakElements(container: HTMLElement): void {
+      // Truncate leading <br> tags and empty text nodes
+      while (container.firstChild) {
+        const first = container.firstChild;
+        if (first.nodeType === Node.TEXT_NODE && !first.textContent?.trim()) {
+          container.removeChild(first);
+        } else if (first.nodeType === Node.ELEMENT_NODE && (first as HTMLElement).tagName === 'BR') {
+          container.removeChild(first);
+        } else {
+          break;
+        }
+      }
+
+      // Truncate trailing <br> tags and empty text nodes
+      while (container.lastChild) {
+        const last = container.lastChild;
+        if (last.nodeType === Node.TEXT_NODE && !last.textContent?.trim()) {
+          container.removeChild(last);
+        } else if (last.nodeType === Node.ELEMENT_NODE && (last as HTMLElement).tagName === 'BR') {
+          container.removeChild(last);
+        } else {
+          break;
+        }
+      }
+    }
 
     domInspector = new DOMTreeInspector(domContainer, {
       doc,
