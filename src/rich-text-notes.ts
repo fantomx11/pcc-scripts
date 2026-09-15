@@ -1,7 +1,7 @@
 import { DOMTreeInspector } from './rich-text-notes/DOMTreeInspector';
 import { parseTemplateIntoBlocks, showTemplateDialog, templates } from './rich-text-notes/templates';
 import { HostEnvironment } from './rich-text-notes/types';
-import stylesheetText from './styles/rich-text-notes.css';
+import stylesheetText from './styles/rich-text-notes.css?initial';
 
 (function initRichTextNotes(): void {
   let subjectPrefixGlobal: string | null = null;
