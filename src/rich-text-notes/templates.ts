@@ -26,10 +26,15 @@ export const templates: Record<string, TemplateDefinition> = {
     subjectPrefix: null,
     code: '<table><tbody><tr><td><b>from:</b></td><td>[from]</td></tr><tr><td><b>to:</b></td><td>[to]</td></tr>{{optional:b}}<tr><td><b>cc:</b></td><td>[cc]</td></tr>{{/optional}}{{optional:c}}<tr><td><b>sent:</b></td><td>[sent]</td></tr>{{/optional}}{{optional:a}}<tr><td><b>subject:</b></td><td>[subject]</td></tr>{{/optional}}</tbody></table><br>[body]'
   },
+  'initial-approval': {
+    text: 'Initial Approved Estimate',
+    subjectPrefix: 'Important! Ready for PM Assignment',
+    code: '<ul><li><b>Initial approved amount [New Estimate Amount]</b></li><li><b>Ready for PM assignement</b></li>{{optional:Notes}}{{repeat:Notes}}<li>[Note]</li>{{/repeat}}{{/optional}}</ul>'
+  },
   'estimate-update': {
     text: 'Estimate Updated',
     subjectPrefix: 'Estimate Updated',
-    code: '<ul><li><b>Estimate amount updated to [New Estimate Amount]</b></li>{{optional:Notes}}{{repeat:Notes}}<li>[Note]</li>{{/repeat}}{{/optional}}</ul>'
+    code: '<ul><li><b>Estimate amount updated to [New Estimate Amount]</b></li><li><b>Ready for work order generation</b></li>{{optional:Notes}}{{repeat:Notes}}<li>[Note]</li>{{/repeat}}{{/optional}}</ul>'
   },
   'initial-report': {
     text: 'Initial Report',
