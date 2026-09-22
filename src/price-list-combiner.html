@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Price List Item & Component Browser (PLDOC)</title>
+  <style>
+    :root {
+      --bg-main: #090d16;
+      --bg-panel: #111827;
+      --bg-card: #1f2937;
+      --bg-card-hover: #374151;
+      --border: #374151;
+      --border-subtle: #242f3d;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #38bdf8;
+      --accent-dim: rgba(56, 189, 248, 0.15);
+      --green: #34d399;
+      --yellow: #fbbf24;
+      --purple: #c084fc;
+      --red: #f87171;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-main); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    header { background: var(--bg-panel); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-shrink: 0; }
+    .brand-title { font-size: 1.1rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; }
+    .badge { font-size: 0.72rem; padding: 2px 7px; border-radius: 9999px; font-weight: 600; text-transform: uppercase; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+    .badge.waste { background: rgba(248, 113, 113, 0.15); color: var(--red); border-color: var(--red); cursor: help;}
+
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+    .meta-tags { display: flex; gap: 12px; font-size: 0.8rem; color: var(--text-muted); }
+    .meta-item strong { color: #fff; }
+
+    .btn { padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { background: var(--bg-card-hover); border-color: #4b5563; }
+    .btn-primary { background: var(--accent); color: #090d16; border: none; }
+    .btn-primary:hover { background: #0284c7; color: #fff; }
+    .btn-danger { background: rgba(248, 113, 113, 0.1); color: var(--red); border-color: var(--red); }
+    .btn-danger:hover { background: var(--red); color: #fff; }
+
+    .workspace { display: grid; grid-template-columns: 380px 1fr; flex: 1; overflow: hidden; }
+
+    .sidebar { background: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; }
+    .sidebar-controls { padding: 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; position: relative; }
+    
+    .search-input { width: 100%; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; color: #fff; padding: 8px 12px; font-size: 0.85rem; }
+    .search-input:focus { outline: none; border-color: var(--accent); }
+    .category-select { width: 100%; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; color: #fff; padding: 6px 8px; font-size: 0.82rem; }
+
+    .nav-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--bg-main); }
+    .nav-tab { flex: 1; text-align: center; padding: 8px 8px; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; }
+    .nav-tab.active { color: var(--accent); border-color: var(--accent); background: var(--bg-panel); }
+
+    .item-list-container { flex: 1; overflow-y: auto; }
+    .item-row { padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); cursor: pointer; }
+    .item-row:hover { background: rgba(55, 65, 81, 0.4); }
+    .item-row.active { background: rgba(56, 189, 248, 0.12); border-left: 3px solid var(--accent); }
+    .item-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 3px; }
+    .item-code { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; color: var(--accent); }
+    .item-unit { font-size: 0.75rem; color: var(--text-muted); background: var(--bg-card); padding: 1px 6px; border-radius: 4px; }
+    .item-desc { font-size: 0.82rem; color: #d1d5db; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .detail-view { flex: 1; overflow-y: auto; padding: 24px 32px; background: var(--bg-main); }
+    .empty-state { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center; gap: 12px; }
+
+    .item-hero { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .item-hero-title { font-size: 1.3rem; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+    .item-hero-sub { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 16px; }
+    
+    .raw-xml-block { background: #0b1120; color: #38bdf8; border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: var(--font-mono); font-size: 0.8rem; overflow-x: auto; margin-bottom: 20px; display: none; white-space: pre-wrap; }
+
+    .action-selector { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; flex-wrap: wrap; }
+    .action-btn { background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-muted); padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .action-btn.active { background: var(--accent); color: #090d16; border-color: var(--accent); }
+
+    .section-title { font-size: 0.95rem; font-weight: 700; color: #fff; text-transform: uppercase; margin: 20px 0 10px; display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+    .section-title::before { content: ""; display: inline-block; width: 4px; height: 14px; background: var(--accent); border-radius: 2px; }
+
+    .comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .comp-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .comp-card.labor { border-top: 3px solid var(--purple); }
+    .comp-card.material { border-top: 3px solid var(--green); }
+    .comp-card.equipment { border-top: 3px solid var(--yellow); }
+
+    .comp-card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .comp-type { font-size: 0.72rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
+    .comp-type.labor { color: var(--purple); }
+    .comp-type.material { color: var(--green); }
+    .comp-type.equipment { color: var(--yellow); }
+    .comp-raw-formula { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); background: var(--bg-main); padding: 3px 6px; border-radius: 4px; border: 1px solid var(--border-subtle); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .comp-item-row { background: var(--bg-card); padding: 10px; border-radius: 6px; font-size: 0.83rem; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border-subtle); }
+    .comp-item-row .c-header { display: flex; justify-content: space-between; font-weight: 600; color: #fff; }
+    .c-desc { font-size: 0.8rem; color: #cbd5e1; }
+    .c-metrics { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted); background: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px; }
+    
+    .scope-box { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+    .scope-row { margin-bottom: 12px; }
+    .scope-row:last-child { margin-bottom: 0; }
+    .scope-lbl { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+    .scope-val { font-size: 0.88rem; color: #e5e7eb; line-height: 1.4; background: var(--bg-main); padding: 10px; border-radius: 6px; border: 1px solid var(--border-subtle); white-space: pre-wrap; }
+
+    .catalog-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; background: var(--bg-panel); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+    .catalog-table th { background: var(--bg-card); text-align: left; padding: 10px 14px; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+    .catalog-table td { padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); color: #e5e7eb; }
+    .catalog-table tr:hover { background: rgba(55, 65, 81, 0.4); }
+
+    /* Combiner Sidebar Styles */
+    .search-results-dropdown { position: absolute; top: calc(100% - 10px); left: 12px; right: 12px; background: var(--bg-card); border: 1px solid var(--accent); border-radius: 6px; z-index: 50; max-height: 250px; overflow-y: auto; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    .search-result-item { padding: 10px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 0.82rem; }
+    .search-result-item:hover { background: rgba(56, 189, 248, 0.1); }
+    
+    .combo-item-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .combo-item-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .combo-item-info { display: flex; flex-direction: column; gap: 2px; }
+    .combo-item-info strong { color: var(--accent); font-family: var(--font-mono); font-size: 0.85rem; }
+    .combo-item-info span { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;}
+    .combo-item-actions { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 8px; }
+    
+    .combo-math-select { background: var(--bg-main); color: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+    .combo-math-select.add { color: var(--green); border-color: var(--green); }
+    .combo-math-select.sub { color: var(--red); border-color: var(--red); }
+
+    #dropOverlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 3000; }
+    #dropOverlay.active { display: flex; }
+    .drop-modal { background: var(--bg-panel); border: 2px dashed var(--accent); border-radius: 12px; padding: 40px; text-align: center; max-width: 500px; width: 90%; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand-title">
+      <span>PLDOC Assembly Engine</span>
+      <span class="badge" id="plVersionBadge">v0.0</span>
+    </div>
+    <div class="meta-tags">
+      <div class="meta-item">Items: <strong id="metaItemCount">0</strong></div>
+    </div>
+    <div class="header-actions">
+      <input type="file" id="fileInput" accept=".xml,text/xml" style="display:none">
+      <button class="btn" id="btnLoadSample">Load Sample Data</button>
+      <button class="btn btn-primary" id="btnUpload">Upload XML</button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <div class="sidebar">
+      <div class="nav-tabs">
+        <div class="nav-tab active" id="tabItems">Price List Items</div>
+        <div class="nav-tab" id="tabComponents">Component Catalog</div>
+        <div class="nav-tab" id="tabCombiner">Assembly Math</div>
+      </div>
+      
+      <!-- Items Tab Controls -->
+      <div class="sidebar-controls" id="itemControls">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search by selector, code or desc...">
+        <select id="catFilter" class="category-select"><option value="">All Categories</option></select>
+      </div>
+
+      <!-- Components Tab Controls -->
+      <div class="sidebar-controls" id="compControls" style="display:none">
+        <input type="text" id="compSearchInput" class="search-input" placeholder="Filter component code...">
+        <select id="compTypeFilter" class="category-select">
+          <option value="ALL">All Types</option>
+          <option value="LAB">Labor</option>
+          <option value="MAT">Material</option>
+          <option value="EQU">Equipment</option>
+        </select>
+      </div>
+
+      <!-- Combiner Tab Controls -->
+      <div class="sidebar-controls" id="combinerControls" style="display:none">
+        <input type="text" id="comboSearchInput" class="search-input" placeholder="Search to add an item...">
+        <div class="search-results-dropdown" id="comboSearchDropdown"></div>
+      </div>
+
+      <div class="item-list-container" id="itemListContainer"></div>
+      
+      <div class="item-list-container" id="comboListContainer" style="display:none;">
+        <div style="padding:12px 12px 0; font-size:0.8rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">Custom Formula Stack</div>
+        <div id="comboItemsWrapper"></div>
+      </div>
+    </div>
+
+    <div class="detail-view" id="mainDetailView">
+      <div class="empty-state" id="emptyState">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        <h3>No Selection</h3>
+        <p>Select an item or load an XML to begin viewing components.</p>
+      </div>
+      
+      <div id="itemDetailContent" style="display: none;"></div>
+      <div id="compCatalogContent" style="display:none; padding:20px; flex-direction:column; gap:16px;"></div>
+      
+      <!-- Combiner Detail View -->
+      <div id="combinerDetailContent" style="display:none;">
+        <div class="item-hero">
+          <div class="item-hero-title">
+            <span>Custom Assembly Math</span>
+            <button class="btn btn-primary" id="btnCopyCombo" onclick="copyComboTableForXactimate()">Copy for Xactimate</button>
+          </div>
+          <div class="item-hero-sub">Add or Subtract items in the left panel to dynamically compute netting component yields.</div>
+        </div>
+        
+        <table class="catalog-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Component Code</th>
+              <th>Supporting Events</th>
+              <th>Net Combined Yield</th>
+            </tr>
+          </thead>
+          <tbody id="comboTableBody">
+            <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Add items from the sidebar to calculate a combined assembly.</td></tr>
+          </tbody>
+        </table>
+
+        <div style="font-size:0.78rem; color:var(--text-muted); line-height:1.4; margin-top:16px;">
+          <strong>Formula Applied:</strong> <code>Net Yield = 1 / &sum;(If Add: +1/Yield, If Sub: -1/Yield)</code>.<br>
+          Any component whose total consumption drops to zero or below is automatically omitted from the result.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dropOverlay">
+    <div class="drop-modal"><h2>Drop Price List XML here</h2></div>
+  </div>
+
+  <script>
+    // ==========================================
+    // GLOBAL HELPER FUNCTIONS
+    // ==========================================
+    function escapeHtml(str) { 
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); 
+    }
+
+    // System State
+    const store = {
+      plInfo: {},
+      categories: new Map(),
+      units: new Map(),
+      laborComps: new Map(),
+      matComps: new Map(),
+      equComps: new Map(),
+      labEvents: new Map(),
+      matEvents: new Map(),
+      equEvents: new Map(),
+      items: [],
+      activeItem: null,
+      activeActionIdx: 0,
+      
+      // Store custom math items: { item: Object, sign: 1 (Add) or -1 (Sub) }
+      comboItems: [] 
+    };
+
+    // DOM Attachments
+    const ui = {
+      fileInput: document.getElementById('fileInput'),
+      btnUpload: document.getElementById('btnUpload'),
+      btnLoadSample: document.getElementById('btnLoadSample'),
+      dropOverlay: document.getElementById('dropOverlay'),
+      
+      tabItems: document.getElementById('tabItems'),
+      tabComponents: document.getElementById('tabComponents'),
+      tabCombiner: document.getElementById('tabCombiner'),
+
+      itemControls: document.getElementById('itemControls'),
+      compControls: document.getElementById('compControls'),
+      combinerControls: document.getElementById('combinerControls'),
+      
+      itemListContainer: document.getElementById('itemListContainer'),
+      comboListContainer: document.getElementById('comboListContainer'),
+      comboItemsWrapper: document.getElementById('comboItemsWrapper'),
+      comboSearchInput: document.getElementById('comboSearchInput'),
+      comboSearchDropdown: document.getElementById('comboSearchDropdown'),
+      
+      searchInput: document.getElementById('searchInput'),
+      catFilter: document.getElementById('catFilter'),
+      compSearchInput: document.getElementById('compSearchInput'),
+      compTypeFilter: document.getElementById('compTypeFilter'),
+
+      emptyState: document.getElementById('emptyState'),
+      itemDetailContent: document.getElementById('itemDetailContent'),
+      compCatalogContent: document.getElementById('compCatalogContent'),
+      combinerDetailContent: document.getElementById('combinerDetailContent'),
+      comboTableBody: document.getElementById('comboTableBody'),
+      btnCopyCombo: document.getElementById('btnCopyCombo')
+    };
+
+    // Tab Navigation Routing
+    window.switchTab = (tabName) => {
+      ui.tabItems.classList.toggle('active', tabName === 'ITEMS');
+      ui.tabComponents.classList.toggle('active', tabName === 'COMPONENTS');
+      ui.tabCombiner.classList.toggle('active', tabName === 'COMBINER');
+
+      ui.itemControls.style.display = tabName === 'ITEMS' ? 'flex' : 'none';
+      ui.compControls.style.display = tabName === 'COMPONENTS' ? 'flex' : 'none';
+      ui.combinerControls.style.display = tabName === 'COMBINER' ? 'flex' : 'none';
+
+      ui.itemListContainer.style.display = tabName === 'ITEMS' ? 'block' : 'none';
+      ui.comboListContainer.style.display = tabName === 'COMBINER' ? 'block' : 'none';
+
+      ui.itemDetailContent.style.display = 'none';
+      ui.compCatalogContent.style.display = 'none';
+      ui.combinerDetailContent.style.display = 'none';
+      ui.emptyState.style.display = 'none';
+
+      if (tabName === 'ITEMS') {
+        if (store.activeItem) ui.itemDetailContent.style.display = 'block';
+        else ui.emptyState.style.display = 'flex';
+      } else if (tabName === 'COMPONENTS') {
+        ui.compCatalogContent.style.display = 'flex';
+        renderComponentCatalog();
+      } else if (tabName === 'COMBINER') {
+        ui.combinerDetailContent.style.display = 'block';
+        renderComboUI();
+      }
+    };
+
+    ui.tabItems.onclick = () => switchTab('ITEMS');
+    ui.tabComponents.onclick = () => switchTab('COMPONENTS');
+    ui.tabCombiner.onclick = () => switchTab('COMBINER');
+
+    // Drag-Drop
+    window.addEventListener('dragover', e => { e.preventDefault(); ui.dropOverlay.classList.add('active'); });
+    ui.dropOverlay.addEventListener('dragleave', e => { e.preventDefault(); ui.dropOverlay.classList.remove('active'); });
+    ui.dropOverlay.addEventListener('drop', e => { e.preventDefault(); ui.dropOverlay.classList.remove('active'); if (e.dataTransfer.files.length) loadXmlFile(e.dataTransfer.files[0]); });
+    ui.btnUpload.addEventListener('click', () => ui.fileInput.click());
+    ui.fileInput.addEventListener('change', e => { if (e.target.files.length) loadXmlFile(e.target.files[0]); });
+
+    function loadXmlFile(file) {
+      const reader = new FileReader();
+      reader.onload = e => parsePriceListXml(e.target.result);
+      reader.readAsText(file);
+    }
+
+    function getAttrOrChild(node, name) {
+      if (node.hasAttribute(name)) return node.getAttribute(name);
+      const child = node.querySelector(name);
+      return child ? child.textContent.trim() : '';
+    }
+
+    function formatXml(xml) {
+      let formatted = '';
+      let reg = /(>)(<)(\/*)/g;
+      xml = xml.replace(reg, '$1\r\n$2$3');
+      let pad = 0;
+      xml.split('\r\n').forEach(node => {
+          let indent = 0;
+          if (node.match(/.+<\/\w[^>]*>$/)) indent = 0;
+          else if (node.match(/^<\/\w/)) { if (pad != 0) pad -= 1; } 
+          else if (node.match(/^<\w[^>]*[^\/]>.*$/)) indent = 1;
+          formatted += '  '.repeat(pad) + node + '\r\n';
+          pad += indent;
+      });
+      return formatted;
+    }
+
+    function parsePriceListXml(xmlString) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xmlString, 'application/xml');
+      const xmlSerializer = new XMLSerializer();
+      
+      store.categories.clear(); store.units.clear(); store.items = [];
+      store.laborComps.clear(); store.matComps.clear(); store.equComps.clear();
+      store.labEvents.clear(); store.matEvents.clear(); store.equEvents.clear();
+      store.comboItems = [];
+
+      const plInfoEl = doc.querySelector('PL_INFO');
+      store.plInfo.version = plInfoEl ? getAttrOrChild(plInfoEl, 'version') : '1.0';
+      doc.querySelectorAll('CATEGORIES > CATEGORY').forEach(el => store.categories.set(getAttrOrChild(el, 'code'), { code: getAttrOrChild(el, 'code'), desc: getAttrOrChild(el, 'desc') }));
+      doc.querySelectorAll('UNITS > UNIT').forEach(el => store.units.set(getAttrOrChild(el, 'code'), { code: getAttrOrChild(el, 'code'), desc: getAttrOrChild(el, 'desc') }));
+
+      doc.querySelectorAll('MAT_SUPP_EVENTS > SPT, MAT_SUPP_EVENTS SPT').forEach(el => store.matEvents.set(getAttrOrChild(el, 'id'), { code: getAttrOrChild(el, 'code'), desc: getAttrOrChild(el, 'desc'), rate: parseFloat(getAttrOrChild(el, 'rate')) || 0 }));
+      doc.querySelectorAll('LAB_SUPP_EVENTS > LSPT, LAB_SUPP_EVENTS LSPT').forEach(el => store.labEvents.set(getAttrOrChild(el, 'id'), { code: getAttrOrChild(el, 'code'), desc: getAttrOrChild(el, 'desc'), rate: parseFloat(getAttrOrChild(el, 'rate')) || 0 }));
+      doc.querySelectorAll('EQU_SUPP_EVENTS > ESPT, EQU_SUPP_EVENTS ESPT').forEach(el => store.equEvents.set(getAttrOrChild(el, 'id'), { code: getAttrOrChild(el, 'code'), desc: getAttrOrChild(el, 'desc'), rate: parseFloat(getAttrOrChild(el, 'rate')) || 0 }));
+
+      doc.querySelectorAll('LAB_COMPONENTS > LCMP').forEach(el => {
+        const c = { type: 'LABOR', code: getAttrOrChild(el, 'code'), dsc: getAttrOrChild(el, 'dsc'), rate: (parseFloat(getAttrOrChild(el, 'base')) || 0) + (parseFloat(getAttrOrChild(el, 'wcAmt')) || 0) + (parseFloat(getAttrOrChild(el, 'markup')) || 0) + (parseFloat(getAttrOrChild(el, 'fbAmt')) || 0) };
+        const id = getAttrOrChild(el, 'id'); if(id) store.laborComps.set(id, c); store.laborComps.set(c.code, c);
+      });
+      doc.querySelectorAll('MAT_COMPONENTS > CMP').forEach(el => {
+        const c = { type: 'MATERIAL', code: getAttrOrChild(el, 'code'), dsc: getAttrOrChild(el, 'dsc'), amt: parseFloat(getAttrOrChild(el, 'amt')) || 0, unt: getAttrOrChild(el, 'unt') };
+        const id = getAttrOrChild(el, 'id'); if(id) store.matComps.set(id, c); store.matComps.set(c.code, c);
+      });
+      doc.querySelectorAll('EQU_COMPONENTS > ECMP').forEach(el => {
+        const c = { type: 'EQUIPMENT', code: getAttrOrChild(el, 'code'), dsc: getAttrOrChild(el, 'dsc'), amt: parseFloat(getAttrOrChild(el, 'amt')) || 0, unt: getAttrOrChild(el, 'unt') };
+        const id = getAttrOrChild(el, 'id'); if(id) store.equComps.set(id, c); store.equComps.set(c.code, c);
+      });
+
+      doc.querySelectorAll('ITEM').forEach(el => {
+        const item = {
+          cat: getAttrOrChild(el, 'cat'), sel: getAttrOrChild(el, 'sel'),
+          dsc: getAttrOrChild(el, 'dsc'), un: getAttrOrChild(el, 'un'),
+          rawXml: formatXml(xmlSerializer.serializeToString(el)),
+          actions: []
+        };
+        let repAct = null, remAct = null;
+        const acts = Array.from(el.querySelectorAll('ACT'));
+        if (acts.length > 0) {
+          acts.forEach(actEl => {
+            const actType = getAttrOrChild(actEl, 'act') || '+';
+            const data = { a_l: getAttrOrChild(actEl, 'a_l'), a_m: getAttrOrChild(actEl, 'a_m'), a_e: getAttrOrChild(actEl, 'a_e'), d_inc: getAttrOrChild(actEl, 'd_inc'), d_exc: getAttrOrChild(actEl, 'd_exc'), d_nt: getAttrOrChild(actEl, 'd_nt') };
+            if (actType === '-' || actType === 'D') remAct = data; else if (actType === '+') repAct = data;
+          });
+        } else {
+          repAct = { a_l: getAttrOrChild(el, 'a_l'), a_m: getAttrOrChild(el, 'a_m'), a_e: getAttrOrChild(el, 'a_e'), d_inc: getAttrOrChild(el, 'd_inc'), d_exc: getAttrOrChild(el, 'd_exc'), d_nt: getAttrOrChild(el, 'd_nt') };
+        }
+        const pushAct = (code, lbl, data) => item.actions.push({ act: code, label: lbl, ...data });
+
+        if (repAct) {
+          pushAct('+', '+ Replace', repAct); pushAct('M', 'M Material Only', { ...repAct, a_l: '', a_e: '' }); pushAct('I', 'I Install Only', { ...repAct, a_m: '' });
+        }
+        if (remAct) pushAct('-', '- Remove', remAct);
+        if (repAct && remAct) {
+          pushAct('&', '& Remove & Replace', {
+            a_l: [repAct.a_l, remAct.a_l].filter(Boolean).join('|'), a_m: [repAct.a_m, remAct.a_m].filter(Boolean).join('|'), a_e: [repAct.a_e, remAct.a_e].filter(Boolean).join('|'),
+            d_inc: `[REMOVE]\n${remAct.d_inc || 'N/A'}\n\n[REPLACE]\n${repAct.d_inc || 'N/A'}`, d_exc: `[REMOVE]\n${remAct.d_exc || 'N/A'}\n\n[REPLACE]\n${repAct.d_exc || 'N/A'}`, d_nt:  `[REMOVE]\n${remAct.d_nt || 'N/A'}\n\n[REPLACE]\n${repAct.d_nt || 'N/A'}`
+          });
+        }
+        item.actions.sort((a, b) => ['&', '+', '-', 'M', 'I'].indexOf(a.act) - ['&', '+', '-', 'M', 'I'].indexOf(b.act));
+        item.defaultActIdx = Math.max(0, item.actions.findIndex(a => a.act === (getAttrOrChild(el, 'act') || '+')));
+        store.items.push(item);
+      });
+
+      document.getElementById('plVersionBadge').textContent = 'v' + store.plInfo.version;
+      document.getElementById('metaItemCount').textContent = store.items.length;
+
+      ui.catFilter.innerHTML = '<option value="">All Categories</option>';
+      [...new Set(store.items.map(i => i.cat))].sort().forEach(c => {
+        const desc = store.categories.get(c)?.desc || '';
+        ui.catFilter.innerHTML += `<option value="${c}">${c} ${desc ? '- '+desc : ''}</option>`;
+      });
+
+      renderItemList();
+      if (store.items.length > 0) { switchTab('ITEMS'); selectItemByCode(store.items[0].cat, store.items[0].sel); }
+    }
+
+    function resolveId(map, rawId, prefix) {
+      if (!rawId) return null;
+      if (map.has(prefix + rawId)) return map.get(prefix + rawId);
+      if (map.has(rawId)) return map.get(rawId);
+      for (let k of map.keys()) if (String(k).endsWith(rawId)) return map.get(k);
+      return null;
+    }
+
+    function decodePackedFormula(packedStr, compMap, compPrefix, eventMap, eventPrefix, typeName) {
+      if (!packedStr) return [];
+      return packedStr.split('|').map(chunk => {
+        const [rawCompId, yieldVal, rawEventId] = chunk.split(',');
+        return {
+          type: typeName, rawCompId: rawCompId,
+          component: resolveId(compMap, rawCompId, compPrefix) || { code: rawCompId || '?', dsc: 'Unknown Comp', amt: 0, rate: 0 },
+          yield: parseFloat(yieldVal) || 0,
+          rawEventId: rawEventId || '',
+          event: resolveId(eventMap, rawEventId, eventPrefix) || null
+        };
+      });
+    }
+
+    function renderItemList() {
+      const q = ui.searchInput.value.toLowerCase().trim();
+      const cat = ui.catFilter.value;
+      const filtered = store.items.filter(i => (!cat || i.cat === cat) && (!q || (i.cat+' '+i.sel+' '+i.dsc).toLowerCase().includes(q))).slice(0, 300);
+      ui.itemListContainer.innerHTML = filtered.map(item => `
+        <div class="item-row ${store.activeItem === item ? 'active' : ''}" onclick="selectItemByCode('${item.cat}', '${item.sel}')">
+          <div class="item-header"><span class="item-code">${item.cat} ${item.sel}</span><span class="item-unit">${item.un}</span></div>
+          <div class="item-desc">${escapeHtml(item.dsc)}</div>
+        </div>
+      `).join('');
+    }
+
+    window.selectItemByCode = (cat, sel) => {
+      store.activeItem = store.items.find(i => i.cat === cat && i.sel == sel);
+      store.activeActionIdx = store.activeItem.defaultActIdx || 0;
+      renderItemList(); renderItemDetail();
+    };
+
+    window.switchAction = (idx) => { store.activeActionIdx = idx; renderItemDetail(); };
+    window.toggleRawXml = (btn) => {
+      const block = document.getElementById('rawXmlBlock');
+      if (block.style.display === 'none' || !block.style.display) { block.style.display = 'block'; btn.textContent = 'Hide Raw XML'; } 
+      else { block.style.display = 'none'; btn.textContent = 'View Raw XML'; }
+    };
+
+    function renderItemDetail() {
+      const item = store.activeItem;
+      if (!item) return;
+
+      const action = item.actions[store.activeActionIdx] || {};
+      const matList = decodePackedFormula(action.a_m, store.matComps, '5', store.matEvents, '2', 'MATERIAL');
+      const labList = decodePackedFormula(action.a_l, store.laborComps, '4', store.labEvents, '1', 'LABOR');
+      const equList = decodePackedFormula(action.a_e, store.equComps, '6', store.equEvents, '3', 'EQUIPMENT');
+
+      ui.itemDetailContent.innerHTML = `
+        <div class="item-hero">
+          <div class="item-hero-title">
+            <div style="display:flex; align-items:center; gap:12px;"><span>${item.cat} ${item.sel}</span><span class="badge">${item.un}</span></div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-primary" style="font-size:0.75rem;" onclick="addComboItem('${item.cat}', '${item.sel}', 1); switchTab('COMBINER');">Add to Combiner (+)</button>
+              <button class="btn" style="font-size:0.75rem;" onclick="toggleRawXml(this)">View Raw XML</button>
+            </div>
+          </div>
+          <div class="item-hero-sub">${escapeHtml(item.dsc)}</div>
+          <pre id="rawXmlBlock" class="raw-xml-block">${escapeHtml(item.rawXml)}</pre>
+        </div>
+
+        <div class="action-selector">
+          ${item.actions.map((a, i) => `<button class="action-btn ${i === store.activeActionIdx ? 'active' : ''}" onclick="switchAction(${i})">${a.label}</button>`).join('')}
+        </div>
+
+        <div class="section-title">Decoded Bill of Materials</div>
+        <div class="comp-grid">
+          <div class="comp-card material">
+            <div class="comp-card-header"><span class="comp-type material">Material</span>${action.a_m ? `<span class="comp-raw-formula">${escapeHtml(action.a_m)}</span>` : ''}</div>
+            ${matList.length === 0 ? '<div style="font-size:0.8rem; color:var(--text-muted);">No materials.</div>' : matList.map(m => `
+              <div class="comp-item-row"><div class="c-header"><span>${m.component.code}</span><span style="color:var(--green)">$${(m.component.amt || 0).toFixed(2)}</span></div>
+              <div class="c-desc">${escapeHtml(m.component.dsc)}</div><div class="c-metrics"><span>${m.yield ? `Yield: <strong>${m.yield}</strong>` : 'Direct'}</span>${m.event ? `<span class="badge waste">${m.event.code}</span>` : ''}</div></div>
+            `).join('')}
+          </div>
+          <div class="comp-card labor">
+            <div class="comp-card-header"><span class="comp-type labor">Labor</span>${action.a_l ? `<span class="comp-raw-formula">${escapeHtml(action.a_l)}</span>` : ''}</div>
+            ${labList.length === 0 ? '<div style="font-size:0.8rem; color:var(--text-muted);">No labor.</div>' : labList.map(l => `
+              <div class="comp-item-row"><div class="c-header"><span>${l.component.code}</span><span style="color:var(--purple)">$${(l.component.rate || 0).toFixed(2)}/HR</span></div>
+              <div class="c-desc">${escapeHtml(l.component.dsc)}</div><div class="c-metrics"><span>${l.yield ? `Yield: <strong>${l.yield}</strong>/HR` : ''}</span></div></div>
+            `).join('')}
+          </div>
+          <div class="comp-card equipment">
+            <div class="comp-card-header"><span class="comp-type equipment">Equipment</span>${action.a_e ? `<span class="comp-raw-formula">${escapeHtml(action.a_e)}</span>` : ''}</div>
+            ${equList.length === 0 ? '<div style="font-size:0.8rem; color:var(--text-muted);">No equipment.</div>' : equList.map(e => `
+              <div class="comp-item-row"><div class="c-header"><span>${e.component.code}</span><span style="color:var(--yellow)">$${(e.component.amt || 0).toFixed(2)}</span></div>
+              <div class="c-desc">${escapeHtml(e.component.dsc)}</div></div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // MATH ENGINE (COMBINER)
+    // ==========================================
+    
+    function getItemAssemblyList(item) {
+      if (!item) return [];
+      const action = item.actions.find(a => a.act === '+') || item.actions[0] || {};
+      const mat = decodePackedFormula(action.a_m, store.matComps, '5', store.matEvents, '2', 'MATERIAL');
+      const lab = decodePackedFormula(action.a_l, store.laborComps, '4', store.labEvents, '1', 'LABOR');
+      const equ = decodePackedFormula(action.a_e, store.equComps, '6', store.equEvents, '3', 'EQUIPMENT');
+      return [...lab, ...mat, ...equ];
+    }
+
+    ui.comboSearchInput.addEventListener('input', () => {
+      const q = ui.comboSearchInput.value.toLowerCase().trim();
+      if (!q) { ui.comboSearchDropdown.style.display = 'none'; return; }
+      const matches = store.items.filter(i => (i.cat+' '+i.sel+' '+i.dsc).toLowerCase().includes(q)).slice(0, 15);
+      
+      if (matches.length === 0) { ui.comboSearchDropdown.innerHTML = '<div class="search-result-item" style="color:var(--text-muted);">No items found.</div>'; } 
+      else {
+        ui.comboSearchDropdown.innerHTML = matches.map(m => `
+          <div class="search-result-item" onclick="addComboItem('${m.cat}', '${m.sel}')">
+            <strong style="color:var(--accent);">${m.cat} ${m.sel}</strong> - ${escapeHtml(m.dsc)}
+          </div>
+        `).join('');
+      }
+      ui.comboSearchDropdown.style.display = 'block';
+    });
+
+    window.addComboItem = (cat, sel, sign = 1) => {
+      const item = store.items.find(i => i.cat === cat && i.sel == sel);
+      if (item) {
+        store.comboItems.push({ item: item, sign: sign });
+        ui.comboSearchInput.value = '';
+        ui.comboSearchDropdown.style.display = 'none';
+        renderComboUI();
+      }
+    };
+
+    window.removeComboItem = (index) => {
+      store.comboItems.splice(index, 1);
+      renderComboUI();
+    };
+
+    window.updateComboSign = (index, value) => {
+      store.comboItems[index].sign = parseInt(value, 10);
+      renderComboUI();
+    };
+
+    let currentComboRows = [];
+    function renderComboUI() {
+      // 1. Render Sidebar Stack
+      if (store.comboItems.length === 0) {
+        ui.comboItemsWrapper.innerHTML = '<div style="padding:16px; text-align:center; color:var(--text-muted); font-size:0.8rem;">Search and select items to build custom math.</div>';
+      } else {
+        ui.comboItemsWrapper.innerHTML = store.comboItems.map((obj, idx) => `
+          <div class="combo-item-card">
+            <div class="combo-item-header">
+              <div class="combo-item-info">
+                <strong>${obj.item.cat} ${obj.item.sel}</strong>
+                <span title="${escapeHtml(obj.item.dsc)}">${escapeHtml(obj.item.dsc)}</span>
+              </div>
+              <button class="btn" style="padding:4px 8px; font-size:0.7rem; border:none; background:transparent; color:var(--text-muted);" onclick="removeComboItem(${idx})">✕</button>
+            </div>
+            <div class="combo-item-actions">
+              <select class="combo-math-select ${obj.sign === 1 ? 'add' : 'sub'}" onchange="updateComboSign(${idx}, this.value)">
+                <option value="1" ${obj.sign === 1 ? 'selected' : ''}>[+] Add Assembly</option>
+                <option value="-1" ${obj.sign === -1 ? 'selected' : ''}>[-] Subtract Assembly</option>
+              </select>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // 2. Compute the Math Ledger
+      const comboMap = new Map();
+      
+      store.comboItems.forEach(obj => {
+        const list = getItemAssemblyList(obj.item);
+        list.forEach(c => {
+          if (c.yield <= 0) return; 
+          const eventCode = c.event ? c.event.code : c.rawEventId;
+          const key = `${c.type}_${c.component.code}_${eventCode}`;
+          
+          if (!comboMap.has(key)) {
+            comboMap.set(key, { type: c.type, code: c.component.code, event: eventCode, totalConsumption: 0 });
+          }
+          
+          // Add or Subtract consumption rate depending on user selection
+          const consumptionDelta = 1 / c.yield;
+          if (obj.sign === 1) {
+            comboMap.get(key).totalConsumption += consumptionDelta;
+          } else {
+            comboMap.get(key).totalConsumption -= consumptionDelta;
+          }
+        });
+      });
+
+      currentComboRows = [];
+      comboMap.forEach(g => {
+        // If consumption falls to 0 or below, it gets wiped out
+        if (g.totalConsumption > 0.000001) {
+          const finalYield = 1 / g.totalConsumption;
+          currentComboRows.push({ type: g.type, code: g.code, event: g.event, yield: Number(finalYield.toFixed(4)) });
+        }
+      });
+
+      // Sort by Type then Code
+      currentComboRows.sort((a,b) => a.type.localeCompare(b.type) || a.code.localeCompare(b.code));
+
+      if (currentComboRows.length === 0) {
+        ui.comboTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Math netted to zero, or no items selected.</td></tr>';
+      } else {
+        ui.comboTableBody.innerHTML = currentComboRows.map(row => `
+          <tr>
+            <td><span class="badge ${row.type.toLowerCase()}">${row.type}</span></td>
+            <td><strong style="color:var(--accent); font-family:var(--font-mono);">${row.code}</strong></td>
+            <td>${row.event ? `<span class="badge waste">${row.event}</span>` : '<span style="color:var(--text-muted);">-</span>'}</td>
+            <td><strong style="color:#fff;">${row.yield}</strong></td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    window.copyComboTableForXactimate = () => {
+      if (!currentComboRows.length) return;
+      const tsv = ['Type\tComponent Code\tSupporting Events\tDirect Yield', ...currentComboRows.map(r => `${r.type}\t${r.code}\t${r.event}\t${r.yield}`)].join('\n');
+      navigator.clipboard.writeText(tsv).then(() => { const orig = ui.btnCopyCombo.textContent; ui.btnCopyCombo.textContent = 'Copied!'; setTimeout(() => ui.btnCopyCombo.textContent = orig, 1800); });
+    };
+
+    // Auto-Close Search Dropdown
+    document.addEventListener('click', (e) => {
+      if (!ui.combinerControls.contains(e.target)) ui.comboSearchDropdown.style.display = 'none';
+    });
+
+    // Component Catalog Setup
+    function renderComponentCatalog() {
+      const q = ui.compSearchInput.value.toLowerCase().trim();
+      const type = ui.compTypeFilter.value;
+      let list = [];
+      if (type === 'ALL' || type === 'LAB') list.push(...Array.from(new Set(store.laborComps.values())));
+      if (type === 'ALL' || type === 'MAT') list.push(...Array.from(new Set(store.matComps.values())));
+      if (type === 'ALL' || type === 'EQU') list.push(...Array.from(new Set(store.equComps.values())));
+      if (q) list = list.filter(c => (c.code && c.code.toLowerCase().includes(q)) || (c.dsc && c.dsc.toLowerCase().includes(q)));
+
+      ui.compCatalogContent.innerHTML = `<div style="margin-bottom:12px; font-size:0.9rem; color:var(--text-muted);">Found <strong>${list.length}</strong> unique components.</div>
+        <table class="catalog-table"><thead><tr><th>Type</th><th>Code</th><th>Description</th><th>Rate / Amount</th><th>Action</th></tr></thead>
+        <tbody>${list.map(c => `<tr><td><span class="badge">${c.type}</span></td><td><strong style="color:var(--accent); font-family:var(--font-mono);">${c.code}</strong></td>
+        <td>${escapeHtml(c.dsc)}</td><td>${c.rate ? '$' + c.rate.toFixed(2) + '/hr' : '$' + (c.amt || 0).toFixed(2) + ' / ' + (c.unt || 'EA')}</td>
+        <td><button class="btn" onclick="switchTab('ITEMS'); ui.searchInput.value='${c.code}'; renderItemList();">Find Items</button></td></tr>`).join('')}
+        </tbody></table>`;
+    }
+    ui.compSearchInput.addEventListener('input', renderComponentCatalog); ui.compTypeFilter.addEventListener('change', renderComponentCatalog);
+    ui.searchInput.addEventListener('input', renderItemList); ui.catFilter.addEventListener('change', renderItemList);
+
+    ui.btnLoadSample.onclick = () => {
+      const sampleXml = `<?xml version="1.0" encoding="utf-8"?>
+<PLDOC version="1">
+  <CATEGORIES><CATEGORY code="PNT" desc="Painting" /></CATEGORIES>
+  <COMPONENTS>
+    <MAT_COMPONENTS>
+      <CMP id="5STN" code="STAIN" dsc="Wood Stain" amt="42.00" unt="GL" />
+      <CMP id="5STP" code="STRIPPER" dsc="Chemical Remover" amt="38.00" unt="GL" />
+      <CMP id="5CLR" code="CLEARCOAT" dsc="Clear Sealer" amt="40.00" unt="GL" />
+    </MAT_COMPONENTS>
+    <LAB_COMPONENTS>
+      <LCMP id="4PNT" code="LAB_PNT" dsc="Painter" base="36.00" />
+    </LAB_COMPONENTS>
+  </COMPONENTS>
+  <SUPP_EVENTS>
+    <MAT_SUPP_EVENTS>
+      <SPT id="2WST" code="WASTE5" desc="5% Standard Material Waste" rate="5" />
+    </MAT_SUPP_EVENTS>
+  </SUPP_EVENTS>
+  <ITEM_TREE>
+    <ITEMS>
+      <!-- Combined Example -->
+      <ITEM itemId="1001" cat="PNT" sel="STNSTRIP" dsc="Strip, stain, and finish floor" un="SF" act="+">
+        <ACT act="+" a_l="PNT,80,null" a_m="STP,250,WST|STN,400,WST" />
+      </ITEM>
+      <!-- Subtraction Example -->
+      <ITEM itemId="1002" cat="PNT" sel="STNFIN" dsc="Stain and finish floor (no strip)" un="SF" act="+">
+        <ACT act="+" a_l="PNT,200,null" a_m="STN,400,WST" />
+      </ITEM>
+      <!-- Addition Example -->
+      <ITEM itemId="1003" cat="PNT" sel="SEAL" dsc="Seal cabinetry" un="SF" act="+">
+        <ACT act="+" a_l="PNT,180,null" a_m="CLR,350,WST" />
+      </ITEM>
+    </ITEMS>
+  </ITEM_TREE>
+</PLDOC>`;
+      parsePriceListXml(sampleXml);
+    };
+
+    ui.btnLoadSample.click();
+  </script>
+</body>
+</html>
