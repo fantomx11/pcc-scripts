@@ -331,75 +331,72 @@ import stylesheetText from './styles/rich-text-notes.css?inline';
 
     editableContentDiv.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' || e.shiftKey) return;
-
-      const selection = window.getSelection();
+    
+      // Use iframe's window
+      const selection = win.getSelection();
       if (!selection || selection.rangeCount === 0) return;
-
+    
       const range = selection.getRangeAt(0);
       const node = range.commonAncestorContainer;
       const element = node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
       const currentLi = element?.closest('li');
-
+    
       e.preventDefault();
-
+    
       if (currentLi) {
         handleListEnter(range, currentLi);
       } else {
         handleDefaultBreakEnter(range);
       }
+    
+      updateSourceFromEditor();
     });
-
+    
     function handleListEnter(range: Range, currentLi: HTMLElement): void {
       range.deleteContents();
-
-      const newLi = document.createElement('li');
-
-      // Split content at the cursor and move trailing nodes to the new list item
+    
+      const newLi = doc.createElement('li'); // Use iframe doc
+    
       const trailingRange = range.cloneRange();
       trailingRange.selectNodeContents(currentLi);
       trailingRange.setStart(range.endContainer, range.endOffset);
       const trailingContent = trailingRange.extractContents();
       newLi.appendChild(trailingContent);
-
-      // Ensure both items have height if empty
+    
       if (!newLi.hasChildNodes() || !newLi.textContent?.trim()) {
         newLi.innerHTML = '<br>';
       }
       if (!currentLi.hasChildNodes() || !currentLi.textContent?.trim()) {
         currentLi.innerHTML = '<br>';
       }
-
+    
       currentLi.after(newLi);
-
-      // Position cursor at the beginning of the new list item
-      const nextRange = document.createRange();
-      const sel = window.getSelection();
+    
+      const nextRange = doc.createRange(); // Use iframe doc
+      const sel = win.getSelection();       // Use iframe win
       nextRange.setStart(newLi, 0);
       nextRange.collapse(true);
       sel?.removeAllRanges();
       sel?.addRange(nextRange);
     }
-
+    
     function handleDefaultBreakEnter(range: Range): void {
       range.deleteContents();
-
-      const br = document.createElement('br');
+    
+      const br = doc.createElement('br'); // Use iframe doc
       range.insertNode(br);
-
-      // Advance cursor past the new line break
-      const nextRange = document.createRange();
+    
+      const nextRange = doc.createRange(); // Use iframe doc
       nextRange.setStartAfter(br);
       nextRange.collapse(true);
-
-      // Browser rendering fix: a trailing <br> inside an empty block or at the end
-      // will visually collapse unless followed by a trailing helper <br>
+    
       const parent = br.parentNode;
       if (parent && (!br.nextSibling || (br.nextSibling.nodeType === Node.TEXT_NODE && !br.nextSibling.textContent))) {
-        const ghostBr = document.createElement('br');
+        const ghostBr = doc.createElement('br'); // Use iframe doc
         parent.appendChild(ghostBr);
       }
-
-      const sel = window.getSelection();
+    
+      const sel = win.getSelection(); // Use iframe win
       sel?.removeAllRanges();
       sel?.addRange(nextRange);
     }
