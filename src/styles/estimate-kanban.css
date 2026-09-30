@@ -53,6 +53,9 @@ body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; }
 .group-header.group-intake { color: #4a148c; border-left: 4px solid #9c27b0; }
 .group-header.group-pre-con { color: #0d47a1; border-left: 4px solid #2196f3; }
 .job-card { background: white; padding: 10px; margin-bottom: 10px; border-radius: 4px; border-left: 5px solid #bdc3c7; position: relative; cursor: pointer; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); }
+.job-card.blocked { background-color: #ffe0e0; border: 1px solid #f5c6cb; border-left: 5px solid #c0392b; }
+.job-card.blocked a { color: #a93226; }
+.job-card.blocked > div[style*="color: #666"] { color: #721c24 !important; }
 .job-card.danger { border-left-color: #e74c3c; }
 .job-card.warning { border-left-color: #f39c12; }
 .kanban-group-collapsed { flex: 0 0 45px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 20px 5px; border-radius: 6px; cursor: pointer; box-sizing: border-box; user-select: none; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: background 0.2s ease; }
