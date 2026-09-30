@@ -1,0 +1,37 @@
+name: Export Codebase to XML
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_path:
+        description: 'Directory or file pattern to export (leave blank for entire repo)'
+        required: false
+        default: 'src'
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate Code XML
+        run: |
+          if [ -n "${{ github.event.inputs.target_path }}" ]; then
+            npx repomix ${{ github.event.inputs.target_path }} --style xml -o repomix-output.xml
+          else
+            npx repomix --style xml -o repomix-output.xml
+          fi
+
+      - name: Upload XML Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codebase-xml
+          path: repomix-output.xml
+          retention-days: 7
