@@ -44,6 +44,11 @@ export const JobCard = ({ est, onOpen }: JobCardProps) => {
       )}
 
       <div class="badges">
+        {est.isBlocked && (
+          <span class="badge badge-blocked" title={est.blockers.join('\n')}>
+            BLOCKED{est.blockers.length > 1 ? ` (${est.blockers.length})` : ''}
+          </span>
+        )}
         {est.xactId && (
           <span class="badge badge-manual">
             <a
