@@ -2,6 +2,8 @@
 
 body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; }
 
+.add-blocker-row { display: flex; gap: 8px; }
+.add-blocker-row input { flex: 1; padding: 6px 8px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px; }
 .add-btn { background: #27ae60; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; }
 .aging-tag { position: absolute; top: 8px; right: 8px; font-size: 10px; font-weight: bold; color: #95a5a6; }
 .autocomplete-container { position: relative; }
@@ -12,12 +14,22 @@ body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; }
 .badge { display: inline-block; font-size: 9px; padding: 2px 5px; border-radius: 3px; color: white; margin-top: 5px; margin-right: 3px; font-weight: bold; }
 .badge a { color: inherit; text-decoration: none; }
 .badge-auth { background: #8e44ad; }
+.badge-blocked { background: #c0392b; color: #fff; letter-spacing: 0.5px; }
 .badge-urgent { background: #e74c3c; }
 .badge-manual { background: #f39c12; }
+.blocker-item { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #f5c6cb; border-radius: 4px; padding: 6px 8px; margin-bottom: 5px; font-size: 12px; }
+.blocker-text { flex: 1; word-break: break-word; color: #333; }
+.blockers-header { display: block; font-size: 11px; font-weight: bold; color: #721c24; text-transform: uppercase;margin-bottom: 8px; }
+.blockers-list { list-style: none; padding: 0; margin: 0 0 10px 0; max-height: 140px; overflow-y: auto; }
+.blockers-section { margin-top: 15px; margin-bottom: 15px; padding: 12px; background: #fdf2f2; border: 1px solid #f5c6cb; border-radius: 6px; }
+.btn-add-blocker { background: #c0392b; color: white; border: none; border-radius: 4px; padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; }
+.btn-add-blocker:hover { background: #a93226; }
 .btn-cancel { background: #ecf0f1; color: #34495e; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
 .btn-cancel:hover { background: #bdc3c7; }
 .btn-delete { background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
 .btn-delete:hover { background: #c0392b; }
+.btn-remove-blocker { background: none; border: none; color: #e74c3c; font-size: 16px; line-height: 1; cursor: pointer; padding: 0 4px; margin-left: 8px; }
+.btn-remove-blocker:hover { color: #c0392b; font-weight: bold; }
 .btn-save { background: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
 .btn-save:hover { background: #2980b9; }
 .card-list { flex: 1; overflow-y: auto; min-height: 0; }
@@ -60,6 +72,7 @@ body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; }
 .modal-field select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
 .multi-select-dropdown { background: #fff; border: 1px solid #ddd; border-radius: 3px; font-size: 11px; padding: 2px; min-width: 120px; }
+.no-blockers-text { font-size: 11px; color: #7f8c8d; font-style: italic; margin: 4px 0 10px 0; }
 .phase-col { flex: 0 0 220px; display: flex;  flex-direction: column;  background: #ebedef;  border-radius: 6px;  padding: 8px; box-sizing: border-box;  min-width: 170px; max-height: 100%; }
 .phase-col h3 { font-size: 11px; text-align: center; color: #7f8c8d; margin: 0 0 10px 0; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
 .phase-col.group-collections { background: #fff3e0; border-top: 4px solid #ff9800; }
@@ -83,6 +96,7 @@ body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; }
 .tabs-bar { display: flex; background: #2c3e50; padding: 0 15px; justify-content: space-between; align-items: center; min-height: 45px; }
 .tab-btn { padding: 10px 15px; background: none; border: none; color: #95a5a6; cursor: pointer; border-bottom: 3px solid transparent; }
 .tab-btn.active { color: white; border-bottom-color: #3498db; font-weight: bold; }
+
 
 @keyframes spin {
   to { transform: rotate(360deg); }

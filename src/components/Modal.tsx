@@ -57,6 +57,24 @@ export const Modal = ({
   });
   const [searchTerm, setSearchTerm] = useState(estimate.jobNumber || '');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [newBlocker, setNewBlocker] = useState('');
+
+  const handleAddBlocker = () => {
+    const text = newBlocker.trim();
+    if (!text) return;
+    setFormData((prev) => ({
+      ...prev,
+      blockers: [...(prev.blockers || []), text],
+    }));
+    setNewBlocker('');
+  };
+
+  const handleRemoveBlocker = (idxToRemove: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      blockers: (prev.blockers || []).filter((_: string, idx: number) => idx !== idxToRemove),
+    }));
+  };
 
   const isCms = estimate.type === 'CMS';
   const isNew = !estimate.uniqueId || String(estimate.uniqueId).startsWith('new-');
@@ -81,9 +99,9 @@ export const Modal = ({
   const filteredJobs = searchTerm.trim() === ''
     ? activeJobs
     : activeJobs.filter(j =>
-        j.jobNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        j.customer.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      j.jobNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      j.customer.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   return (
     <div
@@ -149,6 +167,49 @@ export const Modal = ({
             />
           );
         })}
+
+        {/* Blockers Management Section */}
+        <div class="blockers-section">
+          <label class="blockers-header">Blockers</label>
+          
+          {(formData.blockers || []).length > 0 ? (
+            <ul class="blockers-list">
+              {(formData.blockers as string[]).map((blocker, idx) => (
+                <li key={idx} class="blocker-item">
+                  <span class="blocker-text">{blocker}</span>
+                  <button
+                    type="button"
+                    class="btn-remove-blocker"
+                    onClick={() => handleRemoveBlocker(idx)}
+                    title="Remove blocker"
+                  >
+                    &times;
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="no-blockers-text">No active blockers</p>
+          )}
+
+          <div class="add-blocker-row">
+            <input
+              type="text"
+              placeholder="Describe what is blocking this estimate..."
+              value={newBlocker}
+              onInput={(e) => setNewBlocker((e.target as HTMLInputElement).value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddBlocker();
+                }
+              }}
+            />
+            <button type="button" class="btn-add-blocker" onClick={handleAddBlocker}>
+              Add
+            </button>
+          </div>
+        </div>
 
         <div class="modal-btns">
           {!isNew && !isCms && (

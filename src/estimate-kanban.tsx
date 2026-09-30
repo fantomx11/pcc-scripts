@@ -134,6 +134,7 @@ export const KanbanApp = ({ initialEstimates }: AppProps) => {
         lastFollowUp: formData.lastFollowUp,
         lastContact: formData.lastContact,
         reviewed: formData.reviewed,
+        blockers: formData.blockers || [],
       };
       Store.save(CONFIG.KEYS.OVERRIDE, ov);
     } else {

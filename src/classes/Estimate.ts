@@ -22,6 +22,7 @@ export interface EstimateData extends JobData {
   deductible?: string | number;
   jobStatus?: string;
   jobCompleted?: string | number;
+  blockers?: string[];
 }
 
 export interface EstimateTasks {
@@ -38,6 +39,7 @@ export class Estimate {
   isManual: boolean;
   deleted: boolean;
   description: string;
+  blockers: string[];
 
   received?: string;
   inspected?: string;
@@ -61,6 +63,7 @@ export class Estimate {
     this.isManual = Boolean(data.isManual);
     this.deleted = Boolean(data.deleted);
     this.description = data.description || 'Main';
+    this.blockers = Array.isArray(data.blockers) ? [...data.blockers] : [];
 
     Job.getOrCreate(data, !data.isManual);
 
@@ -102,6 +105,7 @@ export class Estimate {
   get isInvoiced(): boolean { return isDate(this.invoiced); }
   get hasSupervisor(): boolean { return this.supervisor !== ''; }
   get hasEstimator(): boolean { return Boolean(this.estimator && this.estimator !== ''); }
+  get isBlocked(): boolean { return this.blockers.length > 0; }
 
   get isActive(): boolean {
     if (this.deleted) return false;
