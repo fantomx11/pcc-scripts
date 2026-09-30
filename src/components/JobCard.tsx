@@ -9,9 +9,11 @@ export const JobCard = ({ est, onOpen }: JobCardProps) => {
   const severity = est.aging >= 10 ? 'danger' : (est.aging >= 5 ? 'warning' : 'normal');
   const isProduction = est.phase?.kanbanGroup === 'group-pm';
 
+  const cardClasses = `job-card ${est.isManual ? 'manual' : ''} ${severity} ${est.isBlocked ? 'blocked' : ''}`
+
   return (
     <div
-      class={`job-card ${est.isManual ? 'manual' : ''} ${severity}`}
+      class={cardClasses}
       onClick={onOpen}
     >
       <div class="aging-tag">{est.aging}d</div>
