@@ -29,7 +29,7 @@ export const templates: Record<string, TemplateDefinition> = {
   'initial-approval': {
     text: 'Initial Approved Estimate',
     subjectPrefix: 'Important! Ready for PM Assignment',
-    code: '<ul><li><b>Initial approved amount [New Estimate Amount]</b></li><li><b>Ready for PM assignement</b></li>{{optional:Notes}}{{repeat:Notes}}<li>[Note]</li>{{/repeat}}{{/optional}}</ul>'
+    code: '<ul><li><b>Initial approved amount [New Estimate Amount]</b></li><li><b>Ready for PM assignement</b></li>{{optional:Work Authorization in Dash}}<li>Work authorization is set up and marked ready for signatures in mobile app</li>{{/optional}}{{optional:Notes}}{{repeat:Note}}<li>[Note]</li>{{/repeat}}{{/optional}}{{optional:Milestones}}<li>Job milestones:</li><ul>{{repeat:Milestone}}<li>[Milestone]</li>{{/repeat}}</ul>{{/optional}}</ul>'
   },
   'estimate-update': {
     text: 'Estimate Updated',
@@ -138,6 +138,10 @@ export function parseTemplateIntoBlocks(rawTemplateString: string): ParsedTempla
   return blocks;
 }
 
+function sanitizeId(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+}
+
 export function showTemplateDialog(
   parsedTemplateBlocks: ParsedTemplateBlock[],
   templateConfig: TemplateDefinition,
@@ -194,12 +198,12 @@ export function showTemplateDialog(
       optionalToggleDiv.style.marginBottom = '8px';
       const checkbox = optionalToggleDiv.appendChild(document.createElement('input'));
       checkbox.type = 'checkbox';
-      checkbox.id = `toggle-${templateBlockLabel}`;
+      checkbox.id = sanitizeId(`toggle-${templateBlockLabel}`);
       checkbox.checked = true;
 
       const label = optionalToggleDiv.appendChild(document.createElement('label'));
       label.textContent = `Include optional section: ${templateBlockLabel}`;
-      label.htmlFor = `toggle-${templateBlockLabel}`;
+      label.htmlFor = sanitizeId(`toggle-${templateBlockLabel}`);
       label.style.cssText = 'font-weight: bold; font-size: 11px; margin-left: 5px; color: #333;';
 
       form.appendChild(optionalToggleDiv);
@@ -317,16 +321,23 @@ export function showTemplateDialog(
       if (templateBlockType === 'default') {
         return fillTemplate();
       } else if (templateBlockType === 'optional' && templateBlockLabel) {
-        const toggleEl = form.querySelector(`#toggle-${templateBlockLabel}`) as HTMLInputElement | null;
+        const toggleEl = form.querySelector(`#${sanitizeId(`toggle-${templateBlockLabel}`)}`) as HTMLInputElement | null;
         const isChecked = toggleEl?.checked ?? false;
         const hasStandardVars = templateBlockContent.variables.some(
           (varName) => ((formData.get(varName) as string) || '').trim() !== ''
         );
+        
         const hasRepeatVars = templateBlockContent.sections.some(
           (section) => section.type === 'repeat' && formData.has(`repeat[0][${section.variables[0]}]`)
         );
 
-        if (isChecked && (hasStandardVars || hasRepeatVars)) {
+        debugger;
+
+        const hasAnyDefinitions = templateBlockContent.variables.length > 0 || templateBlockContent.sections.length > 0;
+
+        const shouldRender = isChecked && (!hasAnyDefinitions || hasStandardVars || hasRepeatVars);
+
+        if (shouldRender) {
           return fillTemplate();
         }
       }
