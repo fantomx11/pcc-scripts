@@ -326,6 +326,8 @@ export function showTemplateDialog(
         const hasRepeatVars = templateBlockContent.sections.some(
           (section) => section.type === 'repeat' && formData.has(`repeat[0][${section.variables[0]}]`)
         );
+        
+        debugger;
 
         const hasAnyDefinitions = templateBlockContent.variables.length > 0 || templateBlockContent.sections.length > 0;
 
