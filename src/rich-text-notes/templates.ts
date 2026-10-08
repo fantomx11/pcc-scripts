@@ -317,7 +317,7 @@ export function showTemplateDialog(
       if (templateBlockType === 'default') {
         return fillTemplate();
       } else if (templateBlockType === 'optional' && templateBlockLabel) {
-        const toggleEl = form.querySelector(`#toggle-${templateBlockLabel}`) as HTMLInputElement | null;
+        const toggleEl = form.getElementById(`toggle-${templateBlockLabel}`) as HTMLInputElement | null;
         const isChecked = toggleEl?.checked ?? false;
         const hasStandardVars = templateBlockContent.variables.some(
           (varName) => ((formData.get(varName) as string) || '').trim() !== ''
@@ -326,7 +326,7 @@ export function showTemplateDialog(
         const hasRepeatVars = templateBlockContent.sections.some(
           (section) => section.type === 'repeat' && formData.has(`repeat[0][${section.variables[0]}]`)
         );
-        
+
         debugger;
 
         const hasAnyDefinitions = templateBlockContent.variables.length > 0 || templateBlockContent.sections.length > 0;
