@@ -29,7 +29,7 @@ export const templates: Record<string, TemplateDefinition> = {
   'initial-approval': {
     text: 'Initial Approved Estimate',
     subjectPrefix: 'Important! Ready for PM Assignment',
-    code: '<ul><li><b>Initial approved amount [New Estimate Amount]</b></li><li><b>Ready for PM assignement</b></li>{{optional:Work Authorization in Dash}}<li>Work authorization is set up and marked ready for signatures in mobile app</li>{{/optional}}{{optional:Notes}}{{repeat:Note}}<li>[Note]</li>{{/repeat}}{{/optional}}{{optional:Milestones}}<li>Job milestones</li><ul>{{repeat:Milestone}}<li>[Miulestone]</li>{{/repeat}}</ul>{{/optional}}</ul>'
+    code: '<ul><li><b>Initial approved amount [New Estimate Amount]</b></li><li><b>Ready for PM assignement</b></li>{{optional:Work Authorization in Dash}}<li>Work authorization is set up and marked ready for signatures in mobile app</li>{{/optional}}{{optional:Notes}}{{repeat:Note}}<li>[Note]</li>{{/repeat}}{{/optional}}{{optional:Milestones}}<li>Job milestones:</li><ul>{{repeat:Milestone}}<li>[Milestone]</li>{{/repeat}}</ul>{{/optional}}</ul>'
   },
   'estimate-update': {
     text: 'Estimate Updated',
