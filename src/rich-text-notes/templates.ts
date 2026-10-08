@@ -138,6 +138,10 @@ export function parseTemplateIntoBlocks(rawTemplateString: string): ParsedTempla
   return blocks;
 }
 
+function sanitizeId(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+}
+
 export function showTemplateDialog(
   parsedTemplateBlocks: ParsedTemplateBlock[],
   templateConfig: TemplateDefinition,
@@ -194,12 +198,12 @@ export function showTemplateDialog(
       optionalToggleDiv.style.marginBottom = '8px';
       const checkbox = optionalToggleDiv.appendChild(document.createElement('input'));
       checkbox.type = 'checkbox';
-      checkbox.id = `toggle-${templateBlockLabel}`;
+      checkbox.id = sanitizeId(`toggle-${templateBlockLabel}`);
       checkbox.checked = true;
 
       const label = optionalToggleDiv.appendChild(document.createElement('label'));
       label.textContent = `Include optional section: ${templateBlockLabel}`;
-      label.htmlFor = `toggle-${templateBlockLabel}`;
+      label.htmlFor = sanitizeId(`toggle-${templateBlockLabel}`);
       label.style.cssText = 'font-weight: bold; font-size: 11px; margin-left: 5px; color: #333;';
 
       form.appendChild(optionalToggleDiv);
@@ -317,7 +321,7 @@ export function showTemplateDialog(
       if (templateBlockType === 'default') {
         return fillTemplate();
       } else if (templateBlockType === 'optional' && templateBlockLabel) {
-        const toggleEl = form.getElementById(`toggle-${templateBlockLabel}`) as HTMLInputElement | null;
+        const toggleEl = form.querySelector(`#${sanitizeId(`toggle-${templateBlockLabel}`)}`) as HTMLInputElement | null;
         const isChecked = toggleEl?.checked ?? false;
         const hasStandardVars = templateBlockContent.variables.some(
           (varName) => ((formData.get(varName) as string) || '').trim() !== ''
