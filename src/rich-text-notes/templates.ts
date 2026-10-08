@@ -322,11 +322,16 @@ export function showTemplateDialog(
         const hasStandardVars = templateBlockContent.variables.some(
           (varName) => ((formData.get(varName) as string) || '').trim() !== ''
         );
+        
         const hasRepeatVars = templateBlockContent.sections.some(
           (section) => section.type === 'repeat' && formData.has(`repeat[0][${section.variables[0]}]`)
         );
 
-        if (isChecked && (hasStandardVars || hasRepeatVars)) {
+        const hasAnyDefinitions = templateBlockContent.variables.length > 0 || templateBlockContent.sections.length > 0;
+
+        const shouldRender = isChecked && (!hasAnyDefinitions || hasStandardVars || hasRepeatVars);
+
+        if (shouldRender) {
           return fillTemplate();
         }
       }
