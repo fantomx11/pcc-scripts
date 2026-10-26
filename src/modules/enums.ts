@@ -151,9 +151,9 @@ export const KanbanPhases = {
       { phase: KanbanPhases.PreProduction, isCurrent: Boolean(estimate.isProcessed) && (Boolean(estimate.hasSupervisor) || estimate.division !== 'Structure') && status.includes('pre-production') },
       { phase: KanbanPhases.WorkInProgress, isCurrent: Boolean(estimate.isProcessed) && status.includes('work in progress') },
       { phase: KanbanPhases.CompletedWithoutPaperwork, isCurrent: Boolean(estimate.isProcessed) && status.includes('completed without paperwork') },
-      { phase: KanbanPhases.InvoicePending, isCurrent: Boolean(estimate.isProcessed) && status.includes('invoice pending') },
-      { phase: KanbanPhases.AccountsReceivable, isCurrent: Boolean(estimate.isProcessed) && status.includes('accounts receivable') },
-      { phase: KanbanPhases.WaitingForFinalClosure, isCurrent: Boolean(estimate.isProcessed) && status.includes('waiting for final closure') },
+      { phase: KanbanPhases.InvoicePending, isCurrent: status.includes('invoice pending') },
+      { phase: KanbanPhases.AccountsReceivable, isCurrent: status.includes('accounts receivable') },
+      { phase: KanbanPhases.WaitingForFinalClosure, isCurrent: status.includes('waiting for final closure') },
     ];
 
     const current = phases.reverse().find(e => e.isCurrent);
